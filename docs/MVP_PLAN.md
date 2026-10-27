@@ -23,7 +23,7 @@ Written **Sunday, Oct 25**. Feature freeze is **Tuesday, Nov 3**. Submit by **Tu
 
 ## M1: Walking skeleton, the MVP (Oct 26–28)
 
-Simplification for M1 only: there is **no last call yet**. At the hard deadline, the event either locks and charges (goal reached) or expires (goal missed). Everyone is counted (no conditions yet). Use demo-mode timers (minutes) so you can test it quickly. A failed capture marks the pledge `FAILED` and the event `NEEDS_ATTENTION`, with no retry yet (M2 adds the retry and the treasurer's buttons). The M1 lock still goes through `LAST_CALL → LOCKING` (rule 6): reaching the goal opens a last call that runs until the hard deadline (D25, an M1 shortcut; M2 restores the 1-hour window). D24–D27 were approved Oct 26; **Malama confirms the table layout (D24) before the tables are built.**
+Simplification for M1 only: there is **no last call yet**. At the hard deadline, the event either locks and charges (goal reached) or expires (goal missed). Everyone is counted (no conditions yet). Use demo-mode timers (minutes) so you can test it quickly. A failed capture marks the pledge `FAILED` and the event `NEEDS_ATTENTION`, with no retry yet (M2 adds the retry and the treasurer's buttons). The M1 lock still goes through `LAST_CALL → LOCKING` (rule 6): reaching the goal opens a last call that runs until the hard deadline (D25, an M1 shortcut; M2 restores the 1-hour window). D24–D27 were approved Oct 26 (Malama delegated D24 to Emmanuel).
 
 | Who | Task |
 |---|---|
@@ -61,14 +61,20 @@ Simplification for M1 only: there is **no last call yet**. At the hard deadline,
 
 **Done when:** D1–D7 and F9 pass, and a sandbox run shows Ana ↔ Jay counted together.
 
-## M4: AI reader in the app (Nov 1)
+## M4: AI reader and the own-words pledge flow (Nov 1)
 
 | Who | Task |
 |---|---|
-| Malama | `ai_parser.py` + validator + G1–G3 (the 50 messages frozen by Grok Bot **before** any tuning). Wire it into S7. |
-| Samuel | S7: paste box, privacy note, editable cards, follow-up questions. |
+| Malama | `ai_parser.py` + validator + G1–G3 (the 50 messages frozen by Grok Bot **before** any tuning). Wire it into S4, the pledge page: one friend's message at a time. The validator rule that enforces G1 (`docs/TEAM.md`). D31 #6: the held-only board total in `money.py` (rule 2: no money math in routes or templates). All D31. |
+| Samuel | S4: the own-words box, privacy note, quick-amount buttons (D31 #3) and the editable confirm step (amount, cap, condition). D31 #4 and U12: the share button with a copy-link fallback, and static Open Graph tags (`UI_DESIGN.md` §9). D31 #6: the Pledged / Hold pending / Held chips. D31 #7: the declined-card text on the friend's own link. The S7 chat paste is deferred (`docs/LATER.md`). All D31. |
+| Emmanuel | The parse and confirm routes, and creating the pledge row at confirm (`SYSTEM_DESIGN.md` §5A). The card step stays the B1 flow. D31 #3: `QUICK_AMOUNTS_CENTS` in `config.py` (values OPEN). D31 #6: each row's state in `board.json`, with "hold pending" worked out from `holds`. All D31. |
 
-**Done when:** G1–G3 pass, and the real X/50 score is recorded in `TEST_PLAN.md` and `CLAIMS.md`.
+**Done when** (each manual check is a sandbox run, recorded in the `TEST_PLAN.md` run log):
+- [ ] G1–G3 pass, and the real X/50 score is recorded in `TEST_PLAN.md` and `CLAIMS.md`
+- [ ] Manual check, D31 #3: tapping a quick-amount button fills in the confirm step without typing, and nothing is saved until the friend confirms
+- [ ] Manual check, D31 #4: Share opens the phone's share sheet; in a browser without the Web Share API, the copy-link fallback copies the link; the link preview shows the static Open Graph text, which says sandbox (wake the server first)
+- [ ] Manual check, D31 #6: a pledge shows Pledged before the card step and Held after it, and the board total changes only at Held. Hold pending shows for a hold whose authorize answer hasn't come back (check with the fake PayPal)
+- [ ] Manual check, D31 #7: the decline test card shows the declined-card text on the friend's own link
 
 ## M5: Demo polish → FREEZE (Nov 2–3)
 
@@ -82,11 +88,16 @@ Record the video (under 3 minutes, see `docs/DEMO_SCRIPT.md`), write the README,
 
 ## If you're behind on Oct 31, cut in this order
 
-1. PayPal-button pledgers (already a stretch goal), unless B1 failed and it became the main path.
-2. AI follow-up questions (keep "please retype").
-3. The polished needs-attention screen (keep a plain message and the two buttons).
+One list, including D31's cut order (D31: its #6 and #7 go before #4).
 
-**Never cut:** hold → charge → void, settle-on-wake, the cleanup sweep, compare-and-set, the tests.
+1. PayPal-button pledgers (already a stretch goal), unless B1 failed and it became the main path.
+2. D31 #6: the three visible states (the board total still counts only held money).
+3. D31 #7: the declined-card text on the friend's own link (S5's "Card declined" stays).
+4. D31 #4: the share button and the Open Graph tags (S2's copy button stays).
+5. AI follow-up questions (keep "please retype").
+6. The polished needs-attention screen (keep a plain message and the refund-all button; the new pay link waits on D28).
+
+**Never cut:** hold → charge → void, settle-on-wake, the cleanup sweep, compare-and-set, the tests, and D31 #5 (D04's 48-hour window inside the 3-day honor period).
 
 ## Other dates that land in this window
 

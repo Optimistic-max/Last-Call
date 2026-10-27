@@ -6,7 +6,7 @@
 
 **Nobody pays unless the goal is reached.**
 
-Last Call is a group-payment app for clubs. Everyone pledges the most they'd pay, PayPal holds that amount without charging it, and only if the group reaches its goal is everyone charged once, for their fair share. If the goal is missed, every hold is cancelled and nobody pays. An AI reads the messy group chat and suggests pledge cards. Plain code handles every dollar.
+Last Call is a group-payment app for clubs. Everyone pledges the most they'd pay, PayPal holds that amount without charging it, and only if the group reaches its goal is everyone charged once, for their fair share. If the goal is missed, every hold is cancelled and nobody pays. Each friend types their pledge in their own words, an AI suggests the amount, cap and condition, and the friend confirms or fixes them. Plain code handles every dollar.
 
 Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
@@ -35,7 +35,7 @@ See [`docs/CLAIMS.md`](docs/CLAIMS.md) for every claim with its evidence and sta
 
 ## AI and tools used
 
-- **AI model:** _name goes here._ It turns pasted group-chat messages into suggested pledge cards. The treasurer confirms every card. It never moves money.
+- **AI model:** _name goes here._ It reads each friend's pledge, typed in their own words, and suggests the amount, cap and condition. The friend confirms or fixes them before anything is saved. It never moves money.
 - **PayPal:** Orders v2 (intent `AUTHORIZE`), Payments v2 (capture, void, refund), JavaScript SDK card fields, all in the sandbox.
 - **Hosting:** Render (web app), Neon (Postgres).
 - **AI coding assistants used while building:** _list them honestly._

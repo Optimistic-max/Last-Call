@@ -10,8 +10,9 @@ Read this before touching anything with money. All of it lives in `money.py` as 
 | `FEE_FIXED_CENTS` | `49` | same as above |
 | `MIN_SHARE_CENTS` | `500` ($5) | decided |
 | `MIN_MAX_CENTS` | `500` (nobody can pledge a max under $5) | decided |
-| `PLEDGING_WINDOW` | 48 hours (demo mode: e.g. 10 minutes) | decided |
+| `PLEDGING_WINDOW` | 48 hours (demo mode: e.g. 10 minutes) | decided (D04) |
 | `LAST_CALL_WINDOW` | 1 hour (demo mode: e.g. 3 minutes) | decided |
+| `QUICK_AMOUNTS_CENTS` | not chosen yet (the quick-amount buttons, D31) | OPEN (D31) |
 
 ## 2. Estimating PayPal's fee on one charge
 
@@ -69,6 +70,8 @@ counted   = pledges the circle rule counts (conditions.py)
 goal      = fee_adjusted_goal_cents(deposit, len(counted))
 reached   = len(counted) >= 1 and sum(max_cents of counted) >= goal
 ```
+
+**Board totals (D31):** the board adds up only held money. A pledge that is only "pledged" or "hold pending" adds $0. This matches the goal check above, which uses only counted pledges, and a counted pledge always has a hold.
 
 ## 5. Shares: "split evenly, but never above anyone's max"
 

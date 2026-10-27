@@ -10,8 +10,9 @@ A club needs a $300 cabin deposit. The group chat fills with "I'm in if Jay goes
 
 ## Who it's for
 
-- **Treasurer:** the one person in a small club (hiking club, study group, friend group) who usually fronts the money. Sets the goal, pastes the chat, shares the link, watches the board.
-- **Pledgers:** club members. They tap a link in the group chat on their phone, pledge a maximum, and pay by card. No account needed (once the browser card test passes).
+- **Treasurer:** the one person in a small club (hiking club, study group, friend group) who usually fronts the money. Sets the goal, shares the link, watches the board. Under D31, the group-chat paste is deferred and the link gets a share button.
+- **Pledgers:** club members. They tap a link in the group chat on their phone, pledge a maximum, and pay by card. No account needed (once the browser card test passes). Under D31, they type the pledge in their own words and confirm what the AI read before the card step.
+- **No account to pledge: a friend gives a name, and an email only if they want to (D31).**
 
 ## The promise (use exactly this wording)
 
@@ -32,8 +33,9 @@ The app guards the money, not the trip. It does not book the cabin or pay the ve
 | U7 | pledger | say "actually I'm out" before last call | my hold is cancelled | M2 |
 | U8 | treasurer | see "needs attention" if a charge fails, and choose what to do (the new pay link option waits on D28) | I'm never surprised by an automatic refund | M2 |
 | U9 | pledger | pledge "only if Jay's in" | I only pay if my friend comes | M3 |
-| U10 | treasurer | paste the group chat and get suggested pledge cards | I don't type everyone in by hand | M4 |
+| U10 | pledger | type my pledge in my own words, then fix what the AI read before anything is saved (D31; replaces the treasurer chat paste) | I can say it the way I would in the chat, and nothing is saved until I confirm | M4 |
 | U11 | judge | run a demo with short timers | I can see the whole flow in minutes | M5 |
+| U12 | treasurer | share the event link with a share button, or copy it (D31) | friends get the link in the group chat | M4 |
 
 ## In scope
 

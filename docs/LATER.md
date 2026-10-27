@@ -8,14 +8,26 @@ Anything not in the current milestone goes here, not in the code. Nothing on thi
 |---|---|
 | PayPal-account pledgers through the PayPal button | Becomes a must-have if card fields fail by Oct 28 (D19, approved Oct 25) |
 | Filling a gap from leftover holds after a failed charge | Each extra capture pays its own $0.49, and it breaks conditional pledges if someone was already charged |
-| Importing a chat by uploading an exported text file | Same AI reader, different input |
 
 ## Cut for this hackathon (Oct 25)
 
 | Idea | Why cut |
 |---|---|
 | PayPal Payouts to a venue | Must-haves can't be done by the Oct 27 checkpoint (D08) |
-| Live chat bots (Discord, GroupMe, Telegram) | Scope, free hosting sleeps, trademark risk in the video (D09) |
+
+## Deferred (D31, Oct 26)
+
+Not built before the Nov 3 freeze. Research on each: `unverified`.
+
+| Idea | Note |
+|---|---|
+| Treasurer chat paste (S7) | Left M4 under D31. Was: paste box, privacy note, editable cards, follow-up questions |
+| Importing a chat from an exported text file | Deferred with the S7 paste (D31). Same AI reader, different input |
+| One-sentence setup | — |
+| Drafted nudges | — |
+| "Who's missing?" | — |
+| Venmo and wallets | — |
+| Live chat bots (Discord, GroupMe, Telegram) | Was "cut" (Oct 25), now "deferred" (D09). Scope, free hosting sleeps, trademark risk in the video |
 
 ## Future work (may be mentioned in the README as future work only)
 

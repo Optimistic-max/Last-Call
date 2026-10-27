@@ -31,7 +31,7 @@ Everything is sandbox and fake money, but we treat keys as if they were real. Ju
 ## Logging
 
 - Log PayPal **IDs** (order, authorization, capture) and status codes. They are needed for debugging and evidence.
-- Never log `Authorization` headers, access tokens, full request bodies with personal data, or `.env` values.
+- Never log `Authorization` headers, access tokens, email addresses, full request bodies with personal data, or `.env` values.
 - Error pages shown to users never include stack traces.
 
 ## Links that act as logins
@@ -45,4 +45,6 @@ The app refuses to start unless `PAYPAL_BASE_URL` is exactly `https://api-m.sand
 
 ## Privacy
 
-Pasted group chats are sent to a third-party AI model. The paste screen says so. The demo uses only a fictional chat. No real names or phone numbers go in the repo, the test messages or the video.
+The pledge a friend types is sent to a third-party AI model, and the pledge page says so (D31). The demo uses only a fictional chat and made-up pledges. No real names or phone numbers go in the repo, the test messages or the video.
+
+**Email is optional; name is required (D31).** If a friend gives an email, it is never logged and never goes in the repo, the tests or the video. It never appears on the public board or in `board.json`.

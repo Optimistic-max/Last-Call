@@ -100,9 +100,15 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 
 | ID | Test | Status |
 |---|---|---|
-| G1 | Validator rejects bad JSON, wrong types and invented source lines | NOT RUN |
+| G1 | Validator rejects bad JSON and wrong types, and the parser doesn't invent an amount, cap or condition that's missing from the friend's message | NOT RUN |
 | G2 | Model failure shows "please retype" | NOT RUN |
 | G3 | **Accuracy on the 50 frozen made-up messages: X/50** (report both scores if the prompt changed) | NOT RUN |
+
+## H. New users (after the Nov 3 freeze, D31)
+
+| ID | Test | Status |
+|---|---|---|
+| H1 | 3–5 people who haven't used the app pledge on the live link (sandbox). Record where they got stuck, with no names or emails. Timing: NOT RUN until measured, and no timing claims before then | NOT RUN |
 
 ## Run log
 

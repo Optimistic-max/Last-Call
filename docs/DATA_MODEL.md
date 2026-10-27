@@ -1,6 +1,6 @@
 # Data model
 
-> **D24 approved by Emmanuel Oct 26. Malama: confirm this layout before building tables.**
+> **D24 approved by Emmanuel Oct 26 (Malama delegated the decision to Emmanuel).**
 
 All money columns are **integer cents**. All times are `TIMESTAMPTZ` stored in UTC. This is the starting `schema.sql`. Malama owns it, and any change gets a line in `docs/DECISIONS.md`.
 

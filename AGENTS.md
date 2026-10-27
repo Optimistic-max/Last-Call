@@ -6,7 +6,7 @@ Read this whole file before writing any code. Then open `docs/MVP_PLAN.md` to se
 
 Before working on `DATA_MODEL.md`, the database, or `lifecycle.py`, read `docs/DECISIONS.md`. A decision that is PROPOSED or awaiting a teammate's confirmation blocks only the work it covers. If it covers what you are about to do, stop, tell the user which one blocks the work, and ask before continuing.
 
-Blocking right now: **D24** (waiting on Malama's confirmation) blocks the database tables and `lifecycle.py`, since both use the holds layout. Delete this line when Malama confirms.
+Blocking right now: nothing (D24 and D31 were approved Oct 26).
 
 ## Open to-dos
 
@@ -18,7 +18,7 @@ Before editing any file, check `docs/TEAM.md` for open to-dos on that file and m
 
 **Last Call** (working name) is a group-payment web app for one club. A treasurer sets a goal, like a $300 cabin deposit. People pledge the most they would pay ("up to $40") and can add conditions ("only if Jay's in"). PayPal **holds** each person's max without charging it. If the goal is reached, a one-hour last call opens, shares lock, and everyone is **charged once** for their fair share. If the goal is missed, every hold is **cancelled** and nobody pays.
 
-The AI only turns a pasted group chat into suggested pledge cards. Plain code makes every money decision.
+The AI only reads one friend's pledge, typed in their own words, and suggests an amount, cap and condition that the friend confirms (D31). Plain code makes every money decision.
 
 It is built for the PayPal AI Hackathon (deadline Nov 12, 2026, 12:00 PM PT). **Everything runs in PayPal's sandbox, with fake money.**
 
@@ -112,7 +112,7 @@ conditions.py       PURE circle rule: who is counted                           (
 paypal_client.py    every PayPal HTTP call, nothing else                       (Emmanuel)
 lifecycle.py        state changes: open, last call, lock + charge, expire,
                     cleanup, settle-on-wake                                    (Emmanuel)
-ai_parser.py        group chat text -> suggested pledge cards                  (Malama)
+ai_parser.py        one friend's message -> suggested pledge (D31)             (Malama)
 schema.sql          all CREATE TABLE statements                                (Malama)
 templates/          Jinja HTML                                                 (Samuel)
 static/             CSS, JS, images                                            (Samuel)

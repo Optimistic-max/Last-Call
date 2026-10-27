@@ -8,7 +8,7 @@ The line above imports `AGENTS.md`. If it did not load, open `AGENTS.md` now and
 
 Before working on `DATA_MODEL.md`, the database, or `lifecycle.py`, read `docs/DECISIONS.md`. A decision that is PROPOSED or awaiting a teammate's confirmation blocks only the work it covers. If it covers what you are about to do, stop, tell the user which one blocks the work, and ask before continuing.
 
-Blocking right now: **D24** (waiting on Malama's confirmation) blocks the database tables and `lifecycle.py`, since both use the holds layout. Delete this line when Malama confirms.
+Blocking right now: nothing (D24 and D31 were approved Oct 26).
 
 ## Open to-dos
 

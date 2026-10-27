@@ -21,12 +21,12 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | # | Screen | Route | Milestone | Must show |
 |---|---|---|---|---|
 | S1 | Create event | `/` | M1 | title, deposit ($), demo-mode checkbox, "Create" |
-| S2 | Treasurer view | `/admin/<token>` | M1 | the share link (copy button), "Open pledging", the board, needs-attention actions (M2) |
+| S2 | Treasurer view | `/admin/<token>` | M1 | the share link (copy button), "Open pledging", the board, needs-attention actions (M2). D31: a Share button, see §9 |
 | S3 | Board (public) | `/e/<id>` | M1 | goal, progress bar, who's in, time left, status banner |
-| S4 | Pledge | `/e/<id>/pledge` | M1 | name, max, the promise text, PayPal card fields, "Hold my max" |
+| S4 | Pledge | `/e/<id>/pledge` | M1 | name, max, the promise text, PayPal card fields, "Hold my max". D31 (M4): name (required) and email (optional), a box to type the pledge in your own words, quick-amount buttons, the privacy note, and an editable confirm step before the card fields: amount (the minimum, shown only, D12), cap (the maximum held) and condition. Nothing is saved until the friend confirms: the AI's result stays only in the page. The card fields part stays the B1 flow |
 | S5 | Pledge result | same page | M1 | "Held", "Card declined", "Pledging closed", or an error |
 | S6 | I'm out | `/p/<token>` | M2 | "Cancel my pledge" or the "can't leave during last call" message |
-| S7 | Paste chat + confirm cards | `/admin/<token>/setup` | M4 | paste box, privacy note, editable cards, follow-up questions |
+| S7 | Paste chat + confirm cards | `/admin/<token>/setup` | — | Deferred to `docs/LATER.md` (D31). Was: paste box, privacy note, editable cards, follow-up questions |
 
 ## 4. Exact wording (use these strings; they were checked for honesty)
 
@@ -39,6 +39,7 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | S5 decline | **Card declined. Nothing was held. Try another card.** |
 | S5 pledging closed | **Pledging closed before your hold went through. We're cancelling the hold, and nothing will be charged.** |
 | S5 error | **Something went wrong. Nothing was charged. Please try again.** |
+| Declined card, on the friend's own link (D31) | **Your card was declined, so nothing is held and you're not counted yet. Try another card.** |
 | S3 goal line | **Goal $[goal] so the club gets a full $[deposit] after fees** |
 | S3 last call banner | **Last call! Goal reached. Join in the next [mm:ss] and everyone's share drops.** |
 | S6 during last call | **You're counted, so you can't leave during last call.** |
@@ -48,7 +49,7 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | Refund-all confirm | **Refunding returns everyone's money, but PayPal keeps its fees ($[fees]). This can't be undone.** |
 | Slow first load | **Waking up the app… (free hosting can take up to a minute)** |
 | Demo mode badge | **Demo mode: timers are minutes, not hours** |
-| AI paste screen | **AI reads. You confirm. Plain code handles the money.** and **This text is sent to [provider] to read it. Don't paste anything private.** |
+| S4 own-words box (D31) | **AI reads. You confirm. Plain code handles the money.** and **What you type here is sent to [provider] to read it. Don't type anything private.** |
 
 The [Send [Name] a new pay link] button in the "Needs attention" wording waits on D28.
 
@@ -65,7 +66,9 @@ Never write "released instantly", "sent to the cabin", or "no signup needed" (th
 | `NEEDS_ATTENTION` | "Needs the treasurer's attention" | full, warning color |
 | `EXPIRED` | the missed-goal message | grey |
 
-Each pledger row shows: name · status chip (Held / Counted / Waiting on [name] / Declined / Charged $[share]) · max. Conditions show as "if Jay's in".
+Each pledger row shows (never the email, which never appears on the public board or in `board.json`, D31): name · status chip (Held / Counted / Waiting on [name] / Declined / Charged $[share]) · max. Conditions show as "if Jay's in".
+
+**D31:** three visible states, each a word, not only a color: **Pledged** (confirmed, no card yet), **Hold pending** (card sent, PayPal's answer not back yet), **Held**. Board totals count only held money: pledged and hold-pending rows add $0.
 
 ## 6. The three moments the video needs (simple CSS only)
 
@@ -79,9 +82,16 @@ Keep animations under about 0.8 seconds and respect `prefers-reduced-motion`.
 
 - Text contrast meets WCAG AA. Status is never shown by color alone (always a word too).
 - Buttons are at least 44px tall on phones.
+- **Never ask a friend for the same info twice (D31):** the name (and the email, if given) once, the pledge once. A retry after "Card declined" keeps everything they typed.
 - The board refreshes every 10 seconds with a simple `fetch` to `GET /e/<id>/board.json` (no websockets).
 - Show money as `$1,234.56` using one template filter. The JSON endpoint sends amounts already formatted, so JavaScript never does money math or formatting. For the share-drop animation, it also sends the old and new values in cents.
 
 ## 8. Final palette and fonts
 
 _Samuel fills this in._
+
+## 9. Sharing the link (D31)
+
+- **Share button** on S2: uses the Web Share API where the browser has it, with a copy-link button as the fallback.
+- **Static Open Graph tags** on the event link page (`og:title`, `og:description`, `og:image`): the same for every event, with no names or amounts. The description says it's a sandbox demo.
+- **Wake the Render server before sharing the link.** Open the link once yourself first: the free server sleeps, and otherwise the link preview or the first friend may reach it asleep.

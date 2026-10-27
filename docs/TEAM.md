@@ -20,7 +20,9 @@ Agents check this list before editing a file and mention any open to-do on it (`
 | Who | File | To-do |
 |---|---|---|
 | Samuel | `docs/UI_DESIGN.md` | Add '[Name] has already pledged.' to UI_DESIGN (D26). |
-| Malama | `docs/DATA_MODEL.md` | Confirm D24 and events.lock_started_at in docs/DATA_MODEL.md. |
+| Malama | `docs/DATA_MODEL.md` | Approve or reject the database values D31 needs: an optional `pledges.email` column (name stays required), and a `HOLD_PENDING` pledge status only if the team wants it stored instead of worked out from `holds`. DATA_MODEL isn't changed yet. Doesn't block other work (Oct 26). |
+| Malama | `docs/STATE_MACHINE.md` | Approve or reject the change D31 needs: no `PARSED` state in the main flow, because nothing is saved before the friend confirms (the parse result stays in the page; the pledge row is created at confirm). STATE_MACHINE isn't changed yet. Doesn't block other work (Oct 26). |
+| Malama | `docs/AI_PARSER.md` | Add a validator rule: reject any amount, cap or condition that doesn't appear in the friend's message (enforces G1). Doesn't block other work (Oct 26). |
 
 ## How we work (proposed by Emmanuel, agree as a team at the first check-in)
 

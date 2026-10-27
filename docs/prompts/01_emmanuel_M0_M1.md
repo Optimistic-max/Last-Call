@@ -12,7 +12,7 @@ I am Emmanuel. I own the money code (`paypal_client.py`, `lifecycle.py`, `app.py
 1. the list of files you'll create or change for M0 and the Emmanuel parts of M1,
 2. every function name with a one-line description,
 3. which tests from `docs/TEST_PLAN.md` you'll write (E7, E8, E10, F1, plus fake-PayPal tests for create/authorize/settle/charge/void),
-4. anything in the docs you think is wrong or unclear, and check `docs/DECISIONS.md` first: D24–D27 were approved Oct 26, but D24 still needs Malama's confirmation before the tables are built,
+4. anything in the docs you think is wrong or unclear, and check `docs/DECISIONS.md` first: D24–D27 and D31 were approved Oct 26,
 5. the three checks for `docs/PAYPAL_INTEGRATION.md` §3 (SDK version, ACDC, decline behavior) and how I should do each one.
 
 Wait for my approval before writing any code.

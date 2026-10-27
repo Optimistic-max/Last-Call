@@ -78,9 +78,14 @@ There are two more layers of protection:
 
 ```
 Browser                      Flask                         PayPal               DB
-  │ fill name + max            │                              │                   │
-  │ click "Hold my max" ──────►│ POST /api/orders              │                   │
+  │ name, email, pledge text   │                               │                   │
+  │ "Check" ──────────────────►│ POST /api/pledges/parse       │                   │
+  │                            │ ai_parser + AI model          │                   │
+  │◄──── suggestion ───────────│ (nothing saved)               │                   │
+  │ fix + confirm ────────────►│ POST /api/pledges             │                   │
   │                            │ save pledge (PENDING_PAY) ───────────────────────►│
+  │◄──── pledger_token ────────│                               │                   │
+  │ click "Hold my max" ──────►│ POST /api/orders              │                   │
   │                            │ save hold row + create request ID ───────────────►│
   │                            │ create order intent=AUTHORIZE►│                   │
   │                            │ save order_id ───────────────────────────────────►│
@@ -96,7 +101,9 @@ Browser                      Flask                         PayPal               
   │◄──── "Held" or "Card declined"                            │                   │
 ```
 
-`POST /api/orders` refuses unless the event is `OPEN` or `LAST_CALL`. A second try with the same name reuses that person's unpaid pledge with a new hold row and order, and is refused if they already hold (D26). If the event has left those states by the time the authorization comes back, void the hold at once, mark the pledge `DROPPED` and show the "pledging closed" message (`UI_DESIGN.md` §4). The cleanup sweep catches any hold that slips past this check.
+D31: `POST /api/pledges/parse` sends the friend's message to the AI and returns a suggested amount, cap and condition; it saves nothing. `POST /api/pledges` creates the pledge row (`PENDING_PAY`) from what the friend confirmed and returns the pledge's private `pledger_token`. A second confirm with the same name follows D26: it reuses that person's unpaid pledge and is refused if they already hold. In M1, before the AI is wired in (M4), the page skips the parse and confirms the typed name and max directly.
+
+From `POST /api/orders` on, the B1 order/authorize flow is unchanged. The page sends the `pledger_token`, and the server creates the hold row and order for that pledge. A retry after "Card declined" creates a new hold row and order for the same pledge. `POST /api/pledges` and `POST /api/orders` refuse unless the event is `OPEN` or `LAST_CALL`. If the event has left those states by the time the authorization comes back, void the hold at once, mark the pledge `DROPPED` and show the "pledging closed" message (`UI_DESIGN.md` §4). The cleanup sweep catches any hold that slips past this check.
 
 ### B. Goal check (every time a hold succeeds, and on wake)
 
@@ -124,7 +131,7 @@ Browser                      Flask                         PayPal               
 
 ### E. AI reading (milestone M4)
 
-Treasurer pastes chat → `ai_parser.parse_chat(text)` → JSON is validated by plain code → unreadable lines become "please retype" → the treasurer edits and confirms the cards → confirmed cards become pledges in `PENDING_PAY`, and each pledger still holds their own money through the link.
+D31: a friend types their pledge on the pledge page → `ai_parser.parse_pledge(text)` → JSON is validated by plain code (`validate_pledge`) → the result stays only in the page → the friend fixes and confirms the amount, cap and condition → the pledge row is created at confirm, in `PENDING_PAY` → the card step, which is the B1 flow, unchanged. A message the AI can't read becomes "please retype", and the friend can fill in the fields by hand. The treasurer chat paste is deferred (`docs/LATER.md`).
 
 ## 6. Failure handling at capture
 
@@ -151,7 +158,9 @@ The full list of PayPal responses and what we do lives in one place: `PAYPAL_INT
 | `GET /e/<event_id>/board.json` | board JS | board data for the 10-second refresh (amounts pre-formatted) |
 | `GET /e/<event_id>/pledge` | pledger | pledge form + card fields |
 | `GET /api/client-token` | browser JS | browser-safe client token for the SDK v6 card fields (D16). Never logged |
-| `POST /api/orders` | browser JS | create pledge + PayPal order (intent AUTHORIZE) |
+| `POST /api/pledges/parse` | browser JS | D31: the AI reads one friend's message and returns a suggested amount, cap and condition. Saves nothing |
+| `POST /api/pledges` | browser JS | D31: creates the pledge row (`PENDING_PAY`) from what the friend confirmed and returns its private `pledger_token`. D26 rules apply |
+| `POST /api/orders` | browser JS | create the hold row + PayPal order (intent AUTHORIZE) for a confirmed pledge, sent with its `pledger_token` (D31; before D31 this route also created the pledge) |
 | `POST /api/orders/<order_id>/authorize` | browser JS | authorize, save, report HELD or DECLINED |
 | `POST /p/<pledger_token>/leave` | pledger | "actually I'm out" (M2) |
 | `POST /admin/<admin_token>/refund-all` | treasurer | refund-all (M2) |
