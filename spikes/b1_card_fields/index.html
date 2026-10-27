@@ -1,0 +1,93 @@
+<!doctype html>
+<!-- Throwaway spike for test B1 (PayPal JavaScript SDK v6 card fields, intent AUTHORIZE). Not app code. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>B1 spike: card hold</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 420px; margin: 24px auto; padding: 0 16px; }
+    .banner { background: #fde68a; padding: 8px; font-weight: bold; }
+    /* v6 card fields need containers with a set height and width */
+    .field { height: 56px; width: 100%; margin: 8px 0; }
+    button { height: 44px; width: 100%; font-size: 16px; }
+    #log { white-space: pre-wrap; background: #f3f4f6; padding: 8px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <p class="banner">SANDBOX DEMO: fake money, no real charges</p>
+  <h1>Hold $1.00 (test B1)</h1>
+  <p>Card number</p><div id="paypal-card-fields-number" class="field"></div>
+  <p>Expiry</p><div id="paypal-card-fields-expiry" class="field"></div>
+  <p>CVV</p><div id="paypal-card-fields-cvv" class="field"></div>
+  <button id="pay-button" disabled>Hold $1.00</button>
+  <p id="log">Loading PayPal…</p>
+
+  <script>
+    // Show each step on the page, so you can tell exactly where it stopped.
+    function show(message) {
+      document.getElementById("log").textContent += "\n" + message;
+      console.log(message);
+    }
+
+    // Runs when PayPal's v6 SDK script has loaded.
+    async function onPayPalWebSdkLoaded() {
+      try {
+        const tokenResponse = await fetch("/api/client-token");
+        const tokenData = await tokenResponse.json();
+        if (!tokenResponse.ok) { show("Client token failed: " + tokenData.error); return; }
+
+        const sdk = await window.paypal.createInstance({
+          clientToken: tokenData.clientToken,
+          components: ["card-fields"],
+          pageType: "checkout",
+        });
+
+        // PayPal's guide says the eligibility answer may not list cards yet, so log it and try anyway.
+        const methods = await sdk.findEligibleMethods({ currencyCode: "USD" });
+        show("Eligible for advanced_cards: " + methods.isEligible("advanced_cards"));
+
+        const session = sdk.createCardFieldsOneTimePaymentSession();
+        const types = ["number", "expiry", "cvv"];
+        for (const type of types) {
+          const field = session.createCardFieldsComponent({ type: type });
+          document.querySelector("#paypal-card-fields-" + type).appendChild(field);
+        }
+        show("Card fields rendered. Type the test card and press the button.");
+
+        const button = document.getElementById("pay-button");
+        button.disabled = false;
+        button.addEventListener("click", () => holdCard(session));
+      } catch (error) {
+        show("Card fields did not load: " + error);
+      }
+    }
+
+    // Create the order on our server, send the card to PayPal, then authorize on our server.
+    async function holdCard(session) {
+      document.getElementById("pay-button").disabled = true;
+      try {
+        const orderResponse = await fetch("/api/orders", { method: "POST" });
+        const order = await orderResponse.json();
+        show("Order " + order.id + ": " + order.status);
+        if (!orderResponse.ok) { show("Creating the order failed. See the server console."); return; }
+
+        // The billing ZIP is the sample value from PayPal's v6 card-fields guide.
+        const result = await session.submit(order.id, { billingAddress: { postalCode: "95131" } });
+        show("Card submit: " + result.state);
+        if (result.state !== "succeeded") {
+          show("Not approved: " + JSON.stringify(result.data));
+          return;
+        }
+
+        const authResponse = await fetch("/api/orders/" + order.id + "/authorize", { method: "POST" });
+        const auth = await authResponse.json();
+        show("HTTP " + authResponse.status + ". Authorization " + auth.authorization_id + ": " + auth.authorization_status);
+      } catch (error) {
+        show("Error: " + error);
+      }
+    }
+  </script>
+  <script async src="https://www.sandbox.paypal.com/web-sdk/v6/core" onload="onPayPalWebSdkLoaded()"></script>
+</body>
+</html>

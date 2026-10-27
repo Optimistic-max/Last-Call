@@ -1,0 +1,22 @@
+# Secrets: never commit
+.env
+.env.*
+!.env.example
+
+# Planning PDF: has personal notes (internship deadlines) and the old 0.49 formula. Keep it out of the public repo.
+Last_Call_Project_Plan_FINAL.pdf
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Logs and local junk
+*.log
+logs/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

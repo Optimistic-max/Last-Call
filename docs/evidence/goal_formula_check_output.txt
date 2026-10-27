@@ -1,0 +1,7 @@
+Hand example: $300 deposit, 4 people, nobody capped
+  old goal $309.99, shares [77.49, 77.5, 77.5, 77.5]
+  fees [2.5, 2.5, 2.5, 2.5], club receives $299.99
+  new goal $310.01, club receives $300.01
+Random events: 200000 each
+  old formula: 75454 short (37.7%), worst short 19 cents
+  new formula: 0 short, worst short 0 cents
