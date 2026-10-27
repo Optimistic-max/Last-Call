@@ -106,6 +106,6 @@ Typing a pledge sends that text to a third-party AI service. The pledge page mus
 
 **Honesty rule:** if the prompt changes after the first scored run, report **both** scores (before and after).
 
-## 8. Model choice (OPEN, Malama decides)
+## 8. Model choice (decided: D15, Oct 27)
 
-Pick one free model. Record in `docs/DECISIONS.md`: model name, provider, free-tier limits (requests per minute and per day), whether typed text is used for training, and the date you checked.
+Groq, `openai/gpt-oss-20b`, with strict `json_schema` output. The privacy note in §6 names Groq. Free-plan limits are still `unverified` until someone reads them in the Groq console. Details, sources and the backup model are in `docs/DECISIONS.md` D15.

@@ -43,26 +43,26 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 
 | ID | Test | Status |
 |---|---|---|
-| C1 | `estimate_fee_cents` matches all 7 sandbox fees | NOT RUN |
-| C2 | Goal for $300 at 1, 6, 12, 20 pledgers equals $308.49, $311.03, $314.08, $318.14 (D11, approved Oct 25) | NOT RUN |
-| C3 | **Net ≥ deposit**: random deposits ($20–$2,000), group sizes 1–40 and random maxes, at least 10,000 cases, never short | NOT RUN |
-| C4 | Plan example: goal $100, maxes 15/40/40/40 → 15.00, 28.33, 28.33, 28.34 | NOT RUN |
-| C5 | Odd amounts: shares of $15.37, $28.33, $5.01 have correct estimated fees | NOT RUN |
-| C6 | No share above its max, none below $5, sum = goal (unless the $5 floor applied) | NOT RUN |
-| C7 | Same inputs give the same shares every time | NOT RUN |
-| C8 | Goal check and lock use the same functions (one test calls both paths) | NOT RUN |
+| C1 | `estimate_fee_cents` matches all 7 sandbox fees | VERIFIED (Oct 27, `tests/test_money.py`) |
+| C2 | Goal for $300 at 1, 6, 12, 20 pledgers equals $308.49, $311.03, $314.08, $318.14 (D11, approved Oct 25) | VERIFIED (Oct 27, also the $300 / 4 people hand example: goal $310.01, club gets $300.01 with the fee estimate) |
+| C3 | **Net ≥ deposit**: random deposits ($20–$2,000), group sizes 1–40 and random maxes, at least 10,000 cases, never short | VERIFIED with the fee estimate, not real captures (Oct 27, 10,000 cases, seed 3, 0 short). The same cases with the old 0.49 formula: 3,784 short, so the test does catch it |
+| C4 | Plan example: goal $100, maxes 15/40/40/40 → 15.00, 28.33, 28.33, 28.34 | VERIFIED (Oct 27) |
+| C5 | Odd amounts: shares of $15.37, $28.33, $5.01 have correct estimated fees | VERIFIED against the formula (Oct 27): $15.37 → 89¢ matches the sandbox; $28.33 → $1.22 and $5.01 → 62¢ were worked out by hand, never charged in the sandbox |
+| C6 | No share above its max, none below $5, sum = goal (unless the $5 floor applied) | VERIFIED (Oct 27, 10,000 random cases, seed 6, plus a $20 / 40 people floor example) |
+| C7 | Same inputs give the same shares every time | VERIFIED (Oct 27, also checks the input list isn't changed) |
+| C8 | Goal check and lock use the same functions (one test calls both paths) | VERIFIED for `money.py` only (Oct 27): `goal_is_reached` uses `fee_adjusted_goal_cents`, and when it says reached, the shares add up to exactly that goal. That `lifecycle.py` calls these at the goal check and at lock: NOT RUN (Emmanuel's code) |
 
 ## D. Circle rule (`tests/test_conditions.py`, Malama)
 
 | ID | Test | Status |
 |---|---|---|
-| D1 | Chain: A needs B needs C, C absent, so all drop | NOT RUN |
-| D2 | Mutual circle A↔B, both in | NOT RUN |
-| D3 | Circle plus a dependent (C needs A, A↔B), all in | NOT RUN |
-| D4 | Depends on a name nobody pledged, so it drops | NOT RUN |
-| D5 | Two conditions on one pledge, both needed | NOT RUN |
-| D6 | Names match ignoring case and extra spaces | NOT RUN |
-| D7 | Adding a pledger never un-counts anyone (invariant 1) | NOT RUN |
+| D1 | Chain: A needs B needs C, C absent, so all drop | VERIFIED (Oct 27, `tests/test_conditions.py`; a one-pass version of the rule fails it) |
+| D2 | Mutual circle A↔B, both in | VERIFIED (Oct 27) |
+| D3 | Circle plus a dependent (C needs A, A↔B), all in | VERIFIED (Oct 27) |
+| D4 | Depends on a name nobody pledged, so it drops | VERIFIED (Oct 27) |
+| D5 | Two conditions on one pledge, both needed | VERIFIED (Oct 27) |
+| D6 | Names match ignoring case and extra spaces | VERIFIED (Oct 27) |
+| D7 | Adding a pledger never un-counts anyone (invariant 1) | VERIFIED for `conditions.py` (Oct 27: 2,000 random groups, seed 7, plus a hand example; an "only if X is not in" rule fails it). In the running app: NOT RUN (wired in at M3) |
 
 ## E. Timing and lifecycle (`tests/test_lifecycle.py`, Emmanuel, fake PayPal)
 
