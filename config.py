@@ -30,6 +30,10 @@ SANDBOX_BASE_URL = "https://api-m.sandbox.paypal.com"
 # (docs/PAYPAL_INTEGRATION.md section 5).
 PAYPAL_TIMEOUT_SECONDS = 20
 
+# PayPal's access token says how long it lasts. We treat it as expired this many seconds early,
+# so a token never runs out in the middle of a call.
+TOKEN_REFRESH_MARGIN_SECONDS = 60
+
 # PayPal's sandbox fee on each capture: 2.59% + $0.49 (docs/MONEY_RULES.md section 1).
 # 1 basis point is 0.01%, so 259 basis points is 2.59%. Whole numbers, so no float ever touches money.
 FEE_PERCENT_BASIS_POINTS = 259
