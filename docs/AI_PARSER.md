@@ -1,6 +1,6 @@
 # AI pledge reader
 
-Owner: **Malama**. Lives in `ai_parser.py`. Milestone **M4** in the app, but Malama can build and test it from day 1 because it needs no PayPal and no database.
+Owner: **Malama**. Lives in `ai_parser.py`. Milestone **M4**. No parser code before M4; first, Malama chooses the model (D15) before Oct 29.
 
 > **D31 (APPROVED, Oct 26): own-words pledge flow.** This page describes it. Each friend types their own pledge on the event link page, and the AI reads that one message. The treasurer chat paste is deferred (`docs/LATER.md`).
 

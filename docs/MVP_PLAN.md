@@ -14,10 +14,12 @@ Written **Sunday, Oct 25**. Feature freeze is **Tuesday, Nov 3**. Submit by **Tu
 
 | Who | Task |
 |---|---|
-| Emmanuel | Create the public GitHub repo with an **MIT license** (pick it when creating the repo so it shows in the About section). Add this starter kit. **Regenerate the sandbox client secret** before the first commit, since the old one was shared with bots. Put the new keys only in `.env` and Render. Protect `main` on GitHub (require a pull request before merging), so all work merges through a pull request Emmanuel reviews (D22). |
+| Emmanuel | Create the public GitHub repo with an **MIT license** (pick it when creating the repo so it shows in the About section). Add this starter kit. **Regenerate the sandbox client secret** before the first commit, since the old one was shared with bots. Put the new keys only in `.env` and Render. |
 | Malama | Neon project with three branches: `main` (production), `dev`, `test`. Write `schema.sql` from `DATA_MODEL.md` and apply it to all three. Render free web service connected to the repo, with `GET /health` returning `ok` and a database ping (`/health` and `requirements.txt` are the first code in Emmanuel's `app.py`: keep it to that one route and say so in the pull request). Re-read the Render and Neon free-tier pages linked in `SYSTEM_DESIGN.md` §2 and update the dates there. |
 | Samuel | `templates/base.html` with the sandbox banner, the fonts and the color tokens. Sketch S3 (board) and S4 (pledge) on paper or in a design tool. |
 | Everyone | Register on the hackathon's Devpost page, then accept the team invite. |
+
+**Git (D22):** Emmanuel pushes directly to `main` only during the docs and planning phase. Once coding starts, everyone works on branches and merges through pull requests; Emmanuel reviews and merges Samuel's and Malama's. Run `pytest` before merging into `main`, because Render deploys `main` to the live URL. Malama reviews any pull request that touches capture or `lock_and_charge`. `main` is never locked (changed Oct 26). After the Nov 3 freeze, only bug fixes, docs (README, Devpost text) and judge test logins merge into `main`.
 
 **Done when:** the live Render URL shows the base page with the sandbox banner, `/health` returns ok with the database connected, `pytest` runs (even with zero tests), and `.env` is not in the repo.
 
@@ -27,10 +29,10 @@ Simplification for M1 only: there is **no last call yet**. At the hard deadline,
 
 | Who | Task |
 |---|---|
-| Emmanuel | `paypal_client.py` (token, create order, authorize, get authorization, capture, get capture, void). `lifecycle.py`: create pledge + order, authorize result, `settle_due_events` with compare-and-set, `lock_and_charge`, `expire_event`. Startup sandbox guard. |
-| Emmanuel + Samuel | **Card fields with intent authorize in a real browser** (S4, S5), together. |
-| Malama | `money.py` (`estimate_fee_cents`, `fee_adjusted_goal_cents`, `compute_shares_cents`) + `tests/test_money.py` (C1–C8). `db.py` with a one-time retry on the first connection. |
-| Samuel | S1 create event, S2 treasurer view (share link + open button), S3 board with the 10-second refresh. |
+| Emmanuel | `paypal_client.py` (token, client token, create order, authorize, get authorization, capture, get capture, void). `lifecycle.py`: create pledge (at confirm, D31) + order, authorize result, `settle_due_events` with compare-and-set, `lock_and_charge`, `expire_event`. Startup sandbox guard. |
+| Emmanuel + Samuel | **Card fields with intent authorize in a real browser** (S4, S5), together: Emmanuel builds a bare `templates/pledge.html` and `static/js/pledge_paypal.js` (the v6 card fields from the B1 spike), and Samuel restyles the page. |
+| Malama | `money.py` (`estimate_fee_cents`, `fee_adjusted_goal_cents`, `compute_shares_cents`) + `tests/test_money.py` (C1–C8). `db.py` with a one-time retry on the first connection. Choose the AI model (D15) before Oct 29: research only, no `ai_parser.py` code until M4. |
+| Samuel | S1 create event, S2 treasurer view (share link + open button), S3 board with the 10-second refresh: a plain status word per person (Pledged, Held or Declined), and a total that counts only held money. |
 
 **Done when** (all on the live Render URL, sandbox):
 - [ ] B1: a guest card hold works in a real browser, and the auth ID is in our database
@@ -47,7 +49,7 @@ Simplification for M1 only: there is **no last call yet**. At the hard deadline,
 |---|---|
 | Emmanuel | `LAST_CALL` state with `last_call_ends = min(now + 1h, hard_deadline)`. Leave rules. Cleanup sweep. Capture retry → `NEEDS_ATTENTION`. Refund-all action. New pay link action (waits on D28). |
 | Samuel | S6 I'm out page, last call banner + countdown, needs-attention panel, refund-all confirmation. |
-| Malama | Keep building `conditions.py` and `ai_parser.py` (parallel lane). |
+| Malama | Keep building `conditions.py` (parallel lane). No `ai_parser.py` code until M4. |
 
 **Done when:** E1–E6, F2, F4–F7, F11–F13 pass (F8 waits on D28), and a sandbox run on the live URL shows last call → a late joiner → shares drop → lock → charges.
 
@@ -78,7 +80,7 @@ Simplification for M1 only: there is **no last call yet**. At the hard deadline,
 
 ## M5: Demo polish → FREEZE (Nov 2–3)
 
-Demo mode badge (E9), the three video moments, the slow-load screen, README draft, `CLAIMS.md` synced with `TEST_PLAN.md`, final project name. **Freeze at the end of Nov 3: after this, no new features and no new APIs.** Only bug fixes, README and video.
+Demo mode badge (E9), the three video moments, the slow-load screen, README draft, `CLAIMS.md` synced with `TEST_PLAN.md`, final project name. **Freeze at the end of Nov 3: after this, no new features and no new APIs.** After the freeze, only bug fixes, docs (README, Devpost text) and judge test logins merge into `main` (D22); `main` is never locked.
 
 ## After the freeze (Nov 4–10)
 

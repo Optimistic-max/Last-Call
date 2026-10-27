@@ -72,7 +72,7 @@ Three first-year college students: Emmanuel (head, owns all money code), Samuel 
 17. No invented numbers, quotes, users or testimonials. Test chat messages are synthetic and labeled as made up.
 
 ### Git
-18. **In Emmanuel's sessions, never run `git add`, `git commit`, `git push`, `git merge` or `git rebase`**, and never open pull requests. The human does all git actions under their own account. You may run read-only commands (`git status`, `git diff`, `git log`) and suggest a commit message. **In Samuel's or Malama's sessions,** follow the git workflow that person chooses, which may include letting you commit, push or open pull requests (D22). **In every session:** never push to `main` and never merge a pull request. `main` is protected, and all work reaches it through a pull request that Emmanuel reviews. If you don't know whose session this is, ask before any git write command.
+18. **In Emmanuel's sessions, never run `git add`, `git commit`, `git push`, `git merge` or `git rebase`**, and never open pull requests. The human does all git actions under their own account. You may run read-only commands (`git status`, `git diff`, `git log`) and suggest a commit message. **In Samuel's or Malama's sessions,** follow the git workflow that person chooses, which may include letting you commit, push or open pull requests (D22). **In every session:** never push to `main` and never merge a pull request. Emmanuel pushes to `main` directly only during the docs and planning phase. Once coding starts, everyone's work goes on branches and reaches `main` through pull requests; Emmanuel reviews and merges Samuel's and Malama's. Run `pytest` before merging, because Render deploys `main` to the live URL. Malama reviews any pull request that touches capture or `lock_and_charge`. `main` is never locked; after the Nov 3 freeze, only bug fixes, docs (README, Devpost text) and judge test logins merge into `main` (D22). If you don't know whose session this is, ask before any git write command.
 
 ### Scope
 19. Build only what the current milestone lists. If you think something else is needed, say so in your summary and stop. Don't add it. Ideas for later go in `docs/LATER.md`.
@@ -116,6 +116,7 @@ ai_parser.py        one friend's message -> suggested pledge (D31)             (
 schema.sql          all CREATE TABLE statements                                (Malama)
 templates/          Jinja HTML                                                 (Samuel)
 static/             CSS, JS, images                                            (Samuel)
+static/js/pledge_paypal.js  PayPal card-field wiring (D16)                     (Emmanuel)
 tests/              pytest files + the frozen AI test messages
 docs/               the design docs you are reading
 ```
