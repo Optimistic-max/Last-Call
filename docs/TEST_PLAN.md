@@ -77,7 +77,7 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 | E7 | **Settle on wake:** deadline passed while "asleep", the next request settles it (formerly "test 28", must pass before submission) | NOT RUN |
 | E8 | **Two requests settle at the same moment, so only one charges** (compare-and-set) | NOT RUN |
 | E9 | Demo mode uses minute timers and shows the badge | NOT RUN |
-| E10 | Startup refuses a non-sandbox `PAYPAL_BASE_URL` | NOT RUN |
+| E10 | Startup refuses a non-sandbox `PAYPAL_BASE_URL` | VERIFIED for the check function only (`config.check_sandbox_url`, Oct 27: live, empty and lookalike URLs refused, exact sandbox URL accepted, `tests/test_lifecycle.py`). Called at startup: NOT RUN (`app.py` doesn't exist yet, step 2.3) |
 
 ## F. Cleanup and failure path (`tests/test_lifecycle.py`, Emmanuel)
 
