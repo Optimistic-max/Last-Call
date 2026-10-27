@@ -27,7 +27,7 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 | A10 | Capture refused via mock: 422, hold stays `CREATED` | SIMULATED | — |
 | A11 | Retry after a refused capture succeeds, one fee | VERIFIED (refusal simulated) | auth `9HL19283R07063645` |
 | A12 | The dashboard can disagree with the API | VERIFIED | `PAYPAL_INTEGRATION.md` |
-| A13 | Card authorize, then void (server API): `POST /v2/checkout/orders`, intent `AUTHORIZE`, $1.00, sandbox test card 4111…1111 (response showed VISA ending 1111) → 201; order `0WS94888ER0197534` `COMPLETED`; authorization `50694481WY916400J` `CREATED`; void → 204, authorization now `VOIDED`. Sandbox **test app**, Oct 25, run by steel hacks. PayPal Activity row: NOT CHECKED. Card fields in a real browser: NOT RUN | VERIFIED (server API only) | `docs/evidence/A13_card_authorize_void.md`. Repeat on the main app (`PAYPAL_INTEGRATION.md` §7) |
+| A13 | Card authorize, then void (server API): `POST /v2/checkout/orders`, intent `AUTHORIZE`, $1.00, sandbox test card 4111…1111 (response showed VISA ending 1111) → 201; order `0WS94888ER0197534` `COMPLETED`; authorization `50694481WY916400J` `CREATED`; void → 204, authorization now `VOIDED`. Oct 25, run by steel hacks. Which sandbox app was not recorded. PayPal Activity row: NOT CHECKED. Card fields in a real browser: NOT RUN | VERIFIED (server API only; app unverified) | `docs/evidence/A13_card_authorize_void.md`. Not re-run: B1 (last-call-test) and the M1 card checks in the app cover it |
 
 ## B. Browser and app (PayPal in the real app)
 
@@ -77,7 +77,7 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 | E7 | **Settle on wake:** deadline passed while "asleep", the next request settles it (formerly "test 28", must pass before submission) | NOT RUN |
 | E8 | **Two requests settle at the same moment, so only one charges** (compare-and-set) | NOT RUN |
 | E9 | Demo mode uses minute timers and shows the badge | NOT RUN |
-| E10 | Startup refuses a non-sandbox `PAYPAL_BASE_URL` | NOT RUN |
+| E10 | Startup refuses a non-sandbox `PAYPAL_BASE_URL` | VERIFIED for the check function only (`config.check_sandbox_url`, Oct 27: live, empty and lookalike URLs refused, exact sandbox URL accepted, `tests/test_lifecycle.py`). Called at startup: NOT RUN (`app.py` doesn't exist yet, step 2.3) |
 
 ## F. Cleanup and failure path (`tests/test_lifecycle.py`, Emmanuel)
 
@@ -115,3 +115,4 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 | Date | ID | Who | Result | Evidence |
 |---|---|---|---|---|
 | Oct 26 | B1 | Emmanuel (typed the card in a real browser), Claude Code (server, void, checks) | VERIFIED (spike, `spikes/b1_card_fields/`, SDK v6 card fields, sandbox app last-call-test). Activity row: NOT CHECKED | `POST /v2/checkout/orders` body `{"intent": "AUTHORIZE", "purchase_units": [{"amount": {"currency_code": "USD", "value": "1.00"}}]}` → 201, order `6Y19708071807635F` `CREATED`. `POST /v2/checkout/orders/6Y19708071807635F/authorize` body `{}` → 201, order `COMPLETED`, authorization `1FV797880C126320B` `CREATED`. Void → 204. `GET` authorization → 200, `VOIDED`. Card: VISA ending 1111. Secrets removed. Full log: `docs/evidence/B1_card_fields_spike.md` |
+| Oct 27 | `paypal_client.py` smoke test (no TEST_PLAN ID) | Claude Code, in Emmanuel's session | VERIFIED: server token (asked twice, fetched once), client token, create order, authorize refused on an unapproved order, get authorization. Capture, get capture and void: NOT RUN (they need a real hold, steps 2.4–2.5). Keys from `.env` (sandbox app last-call-test). `PAYPAL_BASE_URL` was set to the sandbox URL on the command line, because the saved `.env` value was still empty | `python -m tests.sandbox_smoke`. `POST /v1/oauth2/token` → 200 twice (one server token, one client token; no token printed). `POST /v2/checkout/orders` $1.00 intent `AUTHORIZE` (PayPal-Request-Id `2ef0cefd-6661-4d07-b51f-b81c9cb3ed65`) → 201, PayPal-Debug-Id `f1961138d5642`, order `3FA86349EU814154U` `CREATED`, never approved, so nothing held. `POST /v2/checkout/orders/3FA86349EU814154U/authorize` (PayPal-Request-Id `633ec041-da6e-4c1d-8d27-a36fcfd79965`) → 422 `UNPROCESSABLE_ENTITY`, issue `ORDER_NOT_APPROVED`, PayPal-Debug-Id `f196113e01ad2`, no authorization in the answer. `GET /v2/payments/authorizations/1FV797880C126320B` (B1's) → 200 `VOIDED`, USD 1.00, PayPal-Debug-Id `f558267c155b0` |

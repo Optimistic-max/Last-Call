@@ -14,7 +14,8 @@ Everything is sandbox and fake money, but we treat keys as if they were real. Ju
 - The PayPal **client ID** is public (the browser needs it). The **secret** is not.
 - `.env` is in `.gitignore`. Only `.env.example` with empty values is committed.
 - **Regenerate the sandbox secret before the first commit.** The old one was shared with assistant bots during testing.
-- Assistant bots that run sandbox tests use a **separate sandbox test app**, never the main app's keys.
+- The app uses the sandbox app **last-call-test**. Its keys go only in `.env` and Render's settings.
+- Assistant bots that run sandbox tests use a **separate sandbox test app**, never last-call-test's keys.
 - Before making the repo public and again before submitting, search the history: `git log -p | grep -i -E "secret|client_secret|postgres://|postgresql://"` should find nothing.
 
 ## If a secret leaks
