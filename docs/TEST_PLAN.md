@@ -56,13 +56,13 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 
 | ID | Test | Status |
 |---|---|---|
-| D1 | Chain: A needs B needs C, C absent, so all drop | NOT RUN |
-| D2 | Mutual circle A↔B, both in | NOT RUN |
-| D3 | Circle plus a dependent (C needs A, A↔B), all in | NOT RUN |
-| D4 | Depends on a name nobody pledged, so it drops | NOT RUN |
-| D5 | Two conditions on one pledge, both needed | NOT RUN |
-| D6 | Names match ignoring case and extra spaces | NOT RUN |
-| D7 | Adding a pledger never un-counts anyone (invariant 1) | NOT RUN |
+| D1 | Chain: A needs B needs C, C absent, so all drop | VERIFIED (Oct 27, `tests/test_conditions.py`; a one-pass version of the rule fails it) |
+| D2 | Mutual circle A↔B, both in | VERIFIED (Oct 27) |
+| D3 | Circle plus a dependent (C needs A, A↔B), all in | VERIFIED (Oct 27) |
+| D4 | Depends on a name nobody pledged, so it drops | VERIFIED (Oct 27) |
+| D5 | Two conditions on one pledge, both needed | VERIFIED (Oct 27) |
+| D6 | Names match ignoring case and extra spaces | VERIFIED (Oct 27) |
+| D7 | Adding a pledger never un-counts anyone (invariant 1) | VERIFIED for `conditions.py` (Oct 27: 2,000 random groups, seed 7, plus a hand example; an "only if X is not in" rule fails it). In the running app: NOT RUN (wired in at M3) |
 
 ## E. Timing and lifecycle (`tests/test_lifecycle.py`, Emmanuel, fake PayPal)
 
