@@ -22,7 +22,7 @@ Wait for my approval before writing any code.
 **Step 2, after I approve:** build it in this order. **Stop after each step.**
 1. `config.py` with the startup sandbox guard (test E10).
 2. `paypal_client.py`: token, client token, create order (intent `AUTHORIZE`), authorize, get authorization, capture, get capture, void. Then a sandbox smoke test.
-3. The pledge and order steps in `lifecycle.py`, plus the routes `GET /api/client-token`, `POST /api/pledges`, `POST /api/orders` and `POST /api/orders/<id>/authorize`, and test F1. This step needs Malama's `db.py` and `schema.sql`.
+3. The pledge and order steps in `lifecycle.py`, plus the routes `GET /api/client-token`, `POST /api/pledges`, `POST /api/orders` and `POST /api/orders/<id>/authorize`, and test F1. This step needs Malama's `db.py` and `schema.sql`. `POST /api/pledges` accepts no email field until Malama approves the `pledges.email` column.
 4. Copy and adapt the v6 card fields from the spike into a bare `templates/pledge.html` and `static/js/pledge_paypal.js`. Run B1 and B2 on localhost.
 5. `settle_due_events`, `lock_and_charge` and `expire_event`, with fake-PayPal tests E7 and E8.
 6. B1, B2 and B5 on the live Render URL.

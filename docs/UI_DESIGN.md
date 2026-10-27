@@ -72,6 +72,8 @@ Each pledger row shows (never the email, which never appears on the public board
 
 **M1:** a plain status word per person, **Pledged**, **Held** or **Declined**, and the total counts only held money. The styled chips, and **Hold pending**, come in M4 (D31).
 
+**Note:** progress bar = counted pledges; board total = held money.
+
 ## 6. The three moments the video needs (simple CSS only)
 
 1. **Circle turns green together:** when Ana ("if Jay's in") and Jay ("if Ana's in") both become counted, their two rows flash to the accent color at the same time.
