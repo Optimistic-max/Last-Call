@@ -31,7 +31,7 @@ Simplification for M1 only: there is **no last call yet**. At the hard deadline,
 |---|---|
 | Emmanuel | `paypal_client.py` (token, client token, create order, authorize, get authorization, capture, get capture, void). `lifecycle.py`: create pledge (at confirm, D31) + order, authorize result, `settle_due_events` with compare-and-set, `lock_and_charge`, `expire_event`. Startup sandbox guard. |
 | Emmanuel + Samuel | **Card fields with intent authorize in a real browser** (S4, S5), together: Emmanuel builds a bare `templates/pledge.html` and `static/js/pledge_paypal.js` (the v6 card fields from the B1 spike), and Samuel restyles the page. |
-| Malama | `money.py` (`estimate_fee_cents`, `fee_adjusted_goal_cents`, `compute_shares_cents`) + `tests/test_money.py` (C1–C8). `db.py` with a one-time retry on the first connection. Choose the AI model (D15) before Oct 29: research only, no `ai_parser.py` code until M4. |
+| Malama | `money.py` (`estimate_fee_cents`, `fee_adjusted_goal_cents`, `compute_shares_cents`) + `tests/test_money.py` (C1–C8). `db.py` with a one-time retry on a failed connection (D33). Choose the AI model (D15) before Oct 29: research only, no `ai_parser.py` code until M4. |
 | Samuel | S1 create event, S2 treasurer view (share link + open button), S3 board with the 10-second refresh: a plain status word per person (Pledged, Held or Declined), and a total that counts only held money. |
 
 **Done when** (all on the live Render URL, sandbox):
