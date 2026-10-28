@@ -81,7 +81,7 @@ Three first-year college students: Emmanuel (head, owns all money code), Samuel 
 
 ## 5. Code style (beginner-readable on purpose)
 
-- **Plain functions.** No classes unless a doc asks for one. No metaclasses, no decorators beyond Flask's `@app.route` / `@app.before_request`, no clever one-liners.
+- **Plain functions.** No classes unless a doc asks for one. No metaclasses, no decorators beyond Flask's `@app.route` / `@app.before_request` (and `@pytest.fixture`, in `tests/` only, D34), no clever one-liners.
 - **Clear names:** `hold_amount_cents`, `hard_deadline`, not `amt`, `hd`.
 - **Short functions** with one job each (aim for under ~30 lines).
 - **A short comment above each function** saying what it does and *why*. Comment the why, not the obvious.

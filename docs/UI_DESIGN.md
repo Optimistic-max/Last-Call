@@ -39,6 +39,10 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | S5 decline | **Card declined. Nothing was held. Try another card.** |
 | S5 pledging closed | **Pledging closed before your hold went through. We're cancelling the hold, and nothing will be charged.** |
 | S5 error | **Something went wrong. Nothing was charged. Please try again.** |
+| S4/S5 pledging closed before any hold was placed | **Pledging is closed for this event. Nothing was held.** |
+| S4 name left blank | **Type your name.** |
+| S4 max under $5 | **The smallest max is $5.00.** |
+| S4 the same name already holds (D26) | **[Name] has already pledged.** |
 | Declined card, on the friend's own link (D31) | **Your card was declined, so nothing is held and you're not counted yet. Try another card.** |
 | S3 goal line | **Goal $[goal] so the club gets a full $[deposit] after fees** |
 | S3 last call banner | **Last call! Goal reached. Join in the next [mm:ss] and everyone's share drops.** |
@@ -88,7 +92,7 @@ Keep animations under about 0.8 seconds and respect `prefers-reduced-motion`.
 - Buttons are at least 44px tall on phones.
 - **Never ask a friend for the same info twice (D31):** the name (and the email, if given) once, the pledge once. A retry after "Card declined" keeps everything they typed.
 - The board refreshes every 10 seconds with a simple `fetch` to `GET /e/<id>/board.json` (no websockets).
-- Show money as `$1,234.56` using one template filter. The JSON endpoint sends amounts already formatted, so JavaScript never does money math or formatting. For the share-drop animation, it also sends the old and new values in cents.
+- Show money as `$1,234.56` using one template filter. That filter must reuse `dollars()` from `app.py`, so the pages and the JSON messages always format money the same way. The JSON endpoint sends amounts already formatted, so JavaScript never does money math or formatting. For the share-drop animation, it also sends the old and new values in cents.
 
 ## 8. Final palette and fonts
 
