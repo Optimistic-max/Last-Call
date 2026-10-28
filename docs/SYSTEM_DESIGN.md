@@ -163,7 +163,7 @@ The full list of PayPal responses and what we do lives in one place: `PAYPAL_INT
 | `POST /api/pledges/parse` | browser JS | D31: the AI reads one friend's message and returns a suggested amount, cap and condition. Saves nothing |
 | `POST /api/pledges` | browser JS | D31: creates the pledge row (`PENDING_PAY`) from what the friend confirmed and returns its private `pledger_token`. D26 rules apply |
 | `POST /api/orders` | browser JS | create the hold row + PayPal order (intent AUTHORIZE) for a confirmed pledge, sent with its `pledger_token` (D31; before D31 this route also created the pledge) |
-| `POST /api/orders/<order_id>/authorize` | browser JS | authorize, save, report HELD or DECLINED |
+| `POST /api/orders/<order_id>/authorize` | browser JS | authorize, save, report HELD or DECLINED. Sent with the pledge's `pledger_token`, so nobody can authorize someone else's order |
 | `POST /p/<pledger_token>/leave` | pledger | "actually I'm out" (M2) |
 | `POST /admin/<admin_token>/refund-all` | treasurer | refund-all (M2) |
 | `GET /health` | pinger, Render | returns `ok`, wakes the app |
