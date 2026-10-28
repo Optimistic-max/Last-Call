@@ -47,7 +47,7 @@ Simplification for M1 only: there is **no last call yet**. At the hard deadline,
 
 | Who | Task |
 |---|---|
-| Emmanuel | `LAST_CALL` state with `last_call_ends = min(now + 1h, hard_deadline)`. Leave rules. Cleanup sweep. Capture retry → `NEEDS_ATTENTION`. Refund-all action. New pay link action (waits on D28). |
+| Emmanuel | `LAST_CALL` state with `last_call_ends = min(now + 1h, hard_deadline)`. `pledging_is_open` must compare `LAST_CALL` events against `last_call_ends`, not `hard_deadline`. Leave rules. Cleanup sweep. Capture retry → `NEEDS_ATTENTION`. Refund-all action. New pay link action (waits on D28). |
 | Samuel | S6 I'm out page, last call banner + countdown, needs-attention panel, refund-all confirmation. |
 | Malama | Keep building `conditions.py` (parallel lane). No `ai_parser.py` code until M4. |
 

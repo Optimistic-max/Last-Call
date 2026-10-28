@@ -21,12 +21,10 @@ Agents check this list before editing a file and mention any open to-do on it (`
 
 | Who | File | To-do |
 |---|---|---|
-| Samuel | `docs/UI_DESIGN.md` | Add '[Name] has already pledged.' to UI_DESIGN (D26). |
 | Samuel | `docs/UI_DESIGN.md` | In §5, the status list in "Each pledger row shows…" (line 69 today) must include Pledged and Hold pending (M4, D31). |
 | Malama | `docs/DATA_MODEL.md` | Approve or reject the database values D31 needs: an optional `pledges.email` column (name stays required), and a `HOLD_PENDING` pledge status only if the team wants it stored instead of worked out from `holds`. DATA_MODEL isn't changed yet. Doesn't block other work (Oct 26). |
 | Malama | `docs/STATE_MACHINE.md` | Approve or reject the change D31 needs: no `PARSED` state in the main flow, because nothing is saved before the friend confirms (the parse result stays in the page; the pledge row is created at confirm). STATE_MACHINE isn't changed yet. Doesn't block other work (Oct 26). |
 | Malama | `docs/AI_PARSER.md` | Add a validator rule: reject any amount, cap or condition that doesn't appear in the friend's message (enforces G1). Doesn't block other work (Oct 26). |
-| Malama | `db.py` | Three things `lifecycle.py` and its tests need from `db.py` (Emmanuel, Oct 27). Needed before Emmanuel's step 2.3. (1) Commit every write the moment it runs (autocommit), so a crash right after a PayPal call can't roll back a saved order ID or auth ID (rule 3, test F1). (2) A way for tests to connect to `TEST_DATABASE_URL` instead of `DATABASE_URL`, for example a connect function that takes the URL as an argument. The tests empty the tables, so they must never touch `main` or `dev`. (3) Each request or thread gets its own connection, so test E8 can run two settles at the same moment. |
 
 ## How we work (proposed by Emmanuel, agree as a team at the first check-in)
 
