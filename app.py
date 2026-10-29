@@ -1,13 +1,14 @@
 # Flask routes only (AGENTS.md section 7). Owner: Emmanuel.
 # Malama's M0 task added GET /health (docs/MVP_PLAN.md, M0), so Render can see the app is up and the
-# database answers. Emmanuel's step 2.3 added the startup sandbox guard and the pledge and order routes.
-# Routes read the request, call lifecycle.py, and turn its answer into JSON. They do no money math.
+# database answers. Emmanuel's step 2.3 added the startup sandbox guard and the pledge and order routes,
+# and step 2.4 the pledge page.
+# Routes read the request, call lifecycle.py, and turn its answer into JSON or a page. They do no money math.
 
 import logging
 from datetime import datetime, timezone
 
 import psycopg
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, render_template, request
 
 import config
 import db
@@ -25,6 +26,7 @@ config.check_sandbox_url(config.PAYPAL_BASE_URL)
 app = Flask(__name__)
 
 # Screen text, copied exactly from docs/UI_DESIGN.md section 4 (checked for honesty). %s is filled in.
+HOLD_PROMISE_TEXT = "If the goal is met, you're in. We'll hold up to %s now and charge only your share."
 HELD_TEXT = "Held. You'll pay only your share, at most %s, and only if the goal is reached."
 DECLINED_TEXT = "Card declined. Nothing was held. Try another card."
 CLOSED_AND_VOIDED_TEXT = ("Pledging closed before your hold went through. "
@@ -101,6 +103,28 @@ def health():
     return "ok"
 
 
+# S4, the pledge page (docs/UI_DESIGN.md section 3). The friend types a name and a max, confirms them,
+# then types a card into PayPal's card fields (static/js/pledge_paypal.js does the PayPal part).
+# A closed event shows the "pledging is closed" text instead of the form. An unknown event is a 404.
+# <int:event_id> means Flask only calls this for a whole number, so "/e/abc/pledge" is a 404 by itself.
+@app.route("/e/<int:event_id>/pledge")
+def pledge_page(event_id):
+    try:
+        conn = db.connect(config.DATABASE_URL)
+        try:
+            event = lifecycle.find_event(conn, event_id)
+        finally:
+            conn.close()
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("GET /e/<id>/pledge: database error (%s)", type(error).__name__)
+        return ERROR_TEXT, 503
+    if event is None:
+        return ERROR_TEXT, 404
+    return render_template("pledge.html", event=event,
+                           pledging_open=lifecycle.pledging_is_open(event, utc_now()),
+                           closed_text=CLOSED_TEXT, error_text=ERROR_TEXT)
+
+
 # The browser-safe client token the PayPal SDK v6 card fields start with (D16). It's sent only to the
 # page that asked, and never logged.
 @app.route("/api/client-token")
@@ -115,6 +139,8 @@ def api_client_token():
 # The page sends {"event_id": 7, "name": "Ana", "max": "40"}. "max" is the typed text: money.py turns it
 # into whole cents, so no float is ever made (rule 1). There is no email field until Malama approves
 # the pledges.email column.
+# The answer also carries the "We'll hold up to $40.00" sentence, already formatted here, because
+# JavaScript never formats money (docs/UI_DESIGN.md section 7).
 # type(event_id) is not int also refuses True and False, which Python otherwise counts as numbers.
 @app.route("/api/pledges", methods=["POST"])
 def api_create_pledge():
@@ -137,7 +163,8 @@ def api_create_pledge():
         logger.warning("POST /api/pledges: database error (%s)", type(error).__name__)
         return message_answer(ERROR_TEXT, 503)
     if result["outcome"] == "CONFIRMED":
-        return jsonify({"pledger_token": result["pledger_token"]})
+        return jsonify({"pledger_token": result["pledger_token"],
+                        "hold_text": HOLD_PROMISE_TEXT % dollars(max_cents)})
     return refusal_answer(result)
 
 

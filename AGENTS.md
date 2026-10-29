@@ -50,7 +50,7 @@ Three first-year college students: Emmanuel (head, owns all money code), Samuel 
 
 ### Money
 1. **Money is integer cents everywhere.** `2500` means $25.00. Never use floats for money. Convert to a `"25.00"` string only at the PayPal boundary and in templates.
-2. **All money math lives in `money.py`** as pure functions (no database, no PayPal, no clock). Routes and templates never do money math.
+2. **All money math lives in `money.py`** as pure functions (no database, no PayPal, no clock), except D43's board SUM. Routes and templates never do money math.
 3. **Save before you send.** Generate a `PayPal-Request-Id`, save it in the database, *then* call PayPal. Save every order ID and authorization ID the moment PayPal returns it, before doing anything else.
 4. **Every PayPal write sends the saved `PayPal-Request-Id`.** A retry of the *same* request reuses the same ID.
 5. **Check the status field, not just the HTTP code.** A card decline comes back as HTTP 201 with authorization status `DENIED`.

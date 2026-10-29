@@ -60,7 +60,7 @@ Owner: **Emmanuel**. All of this lives in `paypal_client.py`. That file only mak
 **Before writing it, check three things and record the answers in `docs/DECISIONS.md`:**
 1. **Which SDK version.** Answered: SDK v6 card fields (D16, approved Oct 26). Neither PayPal guide shows card fields with intent `AUTHORIZE`; the B1 spike placed and voided one ([`docs/evidence/B1_card_fields_spike.md`](evidence/B1_card_fields_spike.md)).
 2. **Advanced Credit and Debit Card Payments is enabled** for the sandbox app: Developer Dashboard → Apps & Credentials → Sandbox → your app → Features → Accept payments (`not yet checked`).
-3. **What the card fields do on a decline**, using the decline test card in section 6.
+3. **What the card fields do on a decline**, using the decline test card in section 6. Answered: D44.
 
 **If card fields can't make a hold in a real browser by the end of Oct 28,** tell the whole team that day and decide together. The approved default (D19) is to switch to the PayPal button with intent authorize (test B4, NOT RUN), which then becomes a must-have. PayPal's standard-checkout authorization page says to add `&intent=authorize` to the JavaScript SDK script tag (read in docs, [authorization guide](https://developer.paypal.com/docs/checkout/standard/customize/authorization/), Oct 26).
 
@@ -97,14 +97,14 @@ If an **authorize** call times out:
 
 | Tool | How | What it gives | Status |
 |---|---|---|---|
-| Decline at checkout | card `4012888888881881`, cardholder name `CCREJECT-REFUSED` (also `CCREJECT-IF`, `CCREJECT-BANK_ERROR`) | 201 with authorization `DENIED` | VERIFIED (API), browser `NOT RUN` |
+| Decline at checkout | card `4012888888881881`, cardholder name `CCREJECT-REFUSED` (also `CCREJECT-IF`, `CCREJECT-BANK_ERROR`). In the browser, the name goes in the v6 `name` card field | 201 with authorization `DENIED` | VERIFIED (API). Browser: VERIFIED in the app on localhost with `CCREJECT-REFUSED` (B2, Oct 28): the card fields' submit says `succeeded`, then authorize gives `DENIED` (D44). Live Render URL: `NOT RUN` |
 | Refuse a capture | header `PayPal-Mock-Response: {"mock_application_codes":"TRANSACTION_REFUSED"}` on the capture call | 422, hold stays `CREATED` | SIMULATED |
 | `INSTRUMENT_DECLINED` on capture | same header | empty 403 (reason `unverified`). Don't rely on it | — |
 | Normal test card | `4111111111111111` | normal hold | VERIFIED |
 
 The mock header must **never** be sent outside tests. Put it behind a `test_mock_code` argument that defaults to `None`.
 
-## 7. Evidence on file (sandbox, Oct 15–16 and Oct 25)
+## 7. Evidence on file (sandbox, Oct 15–16, Oct 25 and Oct 28)
 
 Logs `pp_verify*.log`, `pp_recheck.log`, `pp_void10.log` and `pp_retry.log` live outside the repo with steel hacks (an assistant bot, see `TEAM.md`). Key IDs:
 
@@ -114,8 +114,9 @@ Logs `pp_verify*.log`, `pp_recheck.log`, `pp_void10.log` and `pp_retry.log` live
 - Refund keeps the fee: capture `4A421246NB729070S`.
 - Real declines: auths `2FL36771CJ213463E`, `5ET87355255867257`, `0KJ691043N1833446`.
 - Retry after refused capture: auth `9HL19283R07063645`, capture `89G27304WY275041M`.
-- **A13 (Oct 25, run by steel hacks; which sandbox app was not recorded, so the app is unverified):** `POST /v2/checkout/orders`, intent `AUTHORIZE`, $1.00, sandbox test card 4111…1111 (response showed VISA ending 1111) → 201; order `0WS94888ER0197534` `COMPLETED`; authorization `50694481WY916400J` `CREATED`; void → 204, authorization now `VOIDED`. **VERIFIED (server API only). Card fields in a real browser: NOT RUN.** PayPal Activity row: NOT CHECKED. Record: `docs/evidence/A13_card_authorize_void.md`. Not re-run (Emmanuel, Oct 27): B1 on last-call-test and the M1 card checks in the app cover it.
+- **A13 (Oct 25, run by steel hacks; which sandbox app was not recorded, so the app is unverified):** `POST /v2/checkout/orders`, intent `AUTHORIZE`, $1.00, sandbox test card 4111…1111 (response showed VISA ending 1111) → 201; order `0WS94888ER0197534` `COMPLETED`; authorization `50694481WY916400J` `CREATED`; void → 204, authorization now `VOIDED`. **VERIFIED (server API only). Card fields in a real browser: NOT RUN.** PayPal Activity row: VERIFIED (Oct 28: ID matched on the Activity detail page). Record: `docs/evidence/A13_card_authorize_void.md`. Not re-run (Emmanuel, Oct 27): B1 on last-call-test and the M1 card checks in the app cover it.
+- **B1, B2 and a retry in the app (Oct 28, localhost, sandbox app last-call-test):** hold auth `0MT88984JM068535K`; decline auth `4DH312972C435991E` (`DENIED`, no void); retry after the decline, auth `3P6535206K455364M`. Both holds voided, `GET` → `VOIDED`. Record: `docs/TEST_PLAN.md` run log.
 
 ## 8. Still unverified / not run
 
-Card fields in the app on the live Render URL (M1, `NOT RUN`) · charging a hold placed through card fields (`NOT RUN`) · the B1 Activity row (`NOT CHECKED`) · PayPal-button authorize in a browser · reauthorizing after day 3 · live (non-sandbox) fees · how fast a card issuer clears the leftover pending amount · whether ACDC is on for our app · which sandbox app A13 ran on (app unverified, not re-run).
+Card fields in the app on the live Render URL (M1, `NOT RUN`) · charging a hold placed through card fields (`NOT RUN`) · PayPal-button authorize in a browser · reauthorizing after day 3 · live (non-sandbox) fees · how fast a card issuer clears the leftover pending amount · whether ACDC is on for our app · which sandbox app A13 ran on (app unverified, not re-run).

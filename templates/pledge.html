@@ -1,0 +1,44 @@
+<!doctype html>
+{# S4 and S5, the pledge page (docs/UI_DESIGN.md section 3). A bare page from Emmanuel's step 2.4,
+   adapted from the B1 spike: Samuel restyles it. The PayPal part is static/js/pledge_paypal.js (Emmanuel's).
+   Jinja escapes every value it fills in, so a title like "<script>" shows as text and never runs.
+   This is a Jinja comment, so it stays on the server and never reaches the browser. #}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pledge: {{ event.title }}</title>
+  <style>
+    /* v6 card fields need boxes with a set height and width (from the B1 spike) */
+    .card-field { height: 56px; width: 100%; }
+    button { min-height: 44px; }
+  </style>
+</head>
+<body>
+  <p><strong>SANDBOX DEMO: fake money, no real charges</strong></p>
+  <h1>{{ event.title }}</h1>
+  <p><strong>Nobody pays unless the goal is reached.</strong></p>
+
+  {% if not pledging_open %}
+  <p>{{ closed_text }}</p>
+  {% else %}
+  <main id="pledge" data-event-id="{{ event.id }}" data-error-text="{{ error_text }}">
+    <p><label for="pledge-name">Your name</label><br><input id="pledge-name" autocomplete="name"></p>
+    <p><label for="pledge-max">Your max ($)</label><br><input id="pledge-max" inputmode="decimal"></p>
+    <button id="confirm-button" type="button">Continue</button>
+
+    <p id="hold-text"></p>
+    <p>Name on card</p><div id="paypal-card-fields-name" class="card-field"></div>
+    <p>Card number</p><div id="paypal-card-fields-number" class="card-field"></div>
+    <p>Expiry</p><div id="paypal-card-fields-expiry" class="card-field"></div>
+    <p>CVV</p><div id="paypal-card-fields-cvv" class="card-field"></div>
+    <button id="hold-button" type="button" disabled>Hold my max</button>
+    <p id="message" role="status"></p>
+  </main>
+
+  {# Our script first, so onPayPalWebSdkLoaded exists before PayPal's script finishes loading. #}
+  <script src="{{ url_for('static', filename='js/pledge_paypal.js') }}"></script>
+  <script async src="https://www.sandbox.paypal.com/web-sdk/v6/core" onload="onPayPalWebSdkLoaded()"></script>
+  {% endif %}
+</body>
+</html>
