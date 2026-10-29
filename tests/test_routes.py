@@ -1,10 +1,12 @@
-# Tests for the pledge and order routes in app.py (step 2.3). Not docs/TEST_PLAN.md IDs.
+# Tests for the pledge and order routes (step 2.3) and the pledge page (step 2.4) in app.py.
+# Not docs/TEST_PLAN.md IDs.
 # Flask's test client sends requests to the app without starting a server.
 # The first tests need no database. The rest use the Neon test branch (Malama's test_db and test_db_url
 # fixtures) with tests/fake_paypal.py in place of PayPal, and are skipped while TEST_DATABASE_URL is empty.
 
 import app
 import config
+import db
 import paypal_client
 from tests import fake_paypal
 from tests.test_lifecycle import NOW, delete_event, make_open_event, set_event_status
@@ -74,6 +76,8 @@ def test_pledge_order_and_authorize_through_the_routes(monkeypatch, test_db, tes
         pledge = client.post("/api/pledges", json={"event_id": event_id, "name": "Ana", "max": "40"})
         assert pledge.status_code == 200
         token = pledge.get_json()["pledger_token"]
+        assert pledge.get_json()["hold_text"] == ("If the goal is met, you're in. We'll hold up to $40.00 "
+                                                  "now and charge only your share.")
 
         order = client.post("/api/orders", json={"pledger_token": token})
         assert order.status_code == 200
@@ -105,6 +109,43 @@ def test_declined_card_through_the_routes(monkeypatch, test_db, test_db_url):
         assert declined.status_code == 200
         assert declined.get_json() == {"status": "DECLINED",
                                        "message": "Card declined. Nothing was held. Try another card."}
+    finally:
+        delete_event(test_db, event_id)
+
+
+# Step 2.4: the pledge page of an open event has the form, the promise and the PayPal script. The
+# title is escaped, so HTML typed into a title shows as text and never runs.
+def test_pledge_page_for_an_open_event(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    event_id = make_open_event(test_db)
+    try:
+        db.run(test_db, "UPDATE events SET title = %s WHERE id = %s", ("Cabin <b>trip</b>", event_id))
+        page = app.app.test_client().get("/e/%d/pledge" % event_id)
+        assert page.status_code == 200
+        html = page.get_data(as_text=True)
+        assert "SANDBOX DEMO: fake money, no real charges" in html
+        assert "Nobody pays unless the goal is reached." in html
+        assert 'data-event-id="%d"' % event_id in html
+        assert '<script src="/static/js/pledge_paypal.js">' in html
+        assert "Cabin &lt;b&gt;trip&lt;/b&gt;" in html
+        assert "<b>trip" not in html
+    finally:
+        delete_event(test_db, event_id)
+
+
+# A closed event shows the closed text and no card fields. An unknown event is a 404.
+# 2147483647 is the biggest id a SERIAL column can hold, so no test event has it.
+def test_pledge_page_for_a_closed_or_unknown_event(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    event_id = make_open_event(test_db)
+    client = app.app.test_client()
+    try:
+        set_event_status(test_db, event_id, "EXPIRED")
+        closed = client.get("/e/%d/pledge" % event_id)
+        assert closed.status_code == 200
+        assert "Pledging is closed for this event. Nothing was held." in closed.get_data(as_text=True)
+        assert '<script src="/static/js/pledge_paypal.js">' not in closed.get_data(as_text=True)
+        assert client.get("/e/2147483647/pledge").status_code == 404
     finally:
         delete_event(test_db, event_id)
 

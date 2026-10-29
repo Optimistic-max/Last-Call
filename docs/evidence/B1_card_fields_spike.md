@@ -18,6 +18,6 @@ Requests, with secrets removed (no `Authorization` header, no tokens):
 | Check | Status |
 |---|---|
 | Final authorization status | `VOIDED` |
-| PayPal sandbox Activity row | NOT CHECKED |
+| PayPal sandbox Activity row | VERIFIED (Oct 28: ID `1FV797880C126320B` matched on the Activity detail page; Cancelled there, Voided in the list) |
 | Browser page log (eligibility line, submit result text) | NOT CHECKED (not copied from the browser) |
 | Same flow in the app, on the live Render URL, with the auth ID saved in our database | NOT RUN |

@@ -25,6 +25,9 @@ Wait for my approval before writing any code.
 3. The pledge and order steps in `lifecycle.py`, plus the routes `GET /api/client-token`, `POST /api/pledges`, `POST /api/orders` and `POST /api/orders/<id>/authorize`, and test F1. This step needs Malama's `db.py` and `schema.sql`. `POST /api/pledges` accepts no email field until Malama approves the `pledges.email` column.
 4. Copy and adapt the v6 card fields from the spike into a bare `templates/pledge.html` and `static/js/pledge_paypal.js`. Run B1 and B2 on localhost.
 5. `settle_due_events`, `lock_and_charge` and `expire_event`, with fake-PayPal tests E7 and E8.
+
+Step 5b (Emmanuel): create event, open it (DRAFT → OPEN), the treasurer view, and the board with board.json. Done after 2.5, before 2.6.
+
 6. B1, B2 and B5 on the live Render URL.
 
 Real sandbox calls (the step 2 smoke test, B1, B2, B5) use only the keys in `.env` or Render's settings, and never print them. Record each result in the `docs/TEST_PLAN.md` run log with its evidence, and mark anything not checked as `NOT RUN` or `NOT CHECKED`.

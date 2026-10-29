@@ -11,5 +11,5 @@ Oct 25, run by steel hacks. Which sandbox app was not recorded, so the app is un
 
 | Check | Status |
 |---|---|
-| PayPal Activity row | NOT CHECKED |
+| PayPal Activity row | VERIFIED (Oct 28: ID `50694481WY916400J` matched on the Activity detail page; Authorization, $1.00, Cancelled) |
 | Card fields in a real browser | NOT RUN |
