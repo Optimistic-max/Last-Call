@@ -56,7 +56,9 @@ It also runs the cleanup sweep (void any hold that is still open on a finished e
 
 If settling raises an error, catch it, log it (no secrets) and still serve the page, so one PayPal problem can't take down every page.
 
-**Known limit (be honest about it):** if nobody visits the app after a deadline, nothing settles until someone does. PayPal's honor period for a hold is 3 days, so an event left unvisited for more than about 3 days after its deadline may fail to capture. For the demo this never matters (we view the board). For real use, an optional free external pinger hitting `/health` every 10 minutes would fix it. That idea is `unverified`: check Render's monthly free hours and the pinger's terms first.
+Requests for `/static/` files (D41) and for `/health` (D46) don't settle.
+
+**Known limit (be honest about it):** if nobody visits the app after a deadline, nothing settles until someone does. PayPal's honor period for a hold is 3 days, so an event left unvisited for more than about 3 days after its deadline may fail to capture. For the demo this never matters (we view the board). For real use, an optional free external pinger requesting a page every 10 minutes would fix it. It must hit a page, not `/health`, because `/health` doesn't settle (D46). That idea is `unverified`: check Render's monthly free hours and the pinger's terms first.
 
 ## 4. Compare-and-set: how we guarantee "charged once"
 

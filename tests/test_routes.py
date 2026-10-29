@@ -1,8 +1,10 @@
-# Tests for the pledge and order routes (step 2.3) and the pledge page (step 2.4) in app.py.
-# Not docs/TEST_PLAN.md IDs.
+# Tests for the pledge and order routes (step 2.3), the pledge page (step 2.4) and which requests
+# settle (step 2.5) in app.py. Not docs/TEST_PLAN.md IDs.
 # Flask's test client sends requests to the app without starting a server.
 # The first tests need no database. The rest use the Neon test branch (Malama's test_db and test_db_url
 # fixtures) with tests/fake_paypal.py in place of PayPal, and are skipped while TEST_DATABASE_URL is empty.
+
+import pytest
 
 import app
 import config
@@ -10,6 +12,23 @@ import db
 import paypal_client
 from tests import fake_paypal
 from tests.test_lifecycle import NOW, delete_event, make_open_event, set_event_status
+
+# The moments app.settle_on_wake was asked to settle, in the current test.
+settle_requests = []
+
+
+# Settle-on-wake runs before most requests (app.py). These tests aren't about settling, and some use no
+# test database, so here it only records that it was asked: otherwise a request could settle events
+# on the dev database with the real PayPal. autouse=True runs this for every test in this file.
+# The E7 tests in test_lifecycle.py test real settling.
+@pytest.fixture(autouse=True)
+def record_instead_of_settling(monkeypatch):
+    settle_requests.clear()
+
+    def record(now):
+        settle_requests.append(now)
+
+    monkeypatch.setattr(app, "settle_on_wake", record)
 
 
 # Point the app at the test branch, the fake PayPal and the fixed clock, for one test.
@@ -28,6 +47,21 @@ def test_dollars_formats_cents_for_the_screen():
     assert app.dollars(5) == "$0.05"
     assert app.dollars(123456) == "$1,234.56"
     assert app.dollars(100000000) == "$1,000,000.00"
+
+
+# D41 and D46: requests for /static/ files and /health never settle; any other request does, once.
+# db.connect is replaced so /health answers 503 at once instead of opening a real database.
+def test_only_page_requests_settle(monkeypatch):
+    def no_database(url):
+        raise RuntimeError("no database in this test")
+
+    monkeypatch.setattr(db, "connect", no_database)
+    client = app.app.test_client()
+    assert client.get("/static/js/pledge_paypal.js").status_code == 200
+    assert client.get("/health").status_code == 503
+    assert settle_requests == []
+    assert client.get("/e/abc/pledge").status_code == 404
+    assert len(settle_requests) == 1
 
 
 # The client token goes to the page, and a failed token request is a 502 with the error text.

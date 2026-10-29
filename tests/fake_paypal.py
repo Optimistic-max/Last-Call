@@ -3,9 +3,10 @@
 # {"http_status": ..., "data": ..., "debug_id": ...}, but nothing ever leaves the laptop.
 #
 # Every call is recorded in `calls`. By default each function gives the happy-path answer: order
-# CREATED, hold CREATED, void 204, and the hold reads back VOIDED. A test that wants something else
-# (a declined card, no answer) puts the answers it wants in `next_answers` first.
-# Step 2.3 has only the calls the pledge and hold steps use. Capture comes in step 2.5.
+# CREATED, hold CREATED, void 204, the hold reads back VOIDED, capture 201 COMPLETED, and the capture
+# reads back with a fee of $0.62 and a net of $4.38. A test that wants something else (a declined card,
+# a refused capture, no answer) puts the answers it wants in `next_answers` first.
+# Step 2.3 added the pledge and hold calls, step 2.5 the capture calls (D42).
 
 import uuid
 
@@ -14,8 +15,10 @@ import paypal_client
 calls = []
 next_answers = {}
 
-# A pure helper with no HTTP in it, so the real one is used: it finds the hold inside an authorize answer.
+# Pure helpers with no HTTP in them, so the real ones are used: one finds the hold inside an authorize
+# answer, the other turns PayPal's "0.62" into 62 cents.
 first_authorization = paypal_client.first_authorization
+paypal_string_to_cents = paypal_client.paypal_string_to_cents
 
 
 # Forget every call and every queued answer. Each test calls this first, because the lists above
@@ -54,6 +57,24 @@ def hold_read_back(status, auth_id):
     return answer(200, {"id": auth_id, "status": status})
 
 
+# A capture answer: HTTP 201 with the capture's ID and status. COMPLETED means charged.
+def captured(capture_id, status):
+    return answer(201, {"id": capture_id, "status": status})
+
+
+# A capture PayPal refused: HTTP 422 with the reason in details[0].issue, like TRANSACTION_REFUSED
+# (docs/PAYPAL_INTEGRATION.md section 4).
+def capture_refused(issue):
+    return answer(422, {"name": "UNPROCESSABLE_ENTITY", "details": [{"issue": issue}]})
+
+
+# A capture read back with PayPal's fee and net, as text, the way PayPal sends them.
+def capture_read_back(capture_id, fee_text, net_text):
+    breakdown = {"paypal_fee": {"currency_code": "USD", "value": fee_text},
+                 "net_amount": {"currency_code": "USD", "value": net_text}}
+    return answer(200, {"id": capture_id, "status": "COMPLETED", "seller_receivable_breakdown": breakdown})
+
+
 # Record the call, then give the test's next queued answer for this function, or the default one.
 def record_and_answer(function_name, details, default_answer):
     details["function"] = function_name
@@ -89,3 +110,13 @@ def get_authorization(auth_id):
 def void_authorization(auth_id, request_id):
     details = {"auth_id": auth_id, "request_id": request_id}
     return record_and_answer("void_authorization", details, answer(204, {}))
+
+
+def capture_authorization(auth_id, amount_cents, request_id):
+    details = {"auth_id": auth_id, "amount_cents": amount_cents, "request_id": request_id}
+    return record_and_answer("capture_authorization", details, captured(new_id("CAPTURE"), "COMPLETED"))
+
+
+def get_capture(capture_id):
+    details = {"capture_id": capture_id}
+    return record_and_answer("get_capture", details, capture_read_back(capture_id, "0.62", "4.38"))

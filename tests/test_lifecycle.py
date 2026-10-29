@@ -4,7 +4,8 @@
 # branch through Malama's test_db and test_db_url fixtures (tests/conftest.py), and tests/fake_paypal.py
 # instead of PayPal. They are skipped, with the reason shown, while TEST_DATABASE_URL is empty.
 # Every test makes its own event and deletes it at the end, so tests never see each other's rows.
-# Settle, lock and charge (E5, E7, E8) come in step 2.5.
+# Step 2.5 added the goal check, settle, lock and charge, and expire tests (E5, E7, E8, F13, D25, D39,
+# D45, D47) at the end of the file.
 
 import os
 import subprocess
@@ -18,6 +19,7 @@ import pytest
 import config
 import db
 import lifecycle
+import money
 from tests import fake_paypal
 
 # A fixed "now" for every test, so no result depends on the real clock.
@@ -26,17 +28,20 @@ NOW = datetime(2026, 10, 27, 20, 0, tzinfo=timezone.utc)
 
 # Add one OPEN event whose pledging ends 10 minutes after NOW (demo mode), and return its id.
 # Opening an event through the app comes in step 5b, so the test writes the row itself.
-def make_open_event(conn):
+# The deposit is $300 unless a test asks for another one (a small one makes the goal easy to reach).
+def make_open_event(conn, deposit_cents=30000):
     row = db.fetch_one(conn, "INSERT INTO events (title, deposit_cents, status, admin_token, demo_mode, "
                              "opens_at, hard_deadline) VALUES (%s, %s, 'OPEN', %s, TRUE, %s, %s) RETURNING id",
-                       ("lifecycle test event", 30000, lifecycle.new_token(), NOW,
+                       ("lifecycle test event", deposit_cents, lifecycle.new_token(), NOW,
                         NOW + timedelta(minutes=10)))
     return row["id"]
 
 
-# Delete everything a test made for one event. Children go first, because a hold can't outlive its
-# pledge and a pledge can't outlive its event (the REFERENCES rules in schema.sql).
+# Delete everything a test made for one event. Children go first, because a capture can't outlive its
+# hold, a hold its pledge, or a pledge its event (the REFERENCES rules in schema.sql).
 def delete_event(conn, event_id):
+    db.run(conn, "DELETE FROM captures WHERE hold_id IN (SELECT holds.id FROM holds JOIN pledges "
+                 "ON pledges.id = holds.pledge_id WHERE pledges.event_id = %s)", (event_id,))
     db.run(conn, "DELETE FROM holds WHERE pledge_id IN (SELECT id FROM pledges WHERE event_id = %s)",
            (event_id,))
     db.run(conn, "DELETE FROM pledge_conditions WHERE pledge_id IN "
@@ -561,3 +566,402 @@ def test_mark_held_waits_for_an_expiry_that_started_first(test_db, test_db_url):
     finally:
         other.close()
         delete_event(test_db, event_id)
+
+
+# ---------- Step 2.5: goal check, settle, lock and charge, expire ----------
+
+# A moment after every test event's hard deadline (make_open_event: NOW + 10 minutes).
+AFTER_DEADLINE = NOW + timedelta(minutes=11)
+
+
+# Ana and Bo hold $10 each and Cy $15, on an event with a $30 deposit. Only Cy's hold brings the held
+# total up to the fee-adjusted goal for three people, so Cy's is the hold that opens last call.
+# Returns the three tokens in join order.
+def three_holds_that_reach_the_goal(conn, event_id):
+    tokens = []
+    for name, max_cents in (("Ana", 1000), ("Bo", 1000), ("Cy", 1500)):
+        token, order_id, result = pledge_and_authorize(conn, event_id, name, max_cents)
+        assert result["outcome"] == "HELD"
+        tokens.append(token)
+    return tokens
+
+
+# Every pledge of the event, in join order.
+def pledges_of(conn, event_id):
+    return db.fetch_all(conn, "SELECT * FROM pledges WHERE event_id = %s ORDER BY created_at, id", (event_id,))
+
+
+# The authorization ID of a pledge's first hold.
+def auth_id_of(conn, pledge_id):
+    return db.fetch_one(conn, "SELECT auth_id FROM holds WHERE pledge_id = %s ORDER BY id LIMIT 1",
+                        (pledge_id,))["auth_id"]
+
+
+# The one capture row of a pledge, with its hold's auth ID and status. Fails if there isn't exactly one.
+def only_capture_of(conn, pledge_id):
+    rows = db.fetch_all(conn, "SELECT captures.*, holds.auth_id, holds.status AS hold_status "
+                              "FROM captures JOIN holds ON holds.id = captures.hold_id "
+                              "WHERE holds.pledge_id = %s", (pledge_id,))
+    assert len(rows) == 1
+    return rows[0]
+
+
+# The fake PayPal calls to one function that name one of these authorization IDs. Filtering by ID keeps
+# a test's counts right even if the test branch still holds some other due event.
+def calls_for(function_name, auth_ids):
+    found = []
+    for call in calls_to(function_name):
+        if call["auth_id"] in auth_ids:
+            found.append(call)
+    return found
+
+
+# Point app.py at the test branch, the fake PayPal and a clock after the deadline, for one test.
+# monkeypatch undoes all three afterwards.
+def use_app_after_the_deadline(monkeypatch, app, test_db_url):
+    def after_the_deadline():
+        return AFTER_DEADLINE
+
+    monkeypatch.setattr(config, "DATABASE_URL", test_db_url)
+    monkeypatch.setattr(app, "paypal_client", fake_paypal)
+    monkeypatch.setattr(app, "utc_now", after_the_deadline)
+
+
+# D25 (M1): the hold that brings the held total up to the goal opens last call, which runs until the
+# hard deadline. The holds before it leave the event OPEN.
+def test_d25_the_hold_that_reaches_the_goal_opens_last_call(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    try:
+        pledge_and_authorize(test_db, event_id, "Ana", 1000)
+        pledge_and_authorize(test_db, event_id, "Bo", 1000)
+        assert lifecycle.find_event(test_db, event_id)["status"] == "OPEN"
+        pledge_and_authorize(test_db, event_id, "Cy", 1500)
+        event = lifecycle.find_event(test_db, event_id)
+        assert event["status"] == "LAST_CALL"
+        assert event["last_call_ends"] == event["hard_deadline"]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# E7: settle on wake. The deadline passed while the app was "asleep", and the next page request settles
+# it before the page is built: each share is worked out by money.py, saved, and charged once, with
+# PayPal's fee and net saved. Flask's test client sends the request.
+# app is imported here, not at the top of the file: importing it needs the sandbox PAYPAL_BASE_URL
+# (rule 12), and the E10 tests above must run even without it.
+def test_e7_next_page_request_charges_a_due_event(monkeypatch, test_db, test_db_url):
+    import app
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    try:
+        three_holds_that_reach_the_goal(test_db, event_id)
+        use_app_after_the_deadline(monkeypatch, app, test_db_url)
+        assert app.app.test_client().get("/e/%d/pledge" % event_id).status_code == 200
+        event = lifecycle.find_event(test_db, event_id)
+        goal_cents = money.fee_adjusted_goal_cents(3000, 3)
+        shares = money.compute_shares_cents(goal_cents, [1000, 1000, 1500])
+        assert event["status"] == "SETTLED"
+        assert event["goal_cents"] == goal_cents
+        assert event["lock_started_at"] == AFTER_DEADLINE
+        pledges = pledges_of(test_db, event_id)
+        for position in range(3):
+            capture = only_capture_of(test_db, pledges[position]["id"])
+            assert pledges[position]["status"] == "CHARGED"
+            assert pledges[position]["share_cents"] == shares[position]
+            assert capture["amount_cents"] == shares[position]
+            assert capture["status"] == "COMPLETED"
+            assert capture["hold_status"] == "CAPTURED"
+            assert capture["fee_cents"] == 62
+            assert capture["net_cents"] == 438
+            assert len(calls_for("capture_authorization", [capture["auth_id"]])) == 1
+    finally:
+        delete_event(test_db, event_id)
+
+
+# E7 for a missed goal: the next page request after the deadline expires the event, voids the hold and
+# drops the pledge.
+def test_e7_next_page_request_expires_an_event_short_of_its_goal(monkeypatch, test_db, test_db_url):
+    import app
+    fake_paypal.reset()
+    event_id = make_open_event(test_db)
+    try:
+        token, order_id, result = pledge_and_authorize(test_db, event_id, "Ana", 4000)
+        use_app_after_the_deadline(monkeypatch, app, test_db_url)
+        app.app.test_client().get("/e/%d/pledge" % event_id)
+        assert lifecycle.find_event(test_db, event_id)["status"] == "EXPIRED"
+        assert hold_for_order(test_db, order_id)["status"] == "VOIDED"
+        assert lifecycle.find_pledge_by_token(test_db, token)["status"] == "DROPPED"
+    finally:
+        delete_event(test_db, event_id)
+
+
+# E8: two requests settle the same event at the same moment, and only one charges. Two threads, each
+# with its own connection (db.py promise 3), wait at a Barrier so they start together, then both run
+# settle_due_events. Only one wins LAST_CALL -> LOCKING, so each share is captured exactly once.
+def test_e8_two_settles_at_once_charge_each_share_once(test_db, test_db_url):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    barrier = threading.Barrier(2)
+    errors = []
+
+    def settle_in_its_own_connection():
+        try:
+            conn = db.connect(test_db_url)
+            try:
+                barrier.wait(timeout=30)
+                lifecycle.settle_due_events(conn, AFTER_DEADLINE, fake_paypal)
+            finally:
+                conn.close()
+        except Exception as error:      # a thread's error is otherwise only printed, so keep it to check
+            errors.append(error)
+
+    try:
+        three_holds_that_reach_the_goal(test_db, event_id)
+        workers = []
+        for count in range(2):
+            worker = threading.Thread(target=settle_in_its_own_connection)
+            worker.start()
+            workers.append(worker)
+        for worker in workers:
+            worker.join(timeout=60)
+        assert errors == []
+        assert lifecycle.find_event(test_db, event_id)["status"] == "SETTLED"
+        for pledge in pledges_of(test_db, event_id):
+            capture = only_capture_of(test_db, pledge["id"])
+            assert pledge["status"] == "CHARGED"
+            assert len(calls_for("capture_authorization", [capture["auth_id"]])) == 1
+    finally:
+        delete_event(test_db, event_id)
+
+
+# E8, one after the other: lock_and_charge does nothing before last call ends, and once the event is
+# locked, a second lock_and_charge changes nothing and makes no PayPal call.
+def test_e8_a_second_lock_does_nothing(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    try:
+        three_holds_that_reach_the_goal(test_db, event_id)
+        assert lifecycle.lock_and_charge(test_db, event_id, NOW, fake_paypal) == "NOT_LOCKED"
+        assert lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal) == "SETTLED"
+        calls_before = len(fake_paypal.calls)
+        assert lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal) == "NOT_LOCKED"
+        assert len(fake_paypal.calls) == calls_before
+    finally:
+        delete_event(test_db, event_id)
+
+
+# Rule 3 for captures: when each capture call goes out, its capture row (PENDING, with this request ID
+# and amount) and every share are already saved. The fake capture checks through a second connection.
+def test_capture_rows_and_shares_are_saved_before_each_capture(monkeypatch, test_db, test_db_url):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    other = db.connect(test_db_url)
+    original_capture = fake_paypal.capture_authorization
+    checks = []
+
+    def capture_after_checking(auth_id, amount_cents, request_id):
+        row = db.fetch_one(other, "SELECT status, amount_cents FROM captures WHERE request_id = %s",
+                           (request_id,))
+        missing_shares = db.fetch_one(other, "SELECT count(*) AS missing FROM pledges "
+                                             "WHERE event_id = %s AND share_cents IS NULL", (event_id,))
+        checks.append(row == {"status": "PENDING", "amount_cents": amount_cents}
+                      and missing_shares["missing"] == 0)
+        return original_capture(auth_id, amount_cents, request_id)
+
+    monkeypatch.setattr(fake_paypal, "capture_authorization", capture_after_checking)
+    try:
+        three_holds_that_reach_the_goal(test_db, event_id)
+        assert lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal) == "SETTLED"
+        assert checks == [True, True, True]
+    finally:
+        other.close()
+        delete_event(test_db, event_id)
+
+
+# E5: the deadline passes short of the goal. Every hold is voided (each void's request ID saved first),
+# nobody is charged, and every pledge is DROPPED, including the one that never paid (D45).
+def test_e5_missed_goal_voids_every_hold_and_charges_nobody(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db)
+    try:
+        ana_token, ana_order, ana_result = pledge_and_authorize(test_db, event_id, "Ana", 4000)
+        bo_token, bo_order, bo_result = pledge_and_authorize(test_db, event_id, "Bo", 2500)
+        cy_token = confirm(test_db, event_id, "Cy", 2000)
+        lifecycle.settle_due_events(test_db, AFTER_DEADLINE, fake_paypal)
+        assert lifecycle.find_event(test_db, event_id)["status"] == "EXPIRED"
+        for order_id in (ana_order, bo_order):
+            hold = hold_for_order(test_db, order_id)
+            void_calls = calls_for("void_authorization", [hold["auth_id"]])
+            assert hold["status"] == "VOIDED"
+            assert len(void_calls) == 1
+            assert void_calls[0]["request_id"] == hold["void_request_id"]
+            assert calls_for("capture_authorization", [hold["auth_id"]]) == []
+        for token in (ana_token, bo_token, cy_token):
+            assert lifecycle.find_pledge_by_token(test_db, token)["status"] == "DROPPED"
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D45 (and D40): HELD pledges with no CREATED hold left are DROPPED at expiry with no PayPal call at all.
+# Ana's hold was voided earlier. Bo is set up like Bo on the dev branch: one declined hold, then a retry
+# hold that was voided later.
+def test_d45_held_pledges_with_no_open_hold_are_dropped_without_paypal(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db)
+    try:
+        ana_token, ana_order, ana_result = pledge_and_authorize(test_db, event_id, "Ana", 4000)
+        fake_paypal.next_answers["authorize_order"] = [fake_paypal.authorized("DENIED", fake_paypal.new_id("AUTH"))]
+        pledge_and_authorize(test_db, event_id, "Bo", 2500)
+        bo_token, bo_order, bo_result = pledge_and_authorize(test_db, event_id, "Bo", 2500)
+        assert bo_result["outcome"] == "HELD"
+        db.run(test_db, "UPDATE holds SET status = 'VOIDED' WHERE order_id IN (%s, %s)", (ana_order, bo_order))
+        fake_paypal.reset()
+        assert lifecycle.expire_event(test_db, event_id, AFTER_DEADLINE, fake_paypal) is True
+        assert lifecycle.find_pledge_by_token(test_db, ana_token)["status"] == "DROPPED"
+        assert lifecycle.find_pledge_by_token(test_db, bo_token)["status"] == "DROPPED"
+        assert fake_paypal.calls == []
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D45: a void that doesn't read back VOIDED leaves its hold CREATED and its pledge HELD, for M2's sweep.
+# The event still ends EXPIRED, and the other pledge is voided and dropped as usual.
+def test_d45_failed_void_keeps_the_pledge_held(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db)
+    try:
+        ana_token, ana_order, ana_result = pledge_and_authorize(test_db, event_id, "Ana", 4000)
+        bo_token, bo_order, bo_result = pledge_and_authorize(test_db, event_id, "Bo", 2500)
+        ana_auth = hold_for_order(test_db, ana_order)["auth_id"]
+        fake_paypal.next_answers["get_authorization"] = [fake_paypal.hold_read_back("CREATED", ana_auth)]
+        assert lifecycle.expire_event(test_db, event_id, AFTER_DEADLINE, fake_paypal) is True
+        assert lifecycle.find_event(test_db, event_id)["status"] == "EXPIRED"
+        assert hold_for_order(test_db, ana_order)["status"] == "CREATED"
+        assert lifecycle.find_pledge_by_token(test_db, ana_token)["status"] == "HELD"
+        assert hold_for_order(test_db, bo_order)["status"] == "VOIDED"
+        assert lifecycle.find_pledge_by_token(test_db, bo_token)["status"] == "DROPPED"
+    finally:
+        delete_event(test_db, event_id)
+
+
+# F13 (D38): at lock the goal is somehow no longer reached. Here the deposit is raised by hand, the kind
+# of bug the invariants rule out. Nobody is charged, every hold is voided, and the event ends EXPIRED.
+def test_f13_goal_not_reached_at_lock_charges_nobody(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    try:
+        tokens = three_holds_that_reach_the_goal(test_db, event_id)
+        db.run(test_db, "UPDATE events SET deposit_cents = 30000 WHERE id = %s", (event_id,))
+        assert lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal) == "EXPIRED"
+        assert lifecycle.find_event(test_db, event_id)["status"] == "EXPIRED"
+        assert calls_to("capture_authorization") == []
+        assert len(calls_to("void_authorization")) == 3
+        for token in tokens:
+            assert lifecycle.find_pledge_by_token(test_db, token)["status"] == "DROPPED"
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D39: the second of three captures is refused. That pledge is FAILED, its capture row says why, and
+# its hold's real status is read back and saved. The other two are still charged, the event ends
+# NEEDS_ATTENTION, and there is no retry in M1 (one capture call per pledge).
+def test_d39_refused_capture_fails_that_pledge_only(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    try:
+        three_holds_that_reach_the_goal(test_db, event_id)
+        ana, bo, cy = pledges_of(test_db, event_id)
+        fake_paypal.next_answers["capture_authorization"] = [
+            fake_paypal.captured(fake_paypal.new_id("CAPTURE"), "COMPLETED"),
+            fake_paypal.capture_refused("TRANSACTION_REFUSED")]
+        fake_paypal.next_answers["get_authorization"] = [
+            fake_paypal.hold_read_back("CREATED", auth_id_of(test_db, bo["id"]))]
+        assert lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal) == "NEEDS_ATTENTION"
+        ana, bo, cy = pledges_of(test_db, event_id)
+        bo_capture = only_capture_of(test_db, bo["id"])
+        assert ana["status"] == "CHARGED"
+        assert cy["status"] == "CHARGED"
+        assert bo["status"] == "FAILED"
+        assert bo_capture["status"] == "FAILED"
+        assert bo_capture["error_code"] == "TRANSACTION_REFUSED"
+        assert bo_capture["hold_status"] == "CREATED"
+        assert len(calls_to("capture_authorization")) == 3
+        assert lifecycle.find_event(test_db, event_id)["status"] == "NEEDS_ATTENTION"
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D39: a capture with no answer at all (a timeout) is a failure too, with no retry in M1. The hold
+# reads back CREATED, so no money moved.
+def test_d39_capture_with_no_answer_fails_without_a_retry(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    try:
+        three_holds_that_reach_the_goal(test_db, event_id)
+        ana, bo, cy = pledges_of(test_db, event_id)
+        fake_paypal.next_answers["capture_authorization"] = [fake_paypal.no_answer()]
+        fake_paypal.next_answers["get_authorization"] = [
+            fake_paypal.hold_read_back("CREATED", auth_id_of(test_db, ana["id"]))]
+        assert lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal) == "NEEDS_ATTENTION"
+        ana_capture = only_capture_of(test_db, ana["id"])
+        assert ana_capture["status"] == "FAILED"
+        assert ana_capture["error_code"] == "NO_ANSWER"
+        assert ana_capture["hold_status"] == "CREATED"
+        assert len(calls_for("capture_authorization", [ana_capture["auth_id"]])) == 1
+        assert pledges_of(test_db, event_id)[0]["status"] == "FAILED"
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D47: the capture answer was lost, but the hold reads back CAPTURED, so the money did move. In M1 the
+# hold is saved as CAPTURED, the pledge is still FAILED, the event NEEDS_ATTENTION, and the log says so
+# clearly. That capture row stays PENDING: its real result is unknown to us, not failed.
+# caplog is pytest's built-in fixture that collects what the code logged.
+def test_d47_lost_answer_but_captured_is_saved_and_logged(test_db, caplog):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    try:
+        three_holds_that_reach_the_goal(test_db, event_id)
+        ana, bo, cy = pledges_of(test_db, event_id)
+        fake_paypal.next_answers["capture_authorization"] = [fake_paypal.no_answer()]
+        fake_paypal.next_answers["get_authorization"] = [
+            fake_paypal.hold_read_back("CAPTURED", auth_id_of(test_db, ana["id"]))]
+        assert lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal) == "NEEDS_ATTENTION"
+        ana_capture = only_capture_of(test_db, ana["id"])
+        assert ana_capture["hold_status"] == "CAPTURED"
+        assert ana_capture["status"] == "PENDING"
+        assert pledges_of(test_db, event_id)[0]["status"] == "FAILED"
+        assert "CAPTURED, so money moved" in caplog.text
+        assert "D47" in caplog.text
+    finally:
+        delete_event(test_db, event_id)
+
+
+# A HELD pledge with two CREATED holds (say a second hold whose void failed) is still charged once,
+# from one hold only.
+def test_pledge_with_two_open_holds_is_charged_once(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    try:
+        three_holds_that_reach_the_goal(test_db, event_id)
+        ana = pledges_of(test_db, event_id)[0]
+        db.run(test_db, "INSERT INTO holds (pledge_id, create_request_id, order_id, auth_id, amount_cents, status) "
+                        "VALUES (%s, %s, %s, %s, %s, 'CREATED')",
+               (ana["id"], lifecycle.new_request_id(), fake_paypal.new_id("ORDER"), fake_paypal.new_id("AUTH"), 1000))
+        assert lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal) == "SETTLED"
+        only_capture_of(test_db, ana["id"])
+        assert len(calls_to("capture_authorization")) == 3
+    finally:
+        delete_event(test_db, event_id)
+
+
+# Rule 6: the app makes exactly one capture call, in lifecycle.py (charge_one_pledge, which only
+# lock_and_charge calls). This reads the app's own .py files in the repo folder (not tests/ or spikes/)
+# and lists every file with a line that calls a capture.
+def test_rule6_only_lifecycle_calls_capture():
+    found = []
+    for path in sorted(config.REPO_ROOT.glob("*.py")):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if ".capture_authorization(" in line:
+                found.append(path.name)
+    assert found == ["lifecycle.py"]
