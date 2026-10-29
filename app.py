@@ -1,7 +1,7 @@
 # Flask routes only (AGENTS.md section 7). Owner: Emmanuel.
 # Malama's M0 task added GET /health (docs/MVP_PLAN.md, M0), so Render can see the app is up and the
 # database answers. Emmanuel's step 2.3 added the startup sandbox guard and the pledge and order routes,
-# and step 2.4 the pledge page.
+# step 2.4 the pledge page, and step 2.5 settle-on-wake.
 # Routes read the request, call lifecycle.py, and turn its answer into JSON or a page. They do no money math.
 
 import logging
@@ -44,6 +44,30 @@ TOO_SMALL_TEXT = "The smallest max is $5.00."
 # Tests replace this function to move time.
 def utc_now():
     return datetime.now(timezone.utc)
+
+
+# Settle-on-wake (docs/SYSTEM_DESIGN.md section 3): the free server sleeps and has no timer, so before
+# each request, any event whose time is up is settled first. Requests for /static/ files (D41) and
+# /health (D46) skip it: they come often, and /health must stay a quick database ping.
+@app.before_request
+def settle_anything_due():
+    if request.path.startswith("/static/") or request.path == "/health":
+        return
+    settle_on_wake(utc_now())
+
+
+# Open a connection and settle. If the database fails, log the error's type only and still serve the
+# page (SYSTEM_DESIGN.md section 3), so one bad moment can't take down every page.
+# Tests that send requests but aren't about settling replace this function (tests/test_routes.py).
+def settle_on_wake(now):
+    try:
+        conn = db.connect(config.DATABASE_URL)
+        try:
+            lifecycle.settle_due_events(conn, now, paypal_client)
+        finally:
+            conn.close()
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("settle on wake failed: database error (%s)", type(error).__name__)
 
 
 # 4000 -> "$40.00", 123456 -> "$1,234.56": how money is shown on screen (docs/UI_DESIGN.md section 7).
