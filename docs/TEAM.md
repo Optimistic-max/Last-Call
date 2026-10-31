@@ -25,7 +25,6 @@ Agents check this list before editing a file and mention any open to-do on it (`
 
 | Who | File | To-do |
 |---|---|---|
-| Samuel | `docs/UI_DESIGN.md` | In §5, the status list in "Each pledger row shows…" (line 69 today) must include Pledged and Hold pending (M4, D31). Also add the pledge page's four new labels to §4, or change them in `templates/pledge.html`: "Your name", "Your max ($)", "Continue", "Name on card" (step 2.4, Oct 28). |
 | Malama | `docs/DATA_MODEL.md` | Approve or reject the database values D31 needs: an optional `pledges.email` column (name stays required), and a `HOLD_PENDING` pledge status only if the team wants it stored instead of worked out from `holds`. DATA_MODEL isn't changed yet. Doesn't block other work (Oct 26). |
 | Malama | `docs/STATE_MACHINE.md` | Approve or reject the change D31 needs: no `PARSED` state in the main flow, because nothing is saved before the friend confirms (the parse result stays in the page; the pledge row is created at confirm). STATE_MACHINE isn't changed yet. Doesn't block other work (Oct 26). |
 | Malama | `docs/AI_PARSER.md` | Add a validator rule: reject any amount, cap or condition that doesn't appear in the friend's message (enforces G1). Doesn't block other work (Oct 26). |
@@ -33,7 +32,6 @@ Agents check this list before editing a file and mention any open to-do on it (`
 | Emmanuel | `config.py` | `FLASK_SECRET_KEY` is empty in Emmanuel's `.env` (config.py reads it). Nothing else uses it yet (Oct 28). |
 | Emmanuel | `lifecycle.py` | A pledge's max has no upper limit. `confirm_pledge` and `schema.sql` (Malama's) check only the $5 minimum (Oct 28). |
 | Emmanuel | `app.py` | `import app` refuses to start unless `.env` has the sandbox `PAYPAL_BASE_URL`. `.env.example` leaves it empty, so Samuel, Malama and Render each need it set before `app.py`, `tests/test_health.py` or `tests/test_routes.py` can run (Oct 28). |
-| Samuel | `docs/UI_DESIGN.md` | Add "Cancelling holds…" to the §4 wording table: the missed-goal board line shown while any hold of that event is still CREATED, instead of "Every hold was cancelled" (D45, used in step 5b, Oct 28). |
 | Malama | `docs/STATE_MACHINE.md` | Update the DROPPED definition (pledge states table, line 43 today) per D45: a pledge that was HELD when its event expired becomes DROPPED once its hold is voided, or at once if it has no CREATED hold left; a pledge whose void failed stays HELD (Oct 28). |
 
 ## How we work (proposed by Emmanuel, agree as a team at the first check-in)

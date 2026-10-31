@@ -1,0 +1,266 @@
+/* Last Call styles, "Bar sign" direction (docs/UI_DESIGN.md section 8).
+   Phone first: the normal rules are for a 375px-wide phone.
+   The one media query near the bottom adjusts things for laptops. */
+
+
+/* ---------- The font ---------- */
+
+/* Geist Serif (Vercel, OFL-1.1 license) has one weight, 400. It isn't on
+   Google Fonts yet, so we load it from jsDelivr, pinned to one commit of
+   Vercel's geist-font repo so the file can never change under us.
+   font-display: swap shows the fallback font at once and swaps in Geist
+   Serif when it arrives, so text is never invisible on a slow phone. */
+@font-face {
+  font-family: "Geist Serif";
+  src: url("https://cdn.jsdelivr.net/gh/vercel/geist-font@d33068f8680340092804b3a97ea668a443af63a6/fonts/GeistSerif/webfonts/GeistSerif-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+
+/* ---------- Colors and font, in one place ---------- */
+
+/* Every color on the site comes from these variables, so changing one
+   line here changes it everywhere. Contrast ratios are in UI_DESIGN.md §8. */
+:root {
+  --bg: #17161E;           /* page background */
+  --surface: #212130;      /* cards */
+  --line: #2C2A36;         /* borders, empty progress bar track */
+  --ink: #F4EFE6;          /* main text */
+  --ink-soft: #B3ADA3;     /* secondary text, input borders */
+  --accent: #5FD69C;       /* counted / goal reached */
+  --accent-soft: #1E3D2D;  /* background behind accent-ink text */
+  --accent-ink: #9BF0C3;   /* accent text on accent-soft, focus outline */
+  --warn: #FF7A66;         /* declined / needs attention */
+  --warn-soft: #45201B;    /* background behind warn-ink text */
+  --warn-ink: #FFB3A7;     /* warning text on warn-soft */
+  --banner: #FFD76A;       /* sandbox banner only */
+  --banner-ink: #2A2100;   /* sandbox banner text only */
+
+  /* If Geist Serif hasn't loaded (or fails), the browser uses the next one. */
+  --font: "Geist Serif", Georgia, "Times New Roman", serif;
+}
+
+
+/* ---------- Page basics ---------- */
+
+/* Make width include padding and border, so a 100%-wide input
+   with padding doesn't stick out past the edge of the screen. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 1.0625rem;  /* 17px: comfortable to read on a phone */
+  line-height: 1.5;
+}
+
+/* Geist Serif has no bold, so headings stand out by size, not weight.
+   Weight 400 stops the browser from faking a bold version. */
+h1,
+h2,
+h3 {
+  font-weight: 400;
+  line-height: 1.15;
+  margin: 0 0 1rem;
+}
+
+h1 { font-size: 2rem; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.25rem; }
+
+p {
+  margin: 0 0 1rem;
+}
+
+a {
+  color: var(--accent-ink);
+  text-underline-offset: 0.15em;
+}
+
+
+/* ---------- Sandbox banner (top of every page) ---------- */
+
+.sandbox-banner {
+  margin: 0;
+  padding: 0.5rem 1rem;
+  background: var(--banner);
+  color: var(--banner-ink);
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+
+/* ---------- Layout ---------- */
+
+/* On a phone, the page uses the full width with a little room at the sides. */
+.page {
+  padding: 1.25rem 1rem 3rem;
+}
+
+/* A box on a slightly lighter background, for grouping things. */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+/* Less important text, like hints and "time left". */
+.text-soft {
+  color: var(--ink-soft);
+}
+
+
+/* ---------- Money ---------- */
+
+/* Big money amounts, like the board total. tabular-nums gives every digit
+   the same width, so a changing number doesn't wobble sideways. */
+.money {
+  display: block;
+  font-size: 2.5rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* ---------- Forms ---------- */
+
+label {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+/* Inputs are at least 44px tall, easy to tap. Their text is 16px or more,
+   because iPhones zoom the whole page in when you tap a smaller input.
+   The border is ink-soft, not line: a field's edge must reach 3:1 contrast
+   to be seen (WCAG 1.4.11), and line is only 1.27:1 on the page. */
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+}
+
+
+/* ---------- Buttons ---------- */
+
+/* The main button: dark text on the accent color, full width on a phone
+   so it's easy to hit with a thumb, and at least 44px tall. */
+button {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.625rem 1.25rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+button:hover {
+  background: var(--accent-ink);
+}
+
+/* A button that can't be pressed yet looks clearly switched off. */
+button:disabled {
+  background: var(--line);
+  color: var(--ink-soft);
+  cursor: not-allowed;
+}
+
+/* A quieter button, for secondary actions like "Copy link". */
+.button-secondary {
+  background: transparent;
+  border: 1px solid var(--ink-soft);
+  color: var(--ink);
+}
+
+.button-secondary:hover {
+  background: var(--surface);
+}
+
+
+/* ---------- Status words ---------- */
+
+/* A small pill around a status word. Color only adds to the word,
+   it never replaces it (UI_DESIGN.md section 7). */
+.status {
+  display: inline-block;
+  padding: 0.125rem 0.625rem;
+  border-radius: 999px;
+  background: var(--line);
+  color: var(--ink);
+  font-size: 0.875rem;
+}
+
+.status-good {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.status-warn {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+
+
+/* ---------- Keyboard focus ---------- */
+
+/* A thick, bright ring around whatever the keyboard is on.
+   :focus-visible shows it for keyboard users, not after every mouse click. */
+:focus-visible {
+  outline: 3px solid var(--accent-ink);
+  outline-offset: 2px;
+}
+
+
+/* ---------- Laptops ---------- */
+
+/* From 768px wide and up: keep the page to a readable width in the middle
+   of the screen, make the big text bigger, and let buttons size to their words. */
+@media (min-width: 768px) {
+  .page {
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  h1 { font-size: 2.5rem; }
+
+  .money { font-size: 3rem; }
+
+  button { width: auto; }
+}
+
+
+/* ---------- Reduced motion ---------- */
+
+/* If someone has asked their phone or computer for less motion, turn off
+   every animation and transition. So any animated element must have its
+   final look in its normal rule, and the animation only adds the movement. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
