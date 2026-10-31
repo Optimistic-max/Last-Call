@@ -35,7 +35,7 @@ I am Malama. I own `money.py`, `conditions.py`, `ai_parser.py`, `db.py`, `schema
 - Compare free models that could read one short pledge message and return the JSON in `docs/AI_PARSER.md` §3.
 - Record the choice in `docs/DECISIONS.md` (D15): model name, provider, free-tier limits (requests per minute and per day), whether typed text is used for training, the date I checked, and links. Anything I couldn't confirm on the provider's own page is `unverified`.
 
-**Not yet: no `ai_parser.py` code until M4.** In M4 the parser reads one friend's message and suggests one pledge, checked by `validate_pledge` (`docs/AI_PARSER.md`). The validator rule in my TEAM.md to-do also lands in M4.
+**`ai_parser.py` may start now, as a parallel lane (D48, Oct 30).** Grok Bot's 50 test messages are still frozen before any prompt tuning, and wiring the parser into the pledge page stays M4. The parser reads one friend's message and suggests one pledge, checked by `validate_pledge` (`docs/AI_PARSER.md`). The validator rule in my TEAM.md to-do also lands in M4.
 
 **My open to-dos in `docs/TEAM.md` (none of them block other work):**
 - Approve or reject the optional `pledges.email` column (D31; name stays required). If I approve it, change `docs/DATA_MODEL.md` and `schema.sql` together, record it in `docs/DECISIONS.md`, and remember an email is never logged and never appears on the public board or in `board.json` (`docs/SECURITY.md`).

@@ -72,7 +72,7 @@ Owner: **Emmanuel**. All of this lives in `paypal_client.py`. That file only mak
 | authorize: 201 with authorization `DENIED` | card declined | pledge `DECLINED`. Nothing to void. Show "Card declined" |
 | authorize: anything else (another status, an error) | not held | Save any IDs that came back, leave the pledge `PENDING_PAY`, show "Something went wrong. Nothing was charged." If an `auth_id` came back, void it. A timeout: see §5 |
 | capture: 201 `COMPLETED` | charged | `GET` the capture, save fee + net, pledge `CHARGED` |
-| capture: 422 `AUTHORIZATION_ALREADY_CAPTURED` | already charged earlier | `GET` the authorization, find and save the existing capture |
+| capture: 422 `AUTHORIZATION_ALREADY_CAPTURED` | already charged earlier | `GET` the authorization and save its status. If `CAPTURED`, follow D47: pledge `FAILED`, event `NEEDS_ATTENTION`, logged as an error, and the treasurer finds the charge by hand. Finding and saving the capture (F6) is in `docs/LATER.md` (D49) |
 | capture: 422 `AUTHORIZATION_VOIDED` | hold was cancelled | pledge `FAILED`, event `NEEDS_ATTENTION` |
 | capture: 422 `TRANSACTION_REFUSED` | refused (we've only seen it via the mock) | retry once with a new saved request ID |
 | capture: anything else (another status or error code, a 5xx, a timeout) | result unknown | follow §5 |
@@ -84,8 +84,8 @@ Owner: **Emmanuel**. All of this lives in `paypal_client.py`. That file only mak
 
 If a capture call times out (or returns anything not in the table above), **don't guess**:
 1. `GET` the authorization.
-2. If `CAPTURED`: find the capture, save it, done.
-3. If still `CREATED`: retry once with a new saved request ID (attempt 2). PayPal itself rejects a second capture on a fully captured hold, so this can't double-charge.
+2. If `CAPTURED`: the money moved, but we don't look for the capture (D47, D49). Save the hold as `CAPTURED`, keep the capture row `PENDING`, mark the pledge `FAILED` and the event `NEEDS_ATTENTION`, and log it as an error. **Never retry it** (F14). Finding and saving the capture (F5) is in `docs/LATER.md`.
+3. If still `CREATED`: retry once with a new saved request ID (attempt 2, M2). This is the only case that retries (F14). PayPal itself rejects a second capture on a fully captured hold, so this can't double-charge.
 4. Anything else: pledge `FAILED`, event `NEEDS_ATTENTION`.
 
 If an **authorize** call times out:

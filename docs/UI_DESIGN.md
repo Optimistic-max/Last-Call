@@ -49,13 +49,13 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | S6 during last call | **You're counted, so you can't leave during last call.** |
 | After lock | **Charged once. PayPal closes the rest of each hold.** |
 | Missed goal | **Goal not reached. Every hold was cancelled. Nobody paid.** |
-| Needs attention (treasurer) | **[Name]'s charge didn't go through. The others were charged. Choose what to do:** [Send [Name] a new pay link] [Refund everyone] |
+| Needs attention (treasurer) | **[Name]'s charge didn't go through. The others were charged. Choose what to do:** [Refund everyone] |
 | Refund-all confirm | **Refunding returns everyone's money, but PayPal keeps its fees ($[fees]). This can't be undone.** |
 | Slow first load | **Waking up the app… (free hosting can take up to a minute)** |
 | Demo mode badge | **Demo mode: timers are minutes, not hours** |
 | S4 own-words box (D31) | **AI reads. You confirm. Plain code handles the money.** and **What you type here is sent to [provider] to read it. Don't type anything private.** |
 
-The [Send [Name] a new pay link] button in the "Needs attention" wording waits on D28.
+The [Send [Name] a new pay link] button moved to `docs/LATER.md` (D49), so [Refund everyone] is the only button in the "Needs attention" wording.
 
 Never write "released instantly", "sent to the cabin", or "no signup needed" (the last one only after the browser card test passes).
 

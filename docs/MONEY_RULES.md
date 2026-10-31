@@ -144,8 +144,9 @@ Edge case for the leftover rule: an open person can't take an extra cent beyond 
 
 ## 8. Failure policy at lock (decided)
 
-Retry a failed capture once. If it still fails, mark the event **"needs attention"**, keep the charges that went through, and let the treasurer choose:
-- **Refund everyone** (PayPal keeps its fees, so say so on screen), or
-- **Send [name] a new pay link** (waits on D28).
+Retry a failed capture once, only while PayPal shows the hold still `CREATED` (F14). If it still fails, mark the event **"needs attention"**, keep the charges that went through, and give the treasurer one action:
+- **Refund everyone** (PayPal keeps its fees, so say so on screen).
+
+The new pay link moved to `docs/LATER.md` (D49). If PayPal shows a failed charge's hold as `CAPTURED`, that money did move, but its capture isn't saved, so refund-all can't return it and the treasurer refunds that person by hand (D47, D49).
 
 No automatic refunds. Filling the gap from other people's leftover holds is a stretch goal only (each extra capture pays its own $0.49, and it breaks conditional pledges if someone was already charged).

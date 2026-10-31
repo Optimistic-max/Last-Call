@@ -31,7 +31,7 @@ The app guards the money, not the trip. It does not book the cabin or pay the ve
 | U5 | pledger | have my hold cancelled if the goal is missed | I never pay for a plan that didn't happen | M1 |
 | U6 | pledger | see my share drop when more people join during last call | bigger groups cost me less | M2 |
 | U7 | pledger | say "actually I'm out" before last call | my hold is cancelled | M2 |
-| U8 | treasurer | see "needs attention" if a charge fails, and choose what to do (the new pay link option waits on D28) | I'm never surprised by an automatic refund | M2 |
+| U8 | treasurer | see "needs attention" if a charge fails, and refund everyone if I choose to (the new pay link moved to `docs/LATER.md`, D49) | I'm never surprised by an automatic refund | M2 |
 | U9 | pledger | pledge "only if Jay's in" | I only pay if my friend comes | M3 |
 | U10 | pledger | type my pledge in my own words, then fix what the AI read before anything is saved (D31; replaces the treasurer chat paste) | I can say it the way I would in the chat, and nothing is saved until I confirm | M4 |
 | U11 | judge | run a demo with short timers | I can see the whole flow in minutes | M5 |

@@ -2,7 +2,7 @@
 
 Anything not in the current milestone goes here, not in the code. Nothing on this page may be claimed as built.
 
-## Stretch goals (only if every must-have is done and tested before the Nov 3 freeze)
+## Stretch goals (only if every must-have is done and tested before the Nov 5 freeze, D51)
 
 | Idea | Note |
 |---|---|
@@ -17,7 +17,7 @@ Anything not in the current milestone goes here, not in the code. Nothing on thi
 
 ## Deferred (D31, Oct 26)
 
-Not built before the Nov 3 freeze. Research on each: `unverified`.
+Not built before the Nov 5 freeze (D51). Research on each: `unverified`.
 
 | Idea | Note |
 |---|---|
@@ -53,6 +53,16 @@ CREATE TABLE webhook_events (
 ```
 
 The test that was F3 in `TEST_PLAN.md` (the ID isn't reused): "A duplicate webhook never causes a charge." Status: `NOT RUN`.
+
+## Moved out before the freeze (Oct 30, D49)
+
+Not built before the freeze. D47's safe ending stands instead: hold `CAPTURED`, pledge `FAILED`, event `NEEDS_ATTENTION`, error logged.
+
+| Test | Idea | Status |
+|---|---|---|
+| F5 | A timeout on capture: `GET` first, then find and save the capture, no double charge | `NOT RUN` |
+| F6 | `AUTHORIZATION_ALREADY_CAPTURED` is recorded as charged, not as failure | `NOT RUN` |
+| F8 | "New pay link" goes only to the failed person (was waiting on D28 (b)) | `NOT RUN` |
 
 ## Ideas from the team (add yours here)
 
