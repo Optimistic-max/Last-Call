@@ -13,6 +13,10 @@ If you need to change a file someone else owns, ask in the group first, or say s
 
 In M1, Emmanuel creates a bare `templates/pledge.html` for Samuel to restyle; like the rest of `templates/`, it's Samuel's after that.
 
+## Live app
+
+**Live URL:** https://last-call-cr7n.onrender.com (sandbox only; Render deploys `main`, so run `pytest` before merging). The first deploy passed on Oct 30 at 10:24 PM ET with Python 3.14.7 and the pinned `requirements.txt` (D52), and `/health` returned 200 with the database connected. B1, B2 and B5 on the live URL: NOT RUN. Free hosting sleeps after 15 minutes, so the first visit can take up to a minute. Details: `docs/SYSTEM_DESIGN.md` §2.
+
 Other names in these docs are assistant bots, not people (roles from the Oct 16 plan, section 11): **steel hacks** (state machine, tables, PayPal sandbox tests), **Warden** (test list, honesty review), **hackaton rank** (README claims table, score estimate), **Transport** (reminders, fact checks).
 
 ## Open to-dos
