@@ -78,6 +78,7 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 | E8 | **Two requests settle at the same moment, so only one charges** (compare-and-set) | VERIFIED (Oct 28, fake PayPal + Neon test branch, `tests/test_lifecycle.py`). Two threads, each with its own connection, are released together and both run `settle_due_events`: each share is captured once, one capture row per pledge, and the event is `SETTLED`. A second `lock_and_charge` makes no PayPal call. Mutation check: with `AND status = 'LAST_CALL'` removed from the lock's compare-and-set, both E8 tests fail (a pledge captured twice; a `SETTLED` event locked again and wrongly marked `EXPIRED`). With real PayPal: NOT RUN |
 | E9 | Demo mode uses minute timers and shows the badge | NOT RUN |
 | E10 | Startup refuses a non-sandbox `PAYPAL_BASE_URL` | VERIFIED (Oct 27, `tests/test_lifecycle.py`). The check function refuses the live, empty and lookalike URLs and accepts the exact sandbox URL. At startup, a separate Python that runs `import app` (what `flask run` and gunicorn do) with the live URL exits with "Refusing to start", and with the sandbox URL it starts. On Render: NOT RUN |
+| E11 | **Resume a lock that died halfway** (D27, D50, M2): an event left in `LOCKING` or `CHARGING` longer than `STUCK_LOCK_AFTER` is picked up by `settle_due_events`, which wins the resume compare-and-set and finishes the lock. In `LOCKING` the shares are worked out and saved again; in `CHARGING`, `CHARGED` pledges are skipped, and a pledge whose last capture row is `PENDING` gets a `GET` of the authorization first (`CAPTURED` follows D47, `CREATED` is captured). Each share is captured at most once. Two requests resuming at the same moment: only one wins. A lock younger than `STUCK_LOCK_AFTER` is left alone | NOT RUN |
 
 ## F. Cleanup and failure path (`tests/test_lifecycle.py`, Emmanuel)
 
@@ -86,15 +87,16 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 | F1 | Order ID and auth ID are saved before anything else (simulate a crash right after authorize) | VERIFIED (Oct 27, fake PayPal + Neon test branch, `tests/test_lifecycle.py`). A second connection sees each request ID in `holds` before its call goes out, and the order ID and auth ID still saved after the step right after authorize raises an error. Mutation check: the test fails if the auth ID is saved late or the authorize request ID is saved after the call. With real PayPal: NOT RUN |
 | F2 | A stranded `CREATED` hold on a finished event is voided by the sweep | NOT RUN |
 | F4 | A refused capture is retried once, then the event goes `NEEDS_ATTENTION` and the other charges stay | NOT RUN |
-| F5 | A timeout on capture: `GET` first, no double charge | NOT RUN |
-| F6 | `AUTHORIZATION_ALREADY_CAPTURED` is recorded as charged, not as failure | NOT RUN |
+| F5 | A timeout on capture: `GET` first, no double charge. Moved to `docs/LATER.md` (D49) | NOT RUN |
+| F6 | `AUTHORIZATION_ALREADY_CAPTURED` is recorded as charged, not as failure. Moved to `docs/LATER.md` (D49) | NOT RUN |
 | F7 | Refund-all screen states that PayPal keeps fees, and refunds only on click | NOT RUN |
-| F8 | "New pay link" goes only to the failed person (waits on D28) | NOT RUN |
+| F8 | "New pay link" goes only to the failed person. Moved to `docs/LATER.md` (D49) | NOT RUN |
 | F9 | Kim fails after Ana ("if Kim's in") was charged: flagged on the treasurer view, no automatic refund | NOT RUN |
 | F10 | Mock headers can never be sent outside tests | NOT RUN |
 | F11 | A hold that comes back after the event left `OPEN`/`LAST_CALL` is voided at once and the pledge is `DROPPED` | VERIFIED (Oct 27, fake PayPal + Neon test branch, `tests/test_lifecycle.py`). The event expires during the authorize call: the hold is voided (void request ID saved first, then a `GET` reads `VOIDED`) and the pledge is `DROPPED`. A second test holds an expiry unsaved while a hold comes back: `mark_held` waits for it, then refuses (it fails without `FOR SHARE`). Against a real lock (step 2.5) and with real PayPal: NOT RUN |
 | F12 | A void that doesn't return 204 is checked with a `GET`; if the hold is still `CREATED`, the next sweep voids it | NOT RUN |
 | F13 | If the goal isn't reached at lock (should be impossible), nobody is charged and every hold is voided | VERIFIED (Oct 28, fake PayPal + Neon test branch, `tests/test_lifecycle.py`). With the goal made unreachable at lock (the deposit raised by hand), nobody is charged, all three holds are voided, the pledges are `DROPPED` and the event ends `EXPIRED` (D38). With real PayPal: NOT RUN |
+| F14 | **F4 guard** (D47, D49, M2): the capture retry runs only when the `GET` after a failed capture shows the hold still `CREATED`. When the `GET` shows `CAPTURED` (the answer was lost, or `AUTHORIZATION_ALREADY_CAPTURED`), there is no retry: the fake PayPal records exactly one capture call for that pledge, the capture row stays `PENDING`, the pledge is `FAILED` and the event `NEEDS_ATTENTION`. Mutation check: the test fails if the retry ignores the `GET` result | NOT RUN |
 
 ## G. AI reader (`tests/test_ai_parser.py`, Malama)
 
@@ -104,7 +106,7 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 | G2 | Model failure shows "please retype" | NOT RUN |
 | G3 | **Accuracy on the 50 frozen made-up messages: X/50** (report both scores if the prompt changed) | NOT RUN |
 
-## H. New users (after the Nov 3 freeze, D31)
+## H. New users (after the Nov 5 freeze, D31, D51)
 
 | ID | Test | Status |
 |---|---|---|

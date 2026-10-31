@@ -24,12 +24,14 @@
 
 ## 2. Hosting facts that shape the design
 
-"Read in docs" means someone read the provider's page on that date. It is not a test we ran. Free tiers change, so **Malama re-reads each source on the day she sets up the service (M0)** and updates the date.
+"Read in docs" means someone read the provider's page on that date. It is not a test we ran. Free tiers change, so **Malama re-reads each source on the day he sets up the service (M0)** and updates the date.
 
 | Fact | Status | Source (date read) | What it means for us |
 |---|---|---|---|
 | Render's free web service spins down after 15 minutes without traffic; spin-up "takes about one minute" | Read in docs | [Render free tier](https://render.com/docs/free) (Oct 16, re-read Oct 27) | First visit can take up to a minute. Nothing runs on a timer while asleep. |
 | Render gives each workspace 750 free instance hours per calendar month | Read in docs | [Render free tier](https://render.com/docs/free) (Oct 27) | One service running all month uses at most 744 hours, so it fits, as long as nothing else in the workspace uses free hours. |
+| Render's default Python depends on when the service was created: 3.14.8 for services created on or after 2026-10-12, 3.14.3 for 2026-02-11 to 2026-10-12. "You can specify any released version from 3.7.3 onward." A `.python-version` file in the repo root sets it ("You can omit the patch version"). The `PYTHON_VERSION` environment variable also sets it and wins over the file (the methods are listed "in descending order of precedence") | Read in docs | [Render: setting your Python version](https://render.com/docs/python-version) (Oct 30; the page shows no "last updated" date) | `.python-version` pins 3.14.7, the version the tests passed on (D52). Do not set `PYTHON_VERSION` on Render. The `.python-version` file does that job, and the variable would override it. |
+| psycopg-binary 3.3.6 (released Sep 18, 2026) has a Linux wheel for Python 3.14: `psycopg_binary-3.3.6-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl` (glibc 2.17 or newer) | Read in docs | [PyPI files](https://pypi.org/project/psycopg-binary/3.3.6/#files), [PyPI JSON](https://pypi.org/pypi/psycopg-binary/3.3.6/json) (Oct 30) | Render can install it without compiling. Also on Oct 30, `pip download` for Linux x86_64 and CPython 3.14.7 found a wheel for every pinned package and its dependencies: VERIFIED for the download only. Render's glibc version: unverified. The build on Render: NOT RUN. |
 | Render's free Postgres expires 30 days after creation (then 14 days' grace) | Read in docs | [Render free tier](https://render.com/docs/free), [changelog](https://render.com/changelog/free-postgresql-instances-now-expire-after-30-days-previously-90) (Oct 16, re-read Oct 27) | We do **not** use it. It would die during judging (ends Dec 15). |
 | Supabase free projects pause after a week idle | Read in third-party summaries, not Supabase's own page | [summary](https://automationatlas.io/answers/supabase-free-tier-limits-2026/) (Oct 16) | We do **not** use it. |
 | Neon free: compute suspends after 5 minutes idle ("cannot be turned off"), data stays, wakes on connect. "The Free plan is permanent (not a trial); no credit card required" | Read in docs | [Neon free plan limits](https://neon.com/faqs/free-plan-limits-and-quotas), [Neon plans](https://neon.com/2024-plan-updates) (Oct 16, re-read Oct 27) | The first connection after idle may be slow or fail once. `db.py` retries any failed connection once, after 2 seconds (D33). |
@@ -139,13 +141,14 @@ D31: a friend types their pledge on the pledge page → `ai_parser.parse_pledge(
 
 ## 6. Failure handling at capture
 
-The full list of PayPal responses and what we do lives in one place: `PAYPAL_INTEGRATION.md` §4 (status checks) and §5 (unknown results). In short: `COMPLETED` means `CHARGED`. `AUTHORIZATION_ALREADY_CAPTURED` isn't an error: find and save the existing capture. Refused or unknown: `GET` the authorization, then retry **once** with a **new** saved request ID. Still failing: pledge `FAILED`, event `NEEDS_ATTENTION`, no automatic refund. A refused attempt costs no fee (VERIFIED, refusal simulated). For every other way a step can fail, see the "Failure branches" table in `STATE_MACHINE.md`.
+The full list of PayPal responses and what we do lives in one place: `PAYPAL_INTEGRATION.md` §4 (status checks) and §5 (unknown results). In short: `COMPLETED` means `CHARGED`. Refused or unknown (including `AUTHORIZATION_ALREADY_CAPTURED`): `GET` the authorization. If it is still `CREATED`, retry **once** with a **new** saved request ID (M2). If it shows `CAPTURED`, the money moved but we don't look for the capture: pledge `FAILED`, event `NEEDS_ATTENTION`, never retried, and the treasurer finds that charge by hand (D47, D49, F14). Still failing: pledge `FAILED`, event `NEEDS_ATTENTION`, no automatic refund. A refused attempt costs no fee (VERIFIED, refusal simulated). For every other way a step can fail, see the "Failure branches" table in `STATE_MACHINE.md`.
 
 ## 7. Environments
 
 | | Local | Production (demo) |
 |---|---|---|
 | App | `flask run` | Render free web service, `gunicorn app:app` |
+| Python | 3.14.7 (`.venv`) | 3.14.7, from `.python-version` (D52) |
 | Database | Neon `dev` branch | Neon `main` branch |
 | Tests | Neon `test` branch (`TEST_DATABASE_URL`) + fake PayPal | n/a |
 | PayPal | sandbox app keys in `.env` | same sandbox app, keys in Render settings |

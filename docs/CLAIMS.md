@@ -6,7 +6,7 @@ Every claim the README, video or Devpost description makes must appear here with
 |---|---|---|---|
 | 1 | Each person's max is held, and only their share is charged. PayPal closes the rest of the hold | VERIFIED (API) | A1, A2 |
 | 2 | A hold can be cancelled even after a partial charge | VERIFIED (API) | A7 |
-| 3 | A retried charge never charges twice | VERIFIED (API), app NOT RUN | A3, E8, F5 |
+| 3 | A retried charge never charges twice | VERIFIED (API), app NOT RUN | A3, E8, F4, F14 (F5 moved to `docs/LATER.md`, D49) |
 | 4 | The treasurer's net comes from PayPal's own fee numbers | VERIFIED (sandbox fees), app NOT RUN | A4, B5 |
 | 5 | Refund-all returns everyone's share, but PayPal keeps its fees | VERIFIED (API) | A5, F7 |
 | 6 | A declined card at checkout is caught and nothing is held | VERIFIED (API). Browser: VERIFIED in the app on localhost (B2, Oct 28: authorization `DENIED`, no void attempted, "Card declined" shown). Live Render URL: NOT RUN | A9, B2 |

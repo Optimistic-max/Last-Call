@@ -83,10 +83,10 @@ Every way a step can go wrong, and where its handling is written down. All of it
 | Two requests try the same status change | Compare-and-set: only one wins (E8) | `SYSTEM_DESIGN.md` §4 |
 | Settling raises an error | Log it and still serve the page | `SYSTEM_DESIGN.md` §3 |
 | At lock, the goal is no longer reached (the invariants say this can't happen) | Charge nobody: void every hold, event `LOCKING → EXPIRED` (F13) | `SYSTEM_DESIGN.md` §5C |
-| A capture is refused, times out, or hits a voided hold | Retry once (M2), then pledge `FAILED`, event `NEEDS_ATTENTION`. M1 has no retry | `PAYPAL_INTEGRATION.md` §4–5 |
-| A capture returns `AUTHORIZATION_ALREADY_CAPTURED` | Not a failure: find and save the existing capture (F6) | `PAYPAL_INTEGRATION.md` §4 |
-| The request running the lock dies partway | After 5 minutes, `settle_due_events` wins a resume compare-and-set and continues the lock | `DECISIONS.md` D27 |
-| After `NEEDS_ATTENTION`: refund-all, the new pay link, a refund that fails | For now the only action is refund-all (designed, not tested). The rest is **OPEN** for M2 | `DECISIONS.md` D28 |
+| A capture is refused, times out, or hits a voided hold | Retry once (M2), only if the `GET` shows the hold still `CREATED` (F14), then pledge `FAILED`, event `NEEDS_ATTENTION`. M1 has no retry | `PAYPAL_INTEGRATION.md` §4–5 |
+| A capture returns `AUTHORIZATION_ALREADY_CAPTURED`, or the `GET` after a failed capture shows `CAPTURED` | The money moved, but we don't look for the capture: hold `CAPTURED`, pledge `FAILED`, event `NEEDS_ATTENTION`, logged, never retried. Finding it (F5, F6) is in `docs/LATER.md` | `DECISIONS.md` D47, D49 |
+| The request running the lock dies partway | After 5 minutes, `settle_due_events` wins a resume compare-and-set and continues the lock (M2, E11). A pledge whose capture row is still `PENDING` and whose hold is `CAPTURED` follows D47 | `DECISIONS.md` D27, D49, D50 |
+| After `NEEDS_ATTENTION` | The only action is refund-all (designed, not tested). The new pay link moved to `docs/LATER.md` (D49). Still **OPEN** for M2: the event's status after refund-all, a `FAILED` pledge's hold, a refund that fails | `DECISIONS.md` D28, D49 |
 | Nobody visits after a deadline | Nothing settles until someone does. After about 3 days, captures may fail | `SYSTEM_DESIGN.md` §3 (known limit) |
 
 ## Invariants (the tests should prove these)
