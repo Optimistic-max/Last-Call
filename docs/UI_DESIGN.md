@@ -12,7 +12,7 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 
 - **Mood:** a friendly "last call" at a bar or campfire: warm, confident, a little playful. Not a bank.
 - Pick **one** strong accent color for "counted / goal reached" and one warning color for "declined / needs attention". Everything else is neutral.
-- One display font for numbers and headings, one plain font for text. Money amounts should be big and easy to read.
+- One font, Geist Serif, for everything (D53, replaces "one display font plus one text font"). It has one weight, so headings and money amounts stand out by size. Money amounts should be big and easy to read.
 - Avoid the default look of a template: no generic hero gradient, no stock illustrations.
 - Record the final palette and fonts at the bottom of this file so the video and README match.
 
@@ -40,6 +40,10 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | S5 pledging closed | **Pledging closed before your hold went through. We're cancelling the hold, and nothing will be charged.** |
 | S5 error | **Something went wrong. Nothing was charged. Please try again.** |
 | S4/S5 pledging closed before any hold was placed | **Pledging is closed for this event. Nothing was held.** |
+| S4 name field label | **Your name** |
+| S4 max field label | **Your max ($)** |
+| S4 button before the card fields | **Continue** |
+| S4 card name field label | **Name on card** |
 | S4 name left blank | **Type your name.** |
 | S4 max under $5 | **The smallest max is $5.00.** |
 | S4 the same name already holds (D26) | **[Name] has already pledged.** |
@@ -49,6 +53,7 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | S6 during last call | **You're counted, so you can't leave during last call.** |
 | After lock | **Charged once. PayPal closes the rest of each hold.** |
 | Missed goal | **Goal not reached. Every hold was cancelled. Nobody paid.** |
+| Missed goal, while any hold of that event is still CREATED (D45) | **Cancelling holds…** (shown instead of the missed-goal line until no hold is CREATED) |
 | Needs attention (treasurer) | **[Name]'s charge didn't go through. The others were charged. Choose what to do:** [Refund everyone] |
 | Refund-all confirm | **Refunding returns everyone's money, but PayPal keeps its fees ($[fees]). This can't be undone.** |
 | Slow first load | **Waking up the app… (free hosting can take up to a minute)** |
@@ -70,7 +75,7 @@ Never write "released instantly", "sent to the cabin", or "no signup needed" (th
 | `NEEDS_ATTENTION` | "Needs the treasurer's attention" | full, warning color |
 | `EXPIRED` | the missed-goal message | grey |
 
-Each pledger row shows (never the email, which never appears on the public board or in `board.json`, D31): name · status chip (Held / Counted / Waiting on [name] / Declined / Charged $[share]) · max. Conditions show as "if Jay's in".
+Each pledger row shows (never the email, which never appears on the public board or in `board.json`, D31): name · status chip (Pledged / Hold pending / Held / Counted / Waiting on [name] / Declined / Charged $[share]; Pledged and Hold pending from M4, D31) · max. Conditions show as "if Jay's in".
 
 **D31:** three visible states, each a word, not only a color: **Pledged** (confirmed, no card yet), **Hold pending** (card sent, PayPal's answer not back yet), **Held**. Board totals count only held money: pledged and hold-pending rows add $0.
 
@@ -96,7 +101,45 @@ Keep animations under about 0.8 seconds and respect `prefers-reduced-motion`.
 
 ## 8. Final palette and fonts
 
-_Samuel fills this in._
+Direction: **"Bar sign"**, a dark room with a lit sign: warm off-white text, one green for "counted", one coral for "needs attention", and a yellow banner that is used only for the sandbox notice. The variables live on `:root` in `static/style.css`.
+
+| Variable | Hex | Job |
+|---|---|---|
+| `--bg` | `#17161E` | Page background |
+| `--surface` | `#212130` | Cards |
+| `--line` | `#2C2A36` | Borders, empty progress bar track, disabled buttons (decorative only: 1.27:1 on `--bg`, so never the only edge of an input) |
+| `--ink` | `#F4EFE6` | Main text |
+| `--ink-soft` | `#B3ADA3` | Secondary text, input borders |
+| `--accent` | `#5FD69C` | Counted / goal reached, main button |
+| `--accent-soft` | `#1E3D2D` | Background behind `--accent-ink` text |
+| `--accent-ink` | `#9BF0C3` | Text on `--accent-soft`, links, focus outline, button hover |
+| `--warn` | `#FF7A66` | Declined / needs attention |
+| `--warn-soft` | `#45201B` | Background behind `--warn-ink` text |
+| `--warn-ink` | `#FFB3A7` | Text on `--warn-soft` |
+| `--banner` | `#FFD76A` | Sandbox banner background, nothing else |
+| `--banner-ink` | `#2A2100` | Sandbox banner text, nothing else |
+
+**Font (D53):** **Geist Serif** (Vercel, OFL-1.1), weight 400 only, for all text. Fallbacks: Georgia, Times New Roman, serif. It isn't on Google Fonts yet, so `style.css` loads it with `@font-face` from jsDelivr, pinned to commit `d33068f` of [vercel/geist-font](https://github.com/vercel/geist-font) (`fonts/GeistSerif/webfonts/GeistSerif-Regular.woff2`, checked Oct 31: HTTP 200, `font/woff2`). Headings use size, not weight. Money amounts use the `.money` class (40px on a phone, 48px on a laptop).
+
+**Contrast** (WCAG 2 formula, worked out Oct 31; AA needs 4.5:1 for text, 3:1 for a field's edge or a focus ring):
+
+| Foreground on background | Ratio | Used for |
+|---|---|---|
+| `--ink` on `--bg` / `--surface` | 15.67 / 13.84 | Main text |
+| `--ink-soft` on `--bg` / `--surface` | 8.05 / 7.11 | Secondary text, input borders |
+| `--accent` on `--bg` / `--surface` | 9.90 / 8.74 | Accent text |
+| `--accent-ink` on `--accent-soft` | 8.89 | "Counted" status word |
+| `--accent-ink` on `--bg` / `--surface` | 13.37 / 11.81 | Links, focus outline |
+| `--warn` on `--bg` / `--surface` | 7.03 / 6.21 | Warning text |
+| `--warn-ink` on `--warn-soft` | 8.31 | "Declined" status word |
+| `--banner-ink` on `--banner` | 11.54 | Sandbox banner |
+| `--bg` on `--accent` / `--accent-ink` | 9.90 / 13.37 | Main button text, normal / hover |
+| `--ink` on `--line` | 12.29 | Plain status word |
+| `--ink-soft` on `--line` | 6.32 | Disabled button text |
+| `--accent` on `--line` | 7.77 | Filled progress bar against the empty track |
+| `--line` on `--bg` / `--surface` | 1.27 / 1.13 | Decorative borders only |
+
+Every text pair passes AA, and every one except `--warn` on `--surface` (6.21) also passes AAA (7:1).
 
 ## 9. Sharing the link (D31)
 

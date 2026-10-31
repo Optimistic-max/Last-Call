@@ -1,0 +1,21 @@
+<!doctype html>
+{# The shared frame for every page (docs/UI_DESIGN.md). A page fills it in with
+   {% extends "base.html" %} and its own title, content and scripts blocks.
+   The font and colors live in static/style.css. #}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Last Call{% endblock %}</title>
+  {# Start connecting to the font server early, so Geist Serif arrives sooner. #}
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <p class="sandbox-banner">SANDBOX DEMO: fake money, no real charges</p>
+  <div class="page">
+    {% block content %}{% endblock %}
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
