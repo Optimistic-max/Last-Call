@@ -4,11 +4,15 @@
 # The first tests need no database. The rest use the Neon test branch (Malama's test_db and test_db_url
 # fixtures) with tests/fake_paypal.py in place of PayPal, and are skipped while TEST_DATABASE_URL is empty.
 
+from datetime import timedelta
+
 import pytest
+from flask import render_template_string
 
 import app
 import config
 import db
+import lifecycle
 import paypal_client
 from tests import fake_paypal
 from tests.test_lifecycle import NOW, delete_event, make_open_event, set_event_status
@@ -184,8 +188,8 @@ def test_pledge_page_for_a_closed_or_unknown_event(monkeypatch, test_db, test_db
         delete_event(test_db, event_id)
 
 
-# Refusals from lifecycle become the right messages: a max under $5, a blank name, an unknown event,
-# a closed event, and an order nobody saved.
+# Refusals from lifecycle become the right messages: a max under $5 or over $2,000 (D58), a blank name,
+# an unknown event, a closed event, and an order nobody saved.
 def test_route_refusal_messages(monkeypatch, test_db, test_db_url):
     fake_paypal.reset()
     use_test_setup(monkeypatch, test_db_url)
@@ -195,6 +199,9 @@ def test_route_refusal_messages(monkeypatch, test_db, test_db_url):
         small = client.post("/api/pledges", json={"event_id": event_id, "name": "Ana", "max": "4.99"})
         assert small.status_code == 400
         assert small.get_json() == {"message": "The smallest max is $5.00."}
+        big = client.post("/api/pledges", json={"event_id": event_id, "name": "Ana", "max": "2000.01"})
+        assert big.status_code == 400
+        assert big.get_json() == {"message": "The largest max is $2,000.00."}
         blank = client.post("/api/pledges", json={"event_id": event_id, "name": "  ", "max": "40"})
         assert blank.get_json() == {"message": "Type your name."}
         unknown = client.post("/api/pledges", json={"event_id": -1, "name": "Ana", "max": "40"})
@@ -207,3 +214,141 @@ def test_route_refusal_messages(monkeypatch, test_db, test_db_url):
         assert closed.get_json() == {"message": "Pledging is closed for this event. Nothing was held."}
     finally:
         delete_event(test_db, event_id)
+
+
+# ---------- Creating and opening an event (step 5b) ----------
+
+BANNER_TEXT = "SANDBOX DEMO: fake money, no real charges"
+
+
+# The token at the end of S2's address, read from a 303 answer that points there.
+def admin_token_from(response):
+    return response.headers["Location"].split("/admin/")[1]
+
+
+# The dollars filter formats cents in a template exactly like dollars() (docs/UI_DESIGN.md section 7).
+def test_dollars_filter_in_a_template():
+    with app.app.app_context():
+        assert render_template_string("{{ 4000|dollars }}") == "$40.00"
+        assert render_template_string("{{ 123456|dollars }}") == "$1,234.56"
+
+
+# S1 extends base.html, so it shows the sandbox banner, and it has the three fields app.py reads.
+def test_create_page_shows_the_form():
+    response = app.app.test_client().get("/")
+    page = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert BANNER_TEXT in page
+    for field in ['name="title"', 'name="deposit"', 'name="demo_mode"']:
+        assert field in page
+
+
+# A deposit that isn't an amount is refused with money.py's message before the database is touched,
+# and S1 comes back with what was typed.
+def test_create_refuses_a_deposit_that_isnt_an_amount():
+    response = app.app.test_client().post("/events", data={"title": "Cabin", "deposit": "lots"})
+    page = response.get_data(as_text=True)
+    assert response.status_code == 400
+    assert "Type an amount like 40 or 40.50." in page
+    assert 'value="Cabin"' in page
+    assert 'value="lots"' in page
+
+
+# S1's other refusals: a blank title, a deposit under $20 (D61) and a deposit over $2,000 (D58).
+# What was typed is kept, including the ticked demo mode box.
+def test_create_refusal_messages(monkeypatch, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    client = app.app.test_client()
+    blank = client.post("/events", data={"title": "  ", "deposit": "300"})
+    assert blank.status_code == 400
+    assert "Type a title." in blank.get_data(as_text=True)
+    small = client.post("/events", data={"title": "Cabin", "deposit": "19.99", "demo_mode": "yes"})
+    assert small.status_code == 400
+    assert "The smallest deposit is $20.00." in small.get_data(as_text=True)
+    assert 'value="19.99"' in small.get_data(as_text=True)
+    assert " checked" in small.get_data(as_text=True)
+    big = client.post("/events", data={"title": "Cabin", "deposit": "2000.01"})
+    assert big.status_code == 400
+    assert "The largest deposit is $2,000.00." in big.get_data(as_text=True)
+    assert 'value="2000.01"' in big.get_data(as_text=True)
+
+
+# "Create" answers 303 to S2 and saves a DRAFT in demo mode. S2 extends base.html and shows the
+# pledge page as the share link (D55) and the "Open pledging" button. With APP_BASE_URL empty, the
+# link uses the address the request came in on (the test client's is http://localhost/).
+def test_create_event_through_the_routes(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    monkeypatch.setattr(config, "APP_BASE_URL", "")
+    client = app.app.test_client()
+    created = client.post("/events", data={"title": "Cabin (made up)", "deposit": "300", "demo_mode": "yes"})
+    assert created.status_code == 303
+    event = lifecycle.find_event_by_admin_token(test_db, admin_token_from(created))
+    assert event is not None
+    try:
+        assert event["status"] == "DRAFT"
+        assert event["deposit_cents"] == 30000
+        assert event["demo_mode"] is True
+        page = client.get(created.headers["Location"]).get_data(as_text=True)
+        assert BANNER_TEXT in page
+        assert "http://localhost/e/%d/pledge" % event["id"] in page
+        assert "Open pledging" in page
+    finally:
+        delete_event(test_db, event["id"])
+
+
+# With APP_BASE_URL set, as on Render, the share link starts with it (D55).
+def test_share_link_uses_app_base_url(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    monkeypatch.setattr(config, "APP_BASE_URL", "https://example.test/")
+    result = lifecycle.create_event(test_db, "Cabin (made up)", 30000, True)
+    try:
+        page = app.app.test_client().get("/admin/" + result["admin_token"]).get_data(as_text=True)
+        assert "https://example.test/e/%d/pledge" % result["event_id"] in page
+    finally:
+        delete_event(test_db, result["event_id"])
+
+
+# "Open pledging": a 303 back to S2, the event is OPEN for demo mode's 10 minutes, and the button is
+# gone. A second click changes nothing. An unknown token is a 404 on both S2 routes.
+def test_open_pledging_through_the_routes(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    client = app.app.test_client()
+    result = lifecycle.create_event(test_db, "Cabin (made up)", 30000, True)
+    admin_url = "/admin/" + result["admin_token"]
+    try:
+        opened = client.post(admin_url + "/open")
+        assert opened.status_code == 303
+        assert opened.headers["Location"].endswith(admin_url)
+        event = lifecycle.find_event(test_db, result["event_id"])
+        assert event["status"] == "OPEN"
+        assert event["hard_deadline"] == NOW + timedelta(minutes=10)
+        assert "Open pledging" not in client.get(admin_url).get_data(as_text=True)
+        assert client.post(admin_url + "/open").status_code == 303
+        assert lifecycle.find_event(test_db, result["event_id"])["opens_at"] == NOW
+        assert client.get("/admin/no-such-token").status_code == 404
+        assert client.post("/admin/no-such-token/open").status_code == 404
+    finally:
+        delete_event(test_db, result["event_id"])
+
+
+# S2 shows the "Open pledging" form only while the event is DRAFT: there before opening, gone after,
+# and gone for every later status too (Nov 1 bug check: an S2 with no button was an OPEN event).
+def test_s2_shows_the_open_button_only_for_a_draft(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    client = app.app.test_client()
+    result = lifecycle.create_event(test_db, "Cabin (made up)", 30000, True)
+    admin_url = "/admin/" + result["admin_token"]
+    open_form = '<form method="post" action="%s/open">' % admin_url
+    try:
+        page = client.get(admin_url).get_data(as_text=True)
+        assert open_form in page
+        assert "Open pledging" in page
+        assert client.post(admin_url + "/open").status_code == 303
+        page = client.get(admin_url).get_data(as_text=True)
+        assert open_form not in page
+        assert "Open pledging" not in page
+        for status in ["LAST_CALL", "LOCKING", "CHARGING", "SETTLED", "NEEDS_ATTENTION", "EXPIRED"]:
+            set_event_status(test_db, result["event_id"], status)
+            assert "Open pledging" not in client.get(admin_url).get_data(as_text=True)
+    finally:
+        delete_event(test_db, result["event_id"])

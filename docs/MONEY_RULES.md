@@ -10,6 +10,9 @@ Read this before touching anything with money. All of it lives in `money.py` as 
 | `FEE_FIXED_CENTS` | `49` | same as above |
 | `MIN_SHARE_CENTS` | `500` ($5) | decided |
 | `MIN_MAX_CENTS` | `500` (nobody can pledge a max under $5) | decided |
+| `MAX_MAX_CENTS` | `200000` (nobody can pledge a max over $2,000) | decided (D58) |
+| `MIN_DEPOSIT_CENTS` | `2000` (no deposit under $20; C3 tested deposits from $20 to $2,000) | decided (D61) |
+| `MAX_DEPOSIT_CENTS` | `200000` (no deposit over $2,000; C3 tested deposits from $20 to $2,000) | decided (D58) |
 | `PLEDGING_WINDOW` | 48 hours (demo mode: e.g. 10 minutes) | decided (D04) |
 | `LAST_CALL_WINDOW` | 1 hour (demo mode: e.g. 3 minutes) | decided |
 | `QUICK_AMOUNTS_CENTS` | not chosen yet (the quick-amount buttons, D31) | OPEN (D31) |

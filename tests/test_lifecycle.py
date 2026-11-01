@@ -156,6 +156,21 @@ def test_confirm_pledge_refuses_blank_name_and_small_max():
     assert lifecycle.confirm_pledge(None, 1, "Ana", 499, NOW) == {"outcome": "TOO_SMALL"}
 
 
+# D58: a max over $2,000 is refused before the database is touched (conn is None here).
+def test_confirm_pledge_refuses_a_max_over_2000_dollars():
+    assert lifecycle.confirm_pledge(None, 1, "Ana", 200001, NOW) == {"outcome": "TOO_BIG"}
+
+
+# D58: exactly $2,000.00 is the largest max that can be saved.
+def test_confirm_pledge_accepts_a_max_of_exactly_2000_dollars(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        token = confirm(test_db, event_id, "Ana", 200000)
+        assert lifecycle.find_pledge_by_token(test_db, token)["max_cents"] == 200000
+    finally:
+        delete_event(test_db, event_id)
+
+
 # Confirming saves a PENDING_PAY pledge with the name tidied, and never calls PayPal.
 def test_confirm_pledge_saves_pending_pay(test_db):
     fake_paypal.reset()
@@ -965,3 +980,126 @@ def test_rule6_only_lifecycle_calls_capture():
             if ".capture_authorization(" in line:
                 found.append(path.name)
     assert found == ["lifecycle.py"]
+
+
+# ---------- Creating and opening an event (step 5b) ----------
+
+# Make a DRAFT event the way S1 will, through lifecycle.create_event, and return its answer.
+# The test fails here if it wasn't created.
+def make_draft_event(conn, demo_mode=True, deposit_cents=30000):
+    result = lifecycle.create_event(conn, "  Cabin deposit (made up)  ", deposit_cents, demo_mode)
+    assert result["outcome"] == "CREATED"
+    return result
+
+
+# A blank title, a deposit under $20 (D61) and a deposit over $2,000 (D58) are refused before the
+# database is touched (conn is None here).
+def test_create_event_refuses_a_blank_title_and_bad_deposits():
+    assert lifecycle.create_event(None, "   ", 30000, True) == {"outcome": "NO_TITLE"}
+    assert lifecycle.create_event(None, "Cabin", 0, True) == {"outcome": "TOO_SMALL"}
+    assert lifecycle.create_event(None, "Cabin", 1999, True) == {"outcome": "TOO_SMALL"}
+    assert lifecycle.create_event(None, "Cabin", 200001, True) == {"outcome": "TOO_BIG"}
+
+
+# Creating saves a DRAFT with the title tidied, the deposit in cents and a private admin_token, and no
+# times yet: those are saved when the event opens.
+def test_create_event_saves_a_draft(test_db):
+    result = make_draft_event(test_db)
+    try:
+        event = lifecycle.find_event(test_db, result["event_id"])
+        assert event["status"] == "DRAFT"
+        assert event["title"] == "Cabin deposit (made up)"
+        assert event["deposit_cents"] == 30000
+        assert event["demo_mode"] is True
+        assert event["admin_token"] == result["admin_token"]
+        assert len(result["admin_token"]) == 32     # secrets.token_urlsafe(24) is 32 characters long
+        assert event["opens_at"] is None
+        assert event["hard_deadline"] is None
+        assert lifecycle.find_event_by_admin_token(test_db, result["admin_token"])["id"] == event["id"]
+    finally:
+        delete_event(test_db, result["event_id"])
+
+
+# D61: exactly $20.00 is the smallest deposit that can be saved.
+def test_create_event_accepts_a_deposit_of_exactly_20_dollars(test_db):
+    result = make_draft_event(test_db, deposit_cents=2000)
+    try:
+        assert lifecycle.find_event(test_db, result["event_id"])["deposit_cents"] == 2000
+    finally:
+        delete_event(test_db, result["event_id"])
+
+
+# D58: exactly $2,000.00 is the biggest deposit that can be saved.
+def test_create_event_accepts_a_deposit_of_exactly_2000_dollars(test_db):
+    result = make_draft_event(test_db, deposit_cents=200000)
+    try:
+        assert lifecycle.find_event(test_db, result["event_id"])["deposit_cents"] == 200000
+    finally:
+        delete_event(test_db, result["event_id"])
+
+
+# Demo mode counts in minutes, so a whole event fits in one sitting. Otherwise it's 48 hours (D04).
+def test_pledging_window_is_minutes_in_demo_mode():
+    assert lifecycle.pledging_window({"demo_mode": True}) == timedelta(minutes=10)
+    assert lifecycle.pledging_window({"demo_mode": False}) == timedelta(hours=48)
+
+
+# Opening in demo mode: DRAFT -> OPEN, opened now, pledging ends 10 minutes later, and the event
+# now takes pledges.
+def test_open_event_in_demo_mode(test_db):
+    result = make_draft_event(test_db, demo_mode=True)
+    try:
+        assert lifecycle.open_event(test_db, result["admin_token"], NOW) == "OPENED"
+        event = lifecycle.find_event(test_db, result["event_id"])
+        assert event["status"] == "OPEN"
+        assert event["opens_at"] == NOW
+        assert event["hard_deadline"] == NOW + timedelta(minutes=10)
+        assert lifecycle.pledging_is_open(event, NOW)
+    finally:
+        delete_event(test_db, result["event_id"])
+
+
+# Outside demo mode, pledging stays open for 48 hours (D04).
+def test_open_event_gives_48_hours(test_db):
+    result = make_draft_event(test_db, demo_mode=False)
+    try:
+        assert lifecycle.open_event(test_db, result["admin_token"], NOW) == "OPENED"
+        event = lifecycle.find_event(test_db, result["event_id"])
+        assert event["hard_deadline"] == NOW + timedelta(hours=48)
+    finally:
+        delete_event(test_db, result["event_id"])
+
+
+# A second "Open pledging" (a double click, or a click on an old page) changes nothing, even after
+# the event has moved on: the compare-and-set only matches a DRAFT. An unknown token is NOT_FOUND.
+def test_open_event_twice_keeps_the_first_times(test_db):
+    result = make_draft_event(test_db)
+    later = NOW + timedelta(minutes=5)
+    try:
+        lifecycle.open_event(test_db, result["admin_token"], NOW)
+        assert lifecycle.open_event(test_db, result["admin_token"], later) == "ALREADY_OPENED"
+        event = lifecycle.find_event(test_db, result["event_id"])
+        assert event["opens_at"] == NOW
+        assert event["hard_deadline"] == NOW + timedelta(minutes=10)
+        set_event_status(test_db, result["event_id"], "EXPIRED")
+        assert lifecycle.open_event(test_db, result["admin_token"], later) == "ALREADY_OPENED"
+        assert lifecycle.find_event(test_db, result["event_id"])["status"] == "EXPIRED"
+        assert lifecycle.open_event(test_db, "no-such-token", NOW) == "NOT_FOUND"
+    finally:
+        delete_event(test_db, result["event_id"])
+
+
+# The whole S1 -> S2 path with the fake PayPal: a DRAFT takes no pledges, and once it's opened a
+# friend can pledge and hold, just like on the events the other tests write by hand.
+def test_created_and_opened_event_takes_a_hold(test_db):
+    fake_paypal.reset()
+    result = make_draft_event(test_db)
+    event_id = result["event_id"]
+    try:
+        assert lifecycle.confirm_pledge(test_db, event_id, "Ana", 4000, NOW) == {"outcome": "CLOSED"}
+        lifecycle.open_event(test_db, result["admin_token"], NOW)
+        token, order_id, answer = pledge_and_authorize(test_db, event_id, "Ana", 4000)
+        assert answer == {"outcome": "HELD", "held_cents": 4000}
+        assert lifecycle.find_pledge_by_token(test_db, token)["status"] == "HELD"
+    finally:
+        delete_event(test_db, event_id)

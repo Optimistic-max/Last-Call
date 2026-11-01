@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{# S2, the treasurer view (docs/UI_DESIGN.md sections 3 and 10). A bare page from Emmanuel's step 5b,
+   for Samuel to restyle. This page's address holds the treasurer's private token (D18), and so does
+   open_url: never put either on another page. The board joins this page in step C (D54).
+   "Share link" is a placeholder label until Samuel approves it (D57). #}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<p><label for="share-link">Share link</label>
+  <input id="share-link" value="{{ share_link }}" readonly></p>
+
+{% if can_open %}
+<form method="post" action="{{ open_url }}">
+  <button type="submit">Open pledging</button>
+</form>
+{% endif %}
+{% endblock %}

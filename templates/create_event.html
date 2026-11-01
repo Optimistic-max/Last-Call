@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{# S1, create an event (docs/UI_DESIGN.md sections 3 and 10). A bare page from Emmanuel's step 5b, for
+   Samuel to restyle. app.py reads the field names title, deposit and demo_mode, so keep them.
+   The labels are placeholders until Samuel approves them (D57). #}
+
+{% block content %}
+<h1>Last Call</h1>
+
+{% if error_text %}
+<p role="alert">{{ error_text }}</p>
+{% endif %}
+
+<form method="post" action="{{ url_for('submit_event') }}">
+  <p><label for="title">Title</label>
+    <input id="title" name="title" value="{{ title_value }}"></p>
+  <p><label for="deposit">Deposit ($)</label>
+    <input id="deposit" name="deposit" inputmode="decimal" value="{{ deposit_value }}"></p>
+  <p><label><input type="checkbox" name="demo_mode" value="yes"{% if demo_mode_checked %} checked{% endif %}>
+    Demo mode: timers are minutes, not hours</label></p>
+  <button type="submit">Create</button>
+</form>
+{% endblock %}

@@ -39,6 +39,7 @@ Everything is sandbox and fake money, but we treat keys as if they were real. Ju
 
 - The treasurer's `admin_token` link and each pledger's `pledger_token` link are long random strings (`secrets.token_urlsafe(24)`).
 - Never show one person's token to someone else. Never put tokens in the README or the video.
+- The `admin_token` is part of the treasurer's address (`/admin/<admin_token>`, D18), so it can appear in Render's request logs. Accepted for the hackathon, because only the team can read those logs (D59). Whether Render's logs show the full path: unverified. Our own log lines name the route, never the token.
 
 ## Sandbox guard
 
