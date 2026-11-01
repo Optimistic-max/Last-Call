@@ -8,7 +8,8 @@
 # (db.py's autocommit), which is what "save before you send" relies on (rule 3).
 #
 # Step 2.3 added the pledge and hold steps. Step 2.5 added the goal check, settle-on-wake, lock and
-# charge, and expire. All the money math in them is Malama's money.py (rule 2).
+# charge, and expire. Step 5b added creating and opening an event. All the money math in them is
+# Malama's money.py (rule 2).
 # The log shows IDs and statuses only: never a token, a name or an email (docs/SECURITY.md).
 
 import logging
@@ -78,12 +79,15 @@ def find_pledge_by_name(conn, event_id, name):
 # D31: the friend confirmed a name and a max, so save the pledge (PENDING_PAY) and return its private
 # token. D26: the same name again reuses that person's unpaid pledge, instead of failing on the unique
 # name index. max_cents is whole cents: the route turned the typed "40" into 4000 with money.py.
+# The max must be from $5 to $2,000 (config.py, D58).
 def confirm_pledge(conn, event_id, name, max_cents, now):
     name = conditions.tidy_name(name)
     if name == "":
         return {"outcome": "NO_NAME"}
     if max_cents < config.MIN_MAX_CENTS:
         return {"outcome": "TOO_SMALL"}
+    if max_cents > config.MAX_MAX_CENTS:
+        return {"outcome": "TOO_BIG"}
     event = find_event(conn, event_id)
     if event is None:
         return {"outcome": "NOT_FOUND"}
@@ -561,3 +565,55 @@ def drop_pledges_without_a_hold(conn, event_id):
                         "AND NOT EXISTS (SELECT 1 FROM holds "
                         "WHERE holds.pledge_id = pledges.id AND holds.status = 'CREATED')",
                   (event_id,))
+
+
+# ---------- Step 5b: create and open an event ----------
+
+# S1, "Create": save a new DRAFT event with its private admin_token, the treasurer's login link (D18).
+# STATE_MACHINE.md says a DRAFT must have its admin_token saved before it's shown; the one INSERT saves
+# both. The status starts as DRAFT, the column's default in schema.sql. deposit_cents is whole cents:
+# the route turned the typed "300" into 30000 with money.py. It must be from $20 to $2,000 (config.py,
+# D58, D61), the range test C3 checked. The log shows the event ID only, never the title or the token.
+def create_event(conn, title, deposit_cents, demo_mode):
+    title = title.strip()
+    if title == "":
+        return {"outcome": "NO_TITLE"}
+    if deposit_cents < config.MIN_DEPOSIT_CENTS:
+        return {"outcome": "TOO_SMALL"}
+    if deposit_cents > config.MAX_DEPOSIT_CENTS:
+        return {"outcome": "TOO_BIG"}
+    row = db.fetch_one(conn, "INSERT INTO events (title, deposit_cents, admin_token, demo_mode) "
+                             "VALUES (%s, %s, %s, %s) RETURNING id, admin_token",
+                       (title, deposit_cents, new_token(), demo_mode))
+    logger.info("event %d created as DRAFT", row["id"])
+    return {"outcome": "CREATED", "event_id": row["id"], "admin_token": row["admin_token"]}
+
+
+def find_event_by_admin_token(conn, admin_token):
+    return db.fetch_one(conn, "SELECT * FROM events WHERE admin_token = %s", (admin_token,))
+
+
+# How long pledging stays open once the event opens (D04): 48 hours, or 10 minutes in demo mode, so a
+# whole event can be tried in one sitting.
+def pledging_window(event):
+    if event["demo_mode"]:
+        return config.DEMO_PLEDGING_WINDOW
+    return config.PLEDGING_WINDOW
+
+
+# S2, "Open pledging": DRAFT -> OPEN in one compare-and-set (STATE_MACHINE.md). The same UPDATE saves
+# opens_at and hard_deadline, so an OPEN event always has its deadline. If two clicks arrive at once,
+# only one UPDATE still finds the event DRAFT; the other changes 0 rows, and the first click's times stay.
+# An event that isn't DRAFT was always opened before, because this is DRAFT's only way out.
+# Returns OPENED, ALREADY_OPENED or NOT_FOUND.
+def open_event(conn, admin_token, now):
+    event = find_event_by_admin_token(conn, admin_token)
+    if event is None:
+        return "NOT_FOUND"
+    hard_deadline = now + pledging_window(event)
+    changed = db.run(conn, "UPDATE events SET status = 'OPEN', opens_at = %s, hard_deadline = %s "
+                           "WHERE id = %s AND status = 'DRAFT'", (now, hard_deadline, event["id"]))
+    if changed == 0:
+        return "ALREADY_OPENED"
+    logger.info("event %d is open", event["id"])
+    return "OPENED"

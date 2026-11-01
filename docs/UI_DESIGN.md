@@ -146,3 +146,66 @@ Every text pair passes AA, and every one except `--warn` on `--surface` (6.21) a
 - **Share button** on S2: uses the Web Share API where the browser has it, with a copy-link button as the fallback.
 - **Static Open Graph tags** on the event link page (`og:title`, `og:description`, `og:image`): the same for every event, with no names or amounts. The description says it's a sandbox demo.
 - **Wake the Render server before sharing the link.** Open the link once yourself first: the free server sleeps, and otherwise the link preview or the first friend may reach it asleep.
+
+## 10. What each page receives (step 5b contract)
+
+Added by Emmanuel on Oct 31 for step 5b (D54–D58). `app.py` passes exactly these values, and tests check that `board.json` has exactly these keys.
+
+- Money and times arrive as finished text, so templates and JavaScript never format or add up money (§7, rule 2). The `dollars` filter (`{{ 4000|dollars }}` shows `$40.00`) is for a template that is given cents. No 5b page needs it.
+- No page and no JSON ever gets an email or a `pledger_token`. Only S2 gets anything that contains the `admin_token`.
+- Later milestones may add keys. They never rename one.
+- Files: `create_event.html` (S1), `admin.html` (S2), `board.html` (S3) and `board_panel.html` (the board, shown on S2 and S3). All of them extend `base.html`. The bare versions are Emmanuel's, for Samuel to restyle.
+- *Placeholder* marks D57's texts, used until Samuel approves or replaces them in §4.
+
+### S1 `create_event.html` (`GET /`, and `POST /events` when it refuses)
+
+| Value | Type | Example |
+|---|---|---|
+| `error_text` | text, `""` when there is none | `"Type a title."` |
+| `title_value` | what the treasurer typed, kept after a refusal | `"Cabin deposit"` |
+| `deposit_value` | what the treasurer typed, kept after a refusal | `"300"` |
+| `demo_mode_checked` | true or false | `false` |
+
+The form posts to `/events` with the fields **`title`**, **`deposit`** and **`demo_mode`** (a checkbox with the value `yes`). `app.py` reads these names, so keep them. Success goes to S2.
+
+S1 refusals: `"Type a title."` *(placeholder)*, `money.py`'s `"Type an amount like 40 or 40.50."`, `"The smallest deposit is $20.00."` *(placeholder, D61)*, `"The largest deposit is $2,000.00."` *(placeholder, D58)*, and the S5 error text if the database is down.
+
+### S2 `admin.html` (`GET /admin/<admin_token>`)
+
+| Value | Type | Example |
+|---|---|---|
+| `title` | text | `"Cabin deposit"` |
+| `share_link` | text: the pledge page (D55) | `"https://last-call-cr7n.onrender.com/e/7/pledge"` |
+| `can_open` | true while the event is DRAFT | `true` |
+| `open_url` | text: the action of the "Open pledging" form (POST). It holds the treasurer's token, so never put it on another page | `"/admin/<admin_token>/open"` |
+| `board` | the S3 object below. Arrives with step C (D54) | |
+
+### S3 `board.html` (`GET /e/<id>`) and `board.json` (`GET /e/<id>/board.json`)
+
+Both get the same `board` object, and `board.json` is exactly this object, so the 10-second refresh can update the page key by key. Arrives with step C (D54).
+
+| Key | Type | Example |
+|---|---|---|
+| `event_id` | number | `7` |
+| `title` | text | `"Ridgeline Hiking Club cabin"` |
+| `status` | text, for styling only: `DRAFT`, `OPEN`, `LAST_CALL`, `LOCKING`, `CHARGING`, `SETTLED`, `NEEDS_ATTENTION`, `EXPIRED` | `"OPEN"` |
+| `banner_text` | text, from the table below | `"Pledging open: 9 min left"` |
+| `goal_text` | text | `"Goal $310.01 so the club gets a full $300.00 after fees"` |
+| `held_total_text` | text: HELD money only (D31, D43). It is `$0.00` after lock, because holds become charges | `"$120.00"` |
+| `progress_percent` | a whole number from 0 to 100. It is 100 only when the goal is reached (D54), and 100 from `LAST_CALL` on (§5) | `39` |
+| `pledging_open` | true or false: whether to show the link to `/e/<id>/pledge` | `true` |
+| `rows` | a list in join order, with DROPPED pledges left out (D56) | |
+| `rows[].name` | text | `"Ana"` |
+| `rows[].status` | text, for styling only: `PENDING_PAY`, `HELD`, `DECLINED`, `CHARGED`, `FAILED` | `"HELD"` |
+| `rows[].status_word` | text: `"Pledged"`, `"Held"`, `"Declined"`, `"Charged $28.33"`, or `"Charge failed"` *(placeholder)* | `"Held"` |
+| `rows[].max_text` | text | `"$40.00"` |
+
+| Event `status` | `banner_text` |
+|---|---|
+| `DRAFT` | "This event isn't open yet." *(placeholder)* |
+| `OPEN` | "Pledging open: [time] left", with [time] like "1 h 5 min", "9 min" or "less than a minute" *(placeholder formats)* |
+| `LAST_CALL` | "Last call! Goal reached. Join in the next [mm:ss] and everyone's share drops.", with [mm:ss] like "4:59", or "1:02:03" from one hour up *(placeholder format)* |
+| `LOCKING`, `CHARGING` | "Locking shares…" |
+| `SETTLED` | "Done! Club receives $[real net]". If PayPal's net is missing for any charge: "Charged once. PayPal closes the rest of each hold." (D54, D57) |
+| `NEEDS_ATTENTION` | "Needs the treasurer's attention" |
+| `EXPIRED` | "Cancelling holds…" while any hold of the event is still CREATED (D45), then "Goal not reached. Every hold was cancelled. Nobody paid." |

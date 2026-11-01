@@ -1,14 +1,14 @@
 # Flask routes only (AGENTS.md section 7). Owner: Emmanuel.
 # Malama's M0 task added GET /health (docs/MVP_PLAN.md, M0), so Render can see the app is up and the
 # database answers. Emmanuel's step 2.3 added the startup sandbox guard and the pledge and order routes,
-# step 2.4 the pledge page, and step 2.5 settle-on-wake.
+# step 2.4 the pledge page, step 2.5 settle-on-wake, and step 5b creating and opening an event (S1, S2).
 # Routes read the request, call lifecycle.py, and turn its answer into JSON or a page. They do no money math.
 
 import logging
 from datetime import datetime, timezone
 
 import psycopg
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 import config
 import db
@@ -32,12 +32,17 @@ DECLINED_TEXT = "Card declined. Nothing was held. Try another card."
 CLOSED_AND_VOIDED_TEXT = ("Pledging closed before your hold went through. "
                           "We're cancelling the hold, and nothing will be charged.")
 ERROR_TEXT = "Something went wrong. Nothing was charged. Please try again."
-ALREADY_PLEDGED_TEXT = "%s has already pledged."    # D26; Samuel's to-do adds it to UI_DESIGN
-# Not in UI_DESIGN yet, so Samuel should check them: pledging closed before any hold was placed,
-# a blank name, and a max under $5.
+ALREADY_PLEDGED_TEXT = "%s has already pledged."    # D26
 CLOSED_TEXT = "Pledging is closed for this event. Nothing was held."
 NO_NAME_TEXT = "Type your name."
 TOO_SMALL_TEXT = "The smallest max is $5.00."
+# D58's cap, filled in from config.py. A placeholder until Samuel adds it to UI_DESIGN section 4 (D57).
+TOO_BIG_TEXT = "The largest max is %s."
+# S1's refusals, the limits filled in from config.py. Placeholders until Samuel adds them to UI_DESIGN
+# section 4 (D57, D58, D61).
+NO_TITLE_TEXT = "Type a title."
+DEPOSIT_TOO_SMALL_TEXT = "The smallest deposit is %s."
+DEPOSIT_TOO_BIG_TEXT = "The largest deposit is %s."
 
 
 # The one place the app reads the clock (AGENTS.md section 5: time is passed in). Always UTC.
@@ -77,6 +82,12 @@ def dollars(cents):
     return "$" + "{:,}.{:02d}".format(cents // 100, cents % 100)
 
 
+# The same dollars() as a template filter: {{ 4000|dollars }} shows "$40.00" (docs/UI_DESIGN.md
+# section 7), so pages and JSON messages always format money the same way. Adding it to Flask's
+# filter list like this needs no decorator (AGENTS.md section 5).
+app.jinja_env.filters["dollars"] = dollars
+
+
 # The JSON object the page sent, or {} if it sent nothing or something that isn't a JSON object.
 # silent=True means "give back None instead of raising an error" for a body that isn't JSON.
 def json_body():
@@ -103,6 +114,8 @@ def refusal_answer(result):
         return message_answer(NO_NAME_TEXT, 400)
     if outcome == "TOO_SMALL":
         return message_answer(TOO_SMALL_TEXT, 400)
+    if outcome == "TOO_BIG":
+        return message_answer(TOO_BIG_TEXT % dollars(config.MAX_MAX_CENTS), 400)
     if outcome == "NOT_FOUND":
         return message_answer(ERROR_TEXT, 404)
     return message_answer(ERROR_TEXT, 502)
@@ -238,3 +251,106 @@ def api_authorize_order(order_id):
     if outcome == "CLOSED_AND_VOIDED":
         return jsonify({"status": "CLOSED", "message": CLOSED_AND_VOIDED_TEXT})
     return refusal_answer(result)
+
+
+# ---------- Step 5b: create and open an event (S1, S2) ----------
+# The values each template gets are the contract in docs/UI_DESIGN.md section 10.
+
+# S1, the create-event form (docs/UI_DESIGN.md section 3).
+@app.route("/")
+def create_event_page():
+    return render_template("create_event.html", error_text="", title_value="", deposit_value="",
+                           demo_mode_checked=False)
+
+
+# S1 again after a refusal: the message, plus everything the treasurer typed, so nothing is typed twice.
+def refused_create_page(error_text, http_status):
+    return render_template("create_event.html", error_text=error_text,
+                           title_value=request.form.get("title", ""),
+                           deposit_value=request.form.get("deposit", ""),
+                           demo_mode_checked=request.form.get("demo_mode") == "yes"), http_status
+
+
+# The S1 message for each refusal from lifecycle.create_event.
+def create_refusal_text(outcome):
+    if outcome == "NO_TITLE":
+        return NO_TITLE_TEXT
+    if outcome == "TOO_SMALL":
+        return DEPOSIT_TOO_SMALL_TEXT % dollars(config.MIN_DEPOSIT_CENTS)
+    if outcome == "TOO_BIG":
+        return DEPOSIT_TOO_BIG_TEXT % dollars(config.MAX_DEPOSIT_CENTS)
+    return ERROR_TEXT
+
+
+# "Create": save a DRAFT event, then send the treasurer to S2. The form sends title, deposit and
+# demo_mode (a checkbox that sends "yes" only when ticked). The typed deposit becomes whole cents with
+# money.py, so no float is ever made (rule 1). Code 303 tells the browser to load S2 with a GET, so
+# refreshing S2 can't create the event a second time.
+@app.route("/events", methods=["POST"])
+def submit_event():
+    try:
+        deposit_cents = money.dollars_text_to_cents(request.form.get("deposit", ""))
+    except ValueError as error:
+        return refused_create_page(str(error), 400)
+    try:
+        conn = db.connect(config.DATABASE_URL)
+        try:
+            result = lifecycle.create_event(conn, request.form.get("title", ""), deposit_cents,
+                                            request.form.get("demo_mode") == "yes")
+        finally:
+            conn.close()
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("POST /events: database error (%s)", type(error).__name__)
+        return refused_create_page(ERROR_TEXT, 503)
+    if result["outcome"] == "CREATED":
+        return redirect(url_for("admin_page", admin_token=result["admin_token"]), code=303)
+    return refused_create_page(create_refusal_text(result["outcome"]), 400)
+
+
+# The link the treasurer shares in the group chat: the pledge page (D55). APP_BASE_URL is the app's
+# public address (the Render URL). It may be empty on a laptop, so then the address this request came
+# in on is used instead, like "http://localhost:5000/".
+def share_link_for(event_id):
+    base_url = config.APP_BASE_URL
+    if base_url == "":
+        base_url = request.url_root
+    return base_url.rstrip("/") + url_for("pledge_page", event_id=event_id)
+
+
+# S2, the treasurer view. The admin_token in the address is the treasurer's login (D18), so the log
+# names the route only, never the token. An unknown token is a 404 with the general error text, like
+# an unknown event. The board joins this page in step C (D54).
+@app.route("/admin/<admin_token>")
+def admin_page(admin_token):
+    try:
+        conn = db.connect(config.DATABASE_URL)
+        try:
+            event = lifecycle.find_event_by_admin_token(conn, admin_token)
+        finally:
+            conn.close()
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("GET /admin/<token>: database error (%s)", type(error).__name__)
+        return ERROR_TEXT, 503
+    if event is None:
+        return ERROR_TEXT, 404
+    return render_template("admin.html", title=event["title"], share_link=share_link_for(event["id"]),
+                           can_open=event["status"] == "DRAFT",
+                           open_url=url_for("open_pledging", admin_token=admin_token))
+
+
+# "Open pledging": DRAFT -> OPEN through lifecycle.open_event, then back to S2 with a 303.
+# A second click changes nothing and also goes back to S2.
+@app.route("/admin/<admin_token>/open", methods=["POST"])
+def open_pledging(admin_token):
+    try:
+        conn = db.connect(config.DATABASE_URL)
+        try:
+            outcome = lifecycle.open_event(conn, admin_token, utc_now())
+        finally:
+            conn.close()
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("POST /admin/<token>/open: database error (%s)", type(error).__name__)
+        return ERROR_TEXT, 503
+    if outcome == "NOT_FOUND":
+        return ERROR_TEXT, 404
+    return redirect(url_for("admin_page", admin_token=admin_token), code=303)

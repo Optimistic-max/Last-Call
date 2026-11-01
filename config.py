@@ -41,6 +41,12 @@ FEE_FIXED_CENTS = 49
 
 MIN_SHARE_CENTS = 500   # nobody is charged less than $5
 MIN_MAX_CENTS = 500     # nobody can pledge a max under $5
+MAX_MAX_CENTS = 200000  # nobody can pledge a max over $2,000 (D58)
+
+# The deposit limits (D58, D61). Test C3 proved the club is never short only for deposits from $20
+# to $2,000, so the app accepts nothing outside that range.
+MIN_DEPOSIT_CENTS = 2000     # no event can have a deposit under $20
+MAX_DEPOSIT_CENTS = 200000   # no event can have a deposit over $2,000
 
 # How long pledging stays open after the treasurer opens the event (D04).
 # Demo mode uses minutes, so a whole event can be tested in one sitting.

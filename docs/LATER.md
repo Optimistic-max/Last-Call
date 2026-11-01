@@ -64,6 +64,12 @@ Not built before the freeze. D47's safe ending stands instead: hold `CAPTURED`, 
 | F6 | `AUTHORIZATION_ALREADY_CAPTURED` is recorded as charged, not as failure | `NOT RUN` |
 | F8 | "New pay link" goes only to the failed person (was waiting on D28 (b)) | `NOT RUN` |
 
+## Not built before the freeze (Oct 31, D60)
+
+| Idea | Note |
+|---|---|
+| CSRF protection and rate limiting on `POST /events` | The S1 form has no CSRF token and no limit, so anyone could create many fake DRAFT events. `POST /admin/<admin_token>/open` already needs the secret token in its address |
+
 ## Ideas from the team (add yours here)
 
 | Date | Who | Idea |
