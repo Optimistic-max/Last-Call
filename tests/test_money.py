@@ -141,6 +141,47 @@ def test_goal_is_not_reached_with_nobody_counted():
     assert money.goal_is_reached(30000, []) is False
 
 
+# progress_percent (D54): halfway, one cent short, exactly the goal and over it.
+# $300 with 4 people needs $310.01 (31001 cents).
+def test_progress_percent_examples():
+    assert money.progress_percent(30000, [7750, 7750]) == 50           # 15500 of 30900 (2 people's goal) = 50.16%
+    assert money.progress_percent(30000, [7750, 7750, 7750, 7750]) == 99    # 31000 of 31001
+    assert money.progress_percent(30000, [7750, 7750, 7750, 7751]) == 100   # exactly the goal
+    assert money.progress_percent(30000, [50000, 50000, 50000, 50000]) == 100  # over: capped
+    assert isinstance(money.progress_percent(30000, [7750, 7750]), int)
+
+
+# progress_percent: nobody counted is 0, never a division by zero.
+def test_progress_percent_nobody_counted():
+    assert money.progress_percent(30000, []) == 0
+
+
+# progress_percent shows 100 exactly when goal_is_reached is True (D54), on 10,000 random groups
+# of 1 to 40 people. The maxes are random, so some groups reach the goal and some don't.
+def test_progress_percent_is_100_exactly_when_goal_is_reached():
+    generator = random.Random(54)
+    reached_count = 0
+    for _ in range(10000):
+        deposit = generator.randint(2000, 200000)
+        maxes = []
+        for _ in range(generator.randint(1, 40)):
+            maxes.append(generator.randint(config.MIN_MAX_CENTS, 20000))
+        percent = money.progress_percent(deposit, maxes)
+        assert 0 <= percent <= 100
+        assert (percent == 100) == money.goal_is_reached(deposit, maxes)
+        if percent == 100:
+            reached_count = reached_count + 1
+    assert 0 < reached_count < 10000    # both kinds of group really were tested
+
+
+# club_net_cents (D54): the sum of PayPal's nets, or None when there is nothing real to show.
+def test_club_net_cents():
+    assert money.club_net_cents([7549, 7549, 7550]) == 22648
+    assert money.club_net_cents([]) is None
+    assert money.club_net_cents([7549, None, 7550]) is None
+    assert money.club_net_cents([0, 0]) == 0
+
+
 # dollars_text_to_cents: the examples from the task, plus spaces at the ends and a zero.
 def test_dollars_text_to_cents_reads_good_amounts():
     assert money.dollars_text_to_cents("40") == 4000
