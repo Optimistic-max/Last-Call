@@ -67,6 +67,31 @@ def goal_is_reached(deposit_cents, counted_max_cents_list):
     return sum(counted_max_cents_list) >= goal
 
 
+# How full the board's progress bar is, as a whole number from 0 to 100 (D54, UI_DESIGN.md section 5).
+# 100 x the counted maxes / the goal, rounded down (//) and capped at 100. Nobody counted means 0.
+# Rounding down means it reaches 100 exactly when goal_is_reached is True: 99.9% shows as 99, never 100.
+def progress_percent(deposit_cents, counted_max_cents_list):
+    if len(counted_max_cents_list) == 0:
+        return 0
+    goal = fee_adjusted_goal_cents(deposit_cents, len(counted_max_cents_list))
+    percent = 100 * sum(counted_max_cents_list) // goal
+    if percent > 100:
+        return 100
+    return percent
+
+
+# What the club really received: the sum of PayPal's own net on each charge (MONEY_RULES.md section 7).
+# Returns None if the list is empty or any net is None (not saved yet), so the board never shows a
+# made-up number (D54). A real net of 0 still counts as a number.
+def club_net_cents(net_cents_list):
+    if len(net_cents_list) == 0:
+        return None
+    for net_cents in net_cents_list:
+        if net_cents is None:
+            return None
+    return sum(net_cents_list)
+
+
 # Split the goal evenly, but never above anyone's max (MONEY_RULES.md section 5, kept line for
 # line the same as the reference there so it can be checked against the doc).
 # max_cents_list must be in join order, earliest first: the caller sorts by created_at, then id
