@@ -70,6 +70,12 @@ Not built before the freeze. D47's safe ending stands instead: hold `CAPTURED`, 
 |---|---|
 | CSRF protection and rate limiting on `POST /events` | The S1 form has no CSRF token and no limit, so anyone could create many fake DRAFT events. `POST /admin/<admin_token>/open` already needs the secret token in its address |
 
+## Not built before the freeze (Nov 1, D62)
+
+| Idea | Note |
+|---|---|
+| Optional email on a pledge (D31: "name required, email optional") | Needs a `pledges.email` column in `schema.sql` and `DATA_MODEL.md`, an email field on S4 and in `POST /api/pledges`, and the `SECURITY.md` rules: never logged, never on the board or in `board.json` |
+
 ## Ideas from the team (add yours here)
 
 | Date | Who | Idea |

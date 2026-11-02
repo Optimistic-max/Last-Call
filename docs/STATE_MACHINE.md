@@ -26,7 +26,7 @@ Failure branches aren't drawn here. They are all in the "Failure branches" table
 ## Pledge states
 
 ```
-(M4 only) PARSED ──treasurer confirms──► PENDING_PAY ──authorize CREATED──► HELD ◄──► COUNTED
+friend confirms, row created ──────────► PENDING_PAY ──authorize CREATED──► HELD ◄──► COUNTED
                                               │                              │            │
                                      authorize DENIED                  I'm out / never     lock
                                               ▼                        counted at lock     ▼
@@ -36,8 +36,7 @@ Failure branches aren't drawn here. They are all in the "Failure branches" table
 
 | State | Meaning |
 |---|---|
-| `PARSED` | Created from the chat by the AI, not yet confirmed (M4) |
-| `PENDING_PAY` | Waiting for this person to hold their max |
+| `PENDING_PAY` | The first state. The pledge row is created here, when the friend confirms (D31). Waiting for this person to hold their max. There is no `PARSED` state: the AI's suggestion stays only in the page and is never saved (D62) |
 | `HELD` | PayPal hold in place, but not counted (their condition isn't met yet) |
 | `COUNTED` | Held and counted toward the goal by the circle rule. Can't leave during last call |
 | `DROPPED` | Left before last call, never counted at lock, or still unpaid (`PENDING_PAY`) when the event locked or expired. Hold voided, if there was one. **When an event expires (D45):** a pledge that was `HELD` becomes `DROPPED` once its hold is voided, or at once (no PayPal call) if it has no `CREATED` hold left, for example a hold voided or declined earlier. A pledge whose void failed stays `HELD`, with its hold still `CREATED`, until M2's cleanup sweep voids it |
