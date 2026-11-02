@@ -102,8 +102,8 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 
 | ID | Test | Status |
 |---|---|---|
-| G1 | Validator rejects bad JSON and wrong types, and the parser doesn't invent an amount, cap or condition that's missing from the friend's message | NOT RUN |
-| G2 | Model failure shows "please retype" | NOT RUN |
+| G1 | Validator rejects bad JSON and wrong types, and the parser doesn't invent an amount, cap or condition that's missing from the friend's message | VERIFIED for the validator with hand-written model answers (Nov 1, `tests/test_ai_parser.py`): bad JSON, wrong types and unknown fields; an invented max, min or condition gives "please retype" (D63), and with that check turned off the tests fail. Floats never reach the result. With the real model: NOT RUN (G3) |
+| G2 | Model failure shows "please retype" | VERIFIED with a stand-in for the AI call (Nov 1): a timeout, an HTTP 500, an answer with no content and a missing key each give "please retype"; with no key nothing is sent. Real Groq outage: NOT RUN |
 | G3 | **Accuracy on the 50 frozen made-up messages: X/50** (report both scores if the prompt changed) | NOT RUN |
 
 ## H. New users (after the Nov 5 freeze, D31, D51)

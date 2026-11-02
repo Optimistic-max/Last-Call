@@ -22,6 +22,16 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "")
 FLASK_SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "")
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "")
+AI_API_KEY = os.environ.get("AI_API_KEY", "")
+AI_MODEL = os.environ.get("AI_MODEL", "")
+
+# The AI that reads one friend's pledge (D15): Groq's chat API, which follows OpenAI's format.
+# Address read in docs: https://console.groq.com/docs/api-reference (Nov 1). Added by Malama for ai_parser.py.
+AI_BASE_URL = "https://api.groq.com/openai/v1"
+
+# Reading one pledge gives up after this many seconds, and the friend sees "please retype"
+# (docs/AI_PARSER.md section 4). They can always fill in the confirm step by hand.
+AI_TIMEOUT_SECONDS = 15
 
 # The only PayPal address this app may ever talk to (AGENTS.md rule 12).
 SANDBOX_BASE_URL = "https://api-m.sandbox.paypal.com"
