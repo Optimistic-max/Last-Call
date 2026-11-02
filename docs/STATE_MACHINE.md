@@ -21,12 +21,12 @@ Failure branches aren't drawn here. They are all in the "Failure branches" table
 | `CHARGING` | Captures running one at a time | each capture row before its PayPal call |
 | `SETTLED` | Every counted pledge charged | — |
 | `NEEDS_ATTENTION` | At least one capture failed twice | which pledges failed |
-| `EXPIRED` | Deadline passed without the goal; all holds voided | — |
+| `EXPIRED` | Deadline passed without the goal. Every `CREATED` hold is voided; one whose void failed stays `CREATED`, its pledge stays `HELD`, and the event stays `EXPIRED` until M2's cleanup sweep voids it (D45) | — |
 
 ## Pledge states
 
 ```
-(M4 only) PARSED ──treasurer confirms──► PENDING_PAY ──authorize CREATED──► HELD ◄──► COUNTED
+friend confirms, row created ──────────► PENDING_PAY ──authorize CREATED──► HELD ◄──► COUNTED
                                               │                              │            │
                                      authorize DENIED                  I'm out / never     lock
                                               ▼                        counted at lock     ▼
@@ -36,11 +36,10 @@ Failure branches aren't drawn here. They are all in the "Failure branches" table
 
 | State | Meaning |
 |---|---|
-| `PARSED` | Created from the chat by the AI, not yet confirmed (M4) |
-| `PENDING_PAY` | Waiting for this person to hold their max |
+| `PENDING_PAY` | The first state. The pledge row is created here, when the friend confirms (D31). Waiting for this person to hold their max. There is no `PARSED` state: the AI's suggestion stays only in the page and is never saved (D62) |
 | `HELD` | PayPal hold in place, but not counted (their condition isn't met yet) |
 | `COUNTED` | Held and counted toward the goal by the circle rule. Can't leave during last call |
-| `DROPPED` | Left before last call, never counted at lock, or still unpaid (`PENDING_PAY`) when the event locked or expired. Hold voided, if there was one |
+| `DROPPED` | Left before last call, never counted at lock, or still unpaid (`PENDING_PAY`) when the event locked or expired. Hold voided, if there was one. **When an event expires (D45):** a pledge that was `HELD` becomes `DROPPED` once its hold is voided, or at once (no PayPal call) if it has no `CREATED` hold left, for example a hold voided or declined earlier. A pledge whose void failed stays `HELD`, with its hold still `CREATED`, until M2's cleanup sweep voids it |
 | `DECLINED` | Authorization came back `DENIED`. Nothing to void (trying again: D26) |
 | `CHARGED` | Share captured |
 | `FAILED` | Capture failed twice |
@@ -60,7 +59,7 @@ Failure branches aren't drawn here. They are all in the "Failure branches" table
 | pledge → `DROPPED` | `POST /v2/payments/authorizations/{id}/void` | Returns 204. Confirm with a `GET` showing `VOIDED` |
 | pledge `COUNTED` → `CHARGED` | `POST /v2/payments/authorizations/{id}/capture` with `final_capture: true` | Save the capture's `request_id` first. Afterwards `GET /v2/payments/captures/{id}` and save the fee and net |
 | pledge `CHARGED` → `REFUNDED` | `POST /v2/payments/captures/{id}/refund` | Only from the treasurer's refund-all button |
-| event → `EXPIRED` | void every `CREATED` hold | — |
+| event → `EXPIRED` | void every `CREATED` hold | Compare-and-set `OPEN → EXPIRED` first. Then every `HELD` or `PENDING_PAY` pledge with no `CREATED` hold left becomes `DROPPED`; a failed void leaves its pledge `HELD` (D45) |
 
 Webhooks are not used. Nothing in any milestone needs them, so they moved to `docs/LATER.md` (D29). Our database plus API `GET` calls are the record.
 

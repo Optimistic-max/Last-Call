@@ -93,4 +93,5 @@ CREATE TABLE refunds (
 - **Names are saved trimmed, with single spaces** (the same cleanup `conditions.py` uses for matching), so the unique index treats "Ana " and "ana" as the same person.
 - **Why the capture `request_id` is unique:** it is the idempotency key. Reusing it on a retry returns the same capture instead of charging again (VERIFIED in sandbox).
 - **The treasurer's real net** is `SUM(captures.net_cents) WHERE status = 'COMPLETED'`, read from PayPal's own numbers. Never compute it from the formula.
+- **No email column and no stored "hold pending" (D62).** `pledges` has no `email` column before the freeze, so the pledge form asks for a name only. "Hold pending" (D31 #6) is never saved as a pledge status: it is worked out from `holds` when the board is built (Emmanuel's `board.json`, M4).
 - **Admin and pledger tokens** are generated with `secrets.token_urlsafe(24)`. Never show one person's token to another.
