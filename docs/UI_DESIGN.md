@@ -50,6 +50,9 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | Declined card, on the friend's own link (D31) | **Your card was declined, so nothing is held and you're not counted yet. Try another card.** |
 | S3 goal line | **Goal $[goal] so the club gets a full $[deposit] after fees** |
 | S3 last call banner | **Last call! Goal reached. Join in the next [mm:ss] and everyone's share drops.** |
+| Board held total (S2, S3) | **Held so far: $[held]** (approved by Samuel Nov 3, D57) |
+| Board row (S2, S3) | **[Name]: [status word], max $[max]**, plus **, share now $[share]** during last call (approved by Samuel Nov 3, D57, D76) |
+| Board link to S4 | **Pledge** (approved by Samuel Nov 3, D57) |
 | S6 during last call | **You're counted, so you can't leave during last call.** |
 | After lock | **Charged once. PayPal closes the rest of each hold.** |
 | Missed goal | **Goal not reached. Every hold was cancelled. Nobody paid.** |
@@ -190,7 +193,7 @@ Both get the same `board` object, and `board.json` is exactly this object, so th
 | `title` | text | `"Ridgeline Hiking Club cabin"` |
 | `status` | text, for styling only: `DRAFT`, `OPEN`, `LAST_CALL`, `LOCKING`, `CHARGING`, `SETTLED`, `NEEDS_ATTENTION`, `EXPIRED` | `"OPEN"` |
 | `banner_text` | text, from the table below | `"Pledging open: 9 min left"` |
-| `seconds_left` | whole number of seconds until `last_call_ends` during `LAST_CALL`, until `hard_deadline` while `OPEN` (never below 0); `null` for every other status. Lets `board.js` tick the countdown live between refreshes. Added Nov 2 (D76), Samuel to approve | `299` |
+| `seconds_left` | whole number of seconds until `last_call_ends` during `LAST_CALL`, until `hard_deadline` while `OPEN` (never below 0); `null` for every other status. Lets `board.js` tick the countdown live between refreshes. Added Nov 2 (D76), approved by Samuel Nov 3 | `299` |
 | `goal_text` | text | `"Goal $310.01 so the club gets a full $300.00 after fees"` |
 | `held_total_text` | text: HELD money only (D31, D43). It is `$0.00` after lock, because holds become charges | `"$120.00"` |
 | `progress_percent` | a whole number from 0 to 100. It is 100 only when the goal is reached (D54), and 100 from `LAST_CALL` on (§5) | `39` |
@@ -200,7 +203,7 @@ Both get the same `board` object, and `board.json` is exactly this object, so th
 | `rows[].status` | text, for styling only: `PENDING_PAY`, `HELD`, `DECLINED`, `CHARGED`, `FAILED` | `"HELD"` |
 | `rows[].status_word` | text: `"Pledged"`, `"Held"`, `"Declined"`, `"Charged $28.33"`, or `"Charge failed"` *(placeholder)* | `"Held"` |
 | `rows[].max_text` | text | `"$40.00"` |
-| `rows[].estimated_share_text` | text: during `LAST_CALL`, what this person would pay if last call ended now (from `money.py`, the same numbers the lock charges), so a late joiner visibly lowers everyone's number; `""` at every other time. Added Nov 2 (D76), Samuel to approve | `"$8.21"` |
+| `rows[].estimated_share_text` | text: during `LAST_CALL`, what this person would pay if last call ended now (from `money.py`, the same numbers the lock charges), so a late joiner visibly lowers everyone's number; `""` at every other time. Added Nov 2 (D76), approved by Samuel Nov 3 | `"$8.21"` |
 
 | Event `status` | `banner_text` |
 |---|---|

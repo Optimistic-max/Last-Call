@@ -1,23 +1,31 @@
 {# The board (docs/UI_DESIGN.md section 10), included by S2 (admin.html) and S3 (board.html), D76.
-   A bare panel from Emmanuel's step 5b C, for Samuel to restyle. It gets one value, board, and every
-   amount and time in it is finished text: this file never formats or adds up money (rule 2).
-   board never holds a token or an email. No JavaScript here: the 10-second refresh is Samuel's
-   board.js, which can read /e/<id>/board.json and tick seconds_left down.
-   "Held so far", "max", "share now" and "Pledge" are placeholder labels until Samuel approves them (D57). #}
-<section class="board" data-event-id="{{ board.event_id }}" data-status="{{ board.status }}">
+   It gets one value, board, and every amount and time in it is finished text: this file never
+   formats or adds up money (rule 2). board never holds a token or an email.
+   static/js/board.js refreshes it every 10 seconds from /e/<id>/board.json and ticks the last call
+   countdown. The classes and data- attributes below are its hooks, so keep them when restyling.
+   The labels were approved by Samuel on Nov 3 (D57). Each one is set once here and used both in the
+   rows and in the data- attributes board.js reads, so the JavaScript never has its own copy. #}
+{% set max_label = "max" %}
+{% set share_label = "share now" %}
+{% set pledge_label = "Pledge" %}
+<section class="board" data-event-id="{{ board.event_id }}" data-status="{{ board.status }}"
+  {%- if board.seconds_left is not none %} data-seconds-left="{{ board.seconds_left }}"{% endif %}>
   <p class="board-banner" role="status">{{ board.banner_text }}</p>
-  <p>{{ board.goal_text }}</p>
-  <p>Held so far: {{ board.held_total_text }}</p>
-  <progress max="100" value="{{ board.progress_percent }}">{{ board.progress_percent }}%</progress>
+  <p class="board-goal">{{ board.goal_text }}</p>
+  <p>Held so far: <span class="board-held-total">{{ board.held_total_text }}</span></p>
+  <progress class="board-progress" max="100" value="{{ board.progress_percent }}">{{ board.progress_percent }}%</progress>
 
-  <ul class="board-rows">
+  <ul class="board-rows" data-max-label="{{ max_label }}" data-share-label="{{ share_label }}">
     {% for row in board.rows %}
-    <li data-status="{{ row.status }}">{{ row.name }}: {{ row.status_word }}, max {{ row.max_text }}
-      {%- if row.estimated_share_text %}, share now {{ row.estimated_share_text }}{% endif %}</li>
+    <li data-status="{{ row.status }}">{{ row.name }}: {{ row.status_word }}, {{ max_label }} {{ row.max_text }}
+      {%- if row.estimated_share_text %}, {{ share_label }} {{ row.estimated_share_text }}{% endif %}</li>
     {% endfor %}
   </ul>
 
-  {% if board.pledging_open %}
-  <p><a href="{{ url_for('pledge_page', event_id=board.event_id) }}">Pledge</a></p>
-  {% endif %}
+  {# Always here, so board.js can add the link if pledging opens or remove it when pledging closes.
+     The link itself is drawn only while pledging is open. #}
+  <p class="board-pledge" data-pledge-url="{{ url_for('pledge_page', event_id=board.event_id) }}"
+    data-pledge-label="{{ pledge_label }}">
+    {%- if board.pledging_open %}<a href="{{ url_for('pledge_page', event_id=board.event_id) }}">{{ pledge_label }}</a>{% endif -%}
+  </p>
 </section>
