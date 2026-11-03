@@ -684,3 +684,80 @@ def test_parse_route_logs_no_message_and_no_key(monkeypatch, caplog, test_db, te
 def test_parse_limits_match_d73():
     assert config.MAX_PLEDGE_TEXT_CHARS == 280
     assert config.AI_TIMEOUT_SECONDS == 8
+
+
+# ---------- Min and conditions on POST /api/pledges (D77) ----------
+
+# The two limits in D77.
+def test_condition_limits_match_d77():
+    assert config.MAX_CONDITIONS == 3
+    assert config.MAX_NAME_CHARS == 40
+
+
+# The page may send "min" and "conditions" with the confirm. They are saved tidied, and the answer
+# carries the token as before. A pledge with an empty "min" and no "conditions" key saves neither.
+def test_confirm_route_saves_min_and_conditions(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    event_id = make_open_event(test_db)
+    client = app.app.test_client()
+    try:
+        response = client.post("/api/pledges", json={"event_id": event_id, "name": "Ana", "max": "40",
+                                                     "min": "20", "conditions": ["Jay", " jay ", "Maya"]})
+        assert response.status_code == 200
+        assert "pledger_token" in response.get_json()
+        ana = lifecycle.find_pledge_by_name(test_db, event_id, "Ana")
+        assert ana["min_cents"] == 2000
+        assert lifecycle.pledge_conditions_of(test_db, ana["id"]) == ["Jay", "Maya"]
+
+        plain = client.post("/api/pledges", json={"event_id": event_id, "name": "Bo", "max": "40",
+                                                  "min": "", "conditions": None})
+        assert plain.status_code == 200
+        bo = lifecycle.find_pledge_by_name(test_db, event_id, "Bo")
+        assert bo["min_cents"] is None
+        assert lifecycle.pledge_conditions_of(test_db, bo["id"]) == []
+    finally:
+        delete_event(test_db, event_id)
+
+
+# A "min" that isn't an amount, and "conditions" that isn't a list of texts, are refused before the
+# database is opened (db.connect would raise, giving a 503 instead).
+def test_confirm_route_refuses_a_bad_min_or_bad_conditions(monkeypatch):
+    def no_database(url):
+        raise RuntimeError("no database in this test")
+
+    monkeypatch.setattr(db, "connect", no_database)
+    client = app.app.test_client()
+    good = {"event_id": 7, "name": "Ana", "max": "40"}
+    bad_min = client.post("/api/pledges", json=dict(good, min="abc"))
+    assert bad_min.status_code == 400
+    assert bad_min.get_json() == {"message": "Type an amount like 40 or 40.50."}
+    assert client.post("/api/pledges", json=dict(good, min=20)).status_code == 400
+    for bad_conditions in ("Jay", {"name": "Jay"}, 3, [5], ["Jay", None], [["Jay"]]):
+        response = client.post("/api/pledges", json=dict(good, conditions=bad_conditions))
+        assert response.status_code == 400
+        assert response.get_json() == {"message": app.ERROR_TEXT}
+
+
+# The four new refusals (D77) come back as 400 with their texts, and nothing is saved.
+def test_confirm_route_limit_messages(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    event_id = make_open_event(test_db)
+    client = app.app.test_client()
+    good = {"event_id": event_id, "name": "Ana", "max": "40"}
+    try:
+        many = client.post("/api/pledges", json=dict(good, conditions=["Bo", "Cy", "Dee", "Eve"]))
+        assert many.status_code == 400
+        assert many.get_json() == {"message": "You can name up to 3 people."}
+        long_condition = client.post("/api/pledges", json=dict(good, conditions=["x" * 41]))
+        assert long_condition.status_code == 400
+        assert long_condition.get_json() == {"message": "Keep each name to 40 characters or fewer."}
+        long_name = client.post("/api/pledges", json=dict(good, name="x" * 41))
+        assert long_name.status_code == 400
+        assert long_name.get_json() == {"message": "Keep your name to 40 characters or fewer."}
+        min_above_max = client.post("/api/pledges", json=dict(good, min="40.01"))
+        assert min_above_max.status_code == 400
+        assert min_above_max.get_json() == {"message": "Your amount can't be more than your max."}
+        row = db.fetch_one(test_db, "SELECT count(*) AS total FROM pledges WHERE event_id = %s", (event_id,))
+        assert row["total"] == 0
+    finally:
+        delete_event(test_db, event_id)

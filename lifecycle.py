@@ -84,49 +84,104 @@ def find_pledge_by_name(conn, event_id, name):
 # token. D26: the same name again reuses that person's unpaid pledge, instead of failing on the unique
 # name index. max_cents is whole cents: the route turned the typed "40" into 4000 with money.py.
 # The max must be from $5 to $2,000 (config.py, D58).
-def confirm_pledge(conn, event_id, name, max_cents, now):
+# D77: min_cents ("in for $20", shown only, D12) and condition_names ("only if Jay's in") are saved too.
+# Every limit is checked before the database is opened. The pledge and its conditions are then saved in
+# ONE transaction, so a pledge is never saved without the conditions the friend confirmed: that would
+# turn "only if Jay's in" into an unconditional pledge. A retry replaces the old min and conditions.
+# Saving conditions does not decide who is counted: counted_held_pledges does, from HELD pledges (D70).
+def confirm_pledge(conn, event_id, name, max_cents, now, min_cents=None, condition_names=()):
     name = conditions.tidy_name(name)
     if name == "":
         return {"outcome": "NO_NAME"}
+    if len(name) > config.MAX_NAME_CHARS:
+        return {"outcome": "NAME_TOO_LONG"}
     if max_cents < config.MIN_MAX_CENTS:
         return {"outcome": "TOO_SMALL"}
     if max_cents > config.MAX_MAX_CENTS:
         return {"outcome": "TOO_BIG"}
+    if min_cents is not None and min_cents > max_cents:
+        return {"outcome": "MIN_ABOVE_MAX"}
+    cleaned = clean_condition_names(condition_names, name)
+    for condition_name in cleaned:
+        if len(condition_name) > config.MAX_NAME_CHARS:
+            return {"outcome": "CONDITION_NAME_TOO_LONG"}
+    if len(cleaned) > config.MAX_CONDITIONS:
+        return {"outcome": "TOO_MANY_CONDITIONS"}
     event = find_event(conn, event_id)
     if event is None:
         return {"outcome": "NOT_FOUND"}
     if not pledging_is_open(event, now):
         return {"outcome": "CLOSED"}
-    existing = find_pledge_by_name(conn, event_id, name)
-    if existing is None:
+    for attempt in range(2):
         try:
-            return create_pledge(conn, event_id, name, max_cents)
+            return save_pledge_and_conditions(conn, event_id, name, max_cents, min_cents, cleaned)
         except psycopg.errors.UniqueViolation:
-            # Someone saved the same name a moment ago, between our check and our INSERT.
-            existing = find_pledge_by_name(conn, event_id, name)
-    return reuse_pledge(conn, existing, max_cents)
+            # Someone saved the same name a moment ago, between our check and our INSERT. That whole
+            # transaction was rolled back; the second try finds their pledge and reuses it (D26).
+            logger.info("event %d: the same name was saved at the same moment, trying again", event_id)
+    return {"outcome": "ERROR"}
+
+
+# D77: the condition names to save, tidied (conditions.tidy_name) with blanks removed, the pledger's own
+# name removed (a condition on yourself is always met, so it would only add a row that does nothing),
+# and repeats removed. Names are compared with name_key, so "Jay", " jay " and "JAY" are one name. The
+# first spelling is kept. Pure: no database. The limits on length and count are checked by the caller.
+def clean_condition_names(condition_names, own_name):
+    seen = [conditions.name_key(own_name)]
+    cleaned = []
+    for condition_name in condition_names:
+        tidy = conditions.tidy_name(condition_name)
+        if tidy != "" and conditions.name_key(tidy) not in seen:
+            cleaned.append(tidy)
+            seen.append(conditions.name_key(tidy))
+    return cleaned
+
+
+# One try at saving the pledge and its conditions, all in one transaction (D77): `with conn.transaction()`
+# is BEGIN ... COMMIT even though db.py runs in autocommit, and any error inside rolls all of it back.
+# The conditions are replaced only when the pledge was really confirmed, so a refused retry (the pledge
+# is already HELD) leaves the old conditions alone. A UniqueViolation is left for confirm_pledge to retry.
+def save_pledge_and_conditions(conn, event_id, name, max_cents, min_cents, cleaned):
+    with conn.transaction():
+        existing = find_pledge_by_name(conn, event_id, name)
+        if existing is None:
+            result = create_pledge(conn, event_id, name, max_cents, min_cents)
+        else:
+            result = reuse_pledge(conn, existing, max_cents, min_cents)
+        if result["outcome"] == "CONFIRMED":
+            replace_conditions(conn, result["pledge_id"], cleaned)
+        return result
 
 
 # A brand-new pledge. Its status starts as PENDING_PAY (the column's default in schema.sql).
-def create_pledge(conn, event_id, name, max_cents):
-    row = db.fetch_one(conn, "INSERT INTO pledges (event_id, name, max_cents, pledger_token) "
-                             "VALUES (%s, %s, %s, %s) RETURNING id, pledger_token",
-                       (event_id, name, max_cents, new_token()))
+def create_pledge(conn, event_id, name, max_cents, min_cents):
+    row = db.fetch_one(conn, "INSERT INTO pledges (event_id, name, max_cents, min_cents, pledger_token) "
+                             "VALUES (%s, %s, %s, %s, %s) RETURNING id, pledger_token",
+                       (event_id, name, max_cents, min_cents, new_token()))
     return {"outcome": "CONFIRMED", "pledge_id": row["id"], "pledger_token": row["pledger_token"]}
 
 
-# D26 and D32: only an unpaid pledge (PENDING_PAY or DECLINED) can be reused. It gets the new max, goes
-# back to PENDING_PAY, and gets a new token, so a page still holding the old token can no longer start
-# or authorize a hold. This is a compare-and-set: if the pledge became HELD a moment ago, 0 rows change
-# and the answer is "[Name] has already pledged."
-def reuse_pledge(conn, pledge, max_cents):
+# D26 and D32: only an unpaid pledge (PENDING_PAY or DECLINED) can be reused. It gets the new max and min
+# (None clears the min), goes back to PENDING_PAY, and gets a new token, so a page still holding the old
+# token can no longer start or authorize a hold. This is a compare-and-set: if the pledge became HELD a
+# moment ago, 0 rows change and the answer is "[Name] has already pledged."
+def reuse_pledge(conn, pledge, max_cents, min_cents):
     token = new_token()
-    changed = db.run(conn, "UPDATE pledges SET max_cents = %s, status = 'PENDING_PAY', pledger_token = %s "
-                           "WHERE id = %s AND status IN ('PENDING_PAY', 'DECLINED')",
-                     (max_cents, token, pledge["id"]))
+    changed = db.run(conn, "UPDATE pledges SET max_cents = %s, min_cents = %s, status = 'PENDING_PAY', "
+                           "pledger_token = %s WHERE id = %s AND status IN ('PENDING_PAY', 'DECLINED')",
+                     (max_cents, min_cents, token, pledge["id"]))
     if changed == 0:
         return {"outcome": "ALREADY_PLEDGED", "name": pledge["name"]}
     return {"outcome": "CONFIRMED", "pledge_id": pledge["id"], "pledger_token": token}
+
+
+# D77: a pledge's conditions are exactly these names. The old rows are deleted first, so a retry replaces
+# the conditions and never adds to them, and a first save and a retry run the same code.
+def replace_conditions(conn, pledge_id, names):
+    db.run(conn, "DELETE FROM pledge_conditions WHERE pledge_id = %s", (pledge_id,))
+    for condition_name in names:
+        db.run(conn, "INSERT INTO pledge_conditions (pledge_id, depends_on_name) VALUES (%s, %s)",
+               (pledge_id, condition_name))
 
 
 # Step 1 of a hold. Save a new hold row with its PayPal-Request-Id first (rule 3), then create the PayPal

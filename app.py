@@ -48,6 +48,12 @@ DEPOSIT_TOO_BIG_TEXT = "The largest deposit is %s."
 # The parse route's refusals (M4). Placeholders until Samuel adds them to UI_DESIGN section 4 (D57).
 NO_PLEDGE_TEXT = "Type your pledge."
 PLEDGE_TOO_LONG_TEXT = "Keep it to %d characters or fewer."
+# The confirm route's refusals for min and conditions (D77), the limits filled in from config.py.
+# Placeholders until Samuel adds them to UI_DESIGN section 4 (D57).
+MIN_ABOVE_MAX_TEXT = "Your amount can't be more than your max."
+TOO_MANY_CONDITIONS_TEXT = "You can name up to %d people."
+NAME_TOO_LONG_TEXT = "Keep your name to %d characters or fewer."
+CONDITION_NAME_TOO_LONG_TEXT = "Keep each name to %d characters or fewer."
 # The board's texts, copied from docs/UI_DESIGN.md section 10. DRAFT_TEXT and the time formats are
 # D57's placeholders, and the "Charge failed" word is in BOARD_STATUS_WORDS below.
 DRAFT_TEXT = "This event isn't open yet."
@@ -146,6 +152,14 @@ def refusal_answer(result):
         return message_answer(TOO_SMALL_TEXT, 400)
     if outcome == "TOO_BIG":
         return message_answer(TOO_BIG_TEXT % dollars(config.MAX_MAX_CENTS), 400)
+    if outcome == "MIN_ABOVE_MAX":
+        return message_answer(MIN_ABOVE_MAX_TEXT, 400)
+    if outcome == "TOO_MANY_CONDITIONS":
+        return message_answer(TOO_MANY_CONDITIONS_TEXT % config.MAX_CONDITIONS, 400)
+    if outcome == "NAME_TOO_LONG":
+        return message_answer(NAME_TOO_LONG_TEXT % config.MAX_NAME_CHARS, 400)
+    if outcome == "CONDITION_NAME_TOO_LONG":
+        return message_answer(CONDITION_NAME_TOO_LONG_TEXT % config.MAX_NAME_CHARS, 400)
     if outcome == "NOT_FOUND":
         return message_answer(ERROR_TEXT, 404)
     return message_answer(ERROR_TEXT, 502)
@@ -203,9 +217,10 @@ def api_client_token():
 
 
 # D31: the friend confirmed a name and a max, so save the pledge and send back its private token.
-# The page sends {"event_id": 7, "name": "Ana", "max": "40"}. "max" is the typed text: money.py turns it
-# into whole cents, so no float is ever made (rule 1). There is no email field until Malama approves
-# the pledges.email column.
+# The page sends {"event_id": 7, "name": "Ana", "max": "40"}, and may add "min": "20" and
+# "conditions": ["Jay"] (D77). "max" and "min" are the typed text: money.py turns them into whole cents,
+# so no float is ever made (rule 1). An empty or missing "min" means no minimum. There is no email field
+# (D62).
 # The answer also carries the "We'll hold up to $40.00" sentence, already formatted here, because
 # JavaScript never formats money (docs/UI_DESIGN.md section 7).
 # type(event_id) is not int also refuses True and False, which Python otherwise counts as numbers.
@@ -218,12 +233,19 @@ def api_create_pledge():
         return message_answer(ERROR_TEXT, 400)
     try:
         max_cents = money.dollars_text_to_cents(body.get("max"))
+        min_cents = typed_min_cents(body.get("min"))
     except ValueError as error:
         return message_answer(str(error), 400)
+    condition_names = body.get("conditions")
+    if condition_names is None:
+        condition_names = []
+    if not names_are_a_list_of_text(condition_names):
+        return message_answer(ERROR_TEXT, 400)
     try:
         conn = db.connect(config.DATABASE_URL)
         try:
-            result = lifecycle.confirm_pledge(conn, event_id, name, max_cents, utc_now())
+            result = lifecycle.confirm_pledge(conn, event_id, name, max_cents, utc_now(),
+                                              min_cents=min_cents, condition_names=condition_names)
         finally:
             conn.close()
     except (RuntimeError, psycopg.Error) as error:
@@ -233,6 +255,25 @@ def api_create_pledge():
         return jsonify({"pledger_token": result["pledger_token"],
                         "hold_text": HOLD_PROMISE_TEXT % dollars(max_cents)})
     return refusal_answer(result)
+
+
+# The typed "min" as whole cents, or None when the box was left empty (missing, null or blank text).
+# Anything else goes through money.py, which raises ValueError with the friendly message.
+def typed_min_cents(text):
+    if text is None or (isinstance(text, str) and text.strip() == ""):
+        return None
+    return money.dollars_text_to_cents(text)
+
+
+# True if the page sent "conditions" as a list of texts (an empty list is fine). The limits on how many
+# and how long are lifecycle's, so the AI and a hand-typed request meet the same rules (D77).
+def names_are_a_list_of_text(condition_names):
+    if not isinstance(condition_names, list):
+        return False
+    for condition_name in condition_names:
+        if not isinstance(condition_name, str):
+            return False
+    return True
 
 
 # D31: the AI reads one friend's pledge, typed in their own words, and suggests a status, max, min and
