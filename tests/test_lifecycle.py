@@ -8,6 +8,7 @@
 # D45, D47) at the end of the file.
 
 import os
+import random
 import subprocess
 import sys
 import threading
@@ -16,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+import conditions
 import config
 import db
 import lifecycle
@@ -1314,5 +1316,671 @@ def test_board_reports_a_created_hold_until_it_is_voided(test_db):
         assert facts["any_hold_created"] is False
         assert facts["rows"] == []
         assert facts["progress_percent"] == 0
+    finally:
+        delete_event(test_db, event_id)
+
+
+# ---------- D70: conditions decide who is counted (TEST_PLAN D1-D7, C8, F9) ----------
+# These tests save conditions straight into pledge_conditions, because the route that saves them at
+# confirm is the next step (D77). Everything after that goes through the real lifecycle functions.
+
+# Save condition names for one pledge, exactly as given (a test can pass an untidy name on purpose).
+def add_conditions(conn, pledge_id, names):
+    for name in names:
+        db.run(conn, "INSERT INTO pledge_conditions (pledge_id, depends_on_name) VALUES (%s, %s)",
+               (pledge_id, name))
+
+
+# A HELD pledge with a CREATED hold, written straight into the database, for the tests that only need
+# "who is counted". No fake PayPal round trip. Returns the pledge's id.
+def add_held_pledge(conn, event_id, name, max_cents, condition_names=()):
+    pledge = db.fetch_one(conn, "INSERT INTO pledges (event_id, name, max_cents, status, pledger_token) "
+                                "VALUES (%s, %s, %s, 'HELD', %s) RETURNING id",
+                          (event_id, name, max_cents, lifecycle.new_token()))
+    db.run(conn, "INSERT INTO holds (pledge_id, create_request_id, auth_id, amount_cents, status) "
+                 "VALUES (%s, %s, %s, %s, 'CREATED')",
+           (pledge["id"], lifecycle.new_request_id(), fake_paypal.new_id("AUTH"), max_cents))
+    add_conditions(conn, pledge["id"], condition_names)
+    return pledge["id"]
+
+
+# The real flow with conditions: confirm with the conditions (D77 saves them in the same transaction as
+# the pledge), then create the order and authorize, so the goal check after the hold already sees them.
+# Returns the pledge's token.
+def pledge_with_conditions(conn, event_id, name, max_cents, condition_names):
+    result = lifecycle.confirm_pledge(conn, event_id, name, max_cents, NOW, condition_names=condition_names)
+    assert result["outcome"] == "CONFIRMED"
+    token = result["pledger_token"]
+    order = lifecycle.start_hold(conn, token, NOW, fake_paypal)
+    assert order["outcome"] == "ORDER_CREATED"
+    result = lifecycle.authorize_hold(conn, order["order_id"], token, NOW, fake_paypal)
+    assert result["outcome"] == "HELD"
+    return token
+
+
+# The names of the counted pledges, in join order.
+def counted_names(conn, event_id):
+    names = []
+    for pledge in lifecycle.counted_held_pledges(conn, event_id):
+        names.append(pledge["name"])
+    return names
+
+
+# A $30 deposit event where Ana ("only if Kim's in", $10) joins first, then Bo, Cy and Dee at $15 each.
+# Kim never pledges. Without conditions the four holds ($55) reach the goal, but the counted three
+# ($45) reach it too, so last call opens at Dee's hold and Ana is the one who must not be charged.
+# Returns the event id.
+def event_where_ana_waits_for_kim(conn):
+    event_id = make_open_event(conn, 3000)
+    pledge_with_conditions(conn, event_id, "Ana", 1000, ["Kim"])
+    for name in ("Bo", "Cy", "Dee"):
+        token, order_id, result = pledge_and_authorize(conn, event_id, name, 1500)
+        assert result["outcome"] == "HELD"
+    return event_id
+
+
+# D1 through lifecycle: Ana needs Bo, Bo needs Cy, and Cy never pledged, so the whole chain drops.
+def test_d1_chain_with_an_absent_end_drops_everyone(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        add_held_pledge(test_db, event_id, "Ana", 1000, ["Bo"])
+        add_held_pledge(test_db, event_id, "Bo", 1000, ["Cy"])
+        assert counted_names(test_db, event_id) == []
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D2: Ana and Bo each need the other. Both are counted (the circle rule, D06).
+def test_d2_mutual_circle_is_counted(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        add_held_pledge(test_db, event_id, "Ana", 1000, ["Bo"])
+        add_held_pledge(test_db, event_id, "Bo", 1000, ["Ana"])
+        assert counted_names(test_db, event_id) == ["Ana", "Bo"]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D3: Ana and Bo are a circle, and Cy needs Ana. All three are counted.
+def test_d3_circle_plus_a_dependent_is_counted(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        add_held_pledge(test_db, event_id, "Ana", 1000, ["Bo"])
+        add_held_pledge(test_db, event_id, "Bo", 1000, ["Ana"])
+        add_held_pledge(test_db, event_id, "Cy", 1000, ["Ana"])
+        assert counted_names(test_db, event_id) == ["Ana", "Bo", "Cy"]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D4: Ana needs Zed, who nobody pledged. Ana drops; Bo (no conditions) is still counted.
+def test_d4_a_condition_on_nobody_drops_that_pledge(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        add_held_pledge(test_db, event_id, "Ana", 1000, ["Zed"])
+        add_held_pledge(test_db, event_id, "Bo", 1000)
+        assert counted_names(test_db, event_id) == ["Bo"]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D5: Ana needs both Bo and Cy. With only Bo she isn't counted; once Cy holds too, she is.
+def test_d5_all_of_a_pledges_conditions_are_needed(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        add_held_pledge(test_db, event_id, "Ana", 1000, ["Bo", "Cy"])
+        add_held_pledge(test_db, event_id, "Bo", 1000)
+        assert counted_names(test_db, event_id) == ["Bo"]
+        add_held_pledge(test_db, event_id, "Cy", 1000)
+        assert counted_names(test_db, event_id) == ["Ana", "Bo", "Cy"]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D6: names match ignoring case and extra spaces. "  JAY " names the pledger "Jay".
+def test_d6_condition_names_match_ignoring_case_and_spaces(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        add_held_pledge(test_db, event_id, "Ana", 1000, ["  JAY "])
+        add_held_pledge(test_db, event_id, "Jay", 1000)
+        assert counted_names(test_db, event_id) == ["Ana", "Jay"]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D7 through the database: pledgers join one at a time in random groups (seed 7), with random
+# conditions that sometimes name nobody. After every join, nobody counted before is dropped, and the
+# counted names equal what Malama's circle rule gives for the same group. This covers loading the
+# conditions and matching names back to pledges, which test_conditions.py (2,000 groups) cannot.
+# Only 5 groups of 4, because every pledge is several database round trips.
+def test_d7_adding_a_pledger_never_uncounts_anyone_through_lifecycle(test_db):
+    rng = random.Random(7)
+    pool = ["Ana", "Bo", "Cy", "Dee", "Eve"]
+    for group in range(5):
+        event_id = make_open_event(test_db)
+        try:
+            joined = []
+            counted_before = []
+            for name in rng.sample(pool, 4):
+                others = [other for other in pool + ["Zed"] if other != name]
+                wanted = rng.sample(others, rng.randint(0, 2))
+                add_held_pledge(test_db, event_id, name, 1000, wanted)
+                joined.append({"name": name, "conditions": wanted})
+                counted_now = counted_names(test_db, event_id)
+                for earlier in counted_before:
+                    assert earlier in counted_now
+                assert counted_now == conditions.counted_pledges(joined)
+                counted_before = counted_now
+        finally:
+            delete_event(test_db, event_id)
+
+
+# Someone is only "in" for a condition while they really hold. Jay's hold was voided by hand and Kim is
+# still PENDING_PAY, so Ana ("if Jay's in") and Bo ("if Kim's in") are not counted.
+def test_a_condition_needs_the_other_person_to_really_hold(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        jay_id = add_held_pledge(test_db, event_id, "Jay", 1000)
+        db.run(test_db, "UPDATE holds SET status = 'VOIDED' WHERE pledge_id = %s", (jay_id,))
+        confirm(test_db, event_id, "Kim", 1000)
+        add_held_pledge(test_db, event_id, "Ana", 1000, ["Jay"])
+        add_held_pledge(test_db, event_id, "Bo", 1000, ["Kim"])
+        assert counted_names(test_db, event_id) == []
+    finally:
+        delete_event(test_db, event_id)
+
+
+# The Ana <-> Jay run (M3 done-when), with the fake PayPal: Ana holds first and isn't counted, so last
+# call stays closed. Jay's hold counts both of them, last call opens, and the lock charges both.
+def test_ana_and_jay_are_counted_together_and_both_charged(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    try:
+        pledge_with_conditions(test_db, event_id, "Ana", 2000, ["Jay"])
+        assert counted_names(test_db, event_id) == []
+        assert lifecycle.find_event(test_db, event_id)["status"] == "OPEN"
+        pledge_with_conditions(test_db, event_id, "Jay", 2000, ["Ana"])
+        assert counted_names(test_db, event_id) == ["Ana", "Jay"]
+        assert lifecycle.find_event(test_db, event_id)["status"] == "LAST_CALL"
+
+        assert lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal) == "SETTLED"
+        shares = money.compute_shares_cents(money.fee_adjusted_goal_cents(3000, 2), [2000, 2000])
+        ana, jay = pledges_of(test_db, event_id)
+        assert ana["status"] == "CHARGED"
+        assert jay["status"] == "CHARGED"
+        assert only_capture_of(test_db, ana["id"])["amount_cents"] == shares[0]
+        assert only_capture_of(test_db, jay["id"])["amount_cents"] == shares[1]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# An unmet condition keeps the goal from being reached. Ana ($10, "if Kim's in"), Bo and Cy ($15 each)
+# hold $40 in all, enough on its own, but the counted Bo and Cy ($30) are not. Last call opens only when
+# Kim holds and Ana counts.
+def test_an_unmet_condition_keeps_the_goal_from_being_reached(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    try:
+        assert money.goal_is_reached(3000, [1000, 1500, 1500])
+        assert not money.goal_is_reached(3000, [1500, 1500])
+        pledge_with_conditions(test_db, event_id, "Ana", 1000, ["Kim"])
+        pledge_and_authorize(test_db, event_id, "Bo", 1500)
+        pledge_and_authorize(test_db, event_id, "Cy", 1500)
+        assert counted_names(test_db, event_id) == ["Bo", "Cy"]
+        assert lifecycle.find_event(test_db, event_id)["status"] == "OPEN"
+        pledge_and_authorize(test_db, event_id, "Kim", 1000)
+        assert counted_names(test_db, event_id) == ["Ana", "Bo", "Cy", "Kim"]
+        assert lifecycle.find_event(test_db, event_id)["status"] == "LAST_CALL"
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D70 at lock: Ana's condition never came true, so her hold is voided (the void's request ID saved, the
+# hold read back as VOIDED), she is DROPPED with no share, and her authorization is never captured.
+# Bo, Cy and Dee are charged shares worked out for three people, not four.
+def test_d70_an_uncounted_hold_is_voided_at_lock_and_never_captured(test_db):
+    fake_paypal.reset()
+    event_id = event_where_ana_waits_for_kim(test_db)
+    try:
+        assert lifecycle.find_event(test_db, event_id)["status"] == "LAST_CALL"
+        ana, bo, cy, dee = pledges_of(test_db, event_id)
+        ana_auth = auth_id_of(test_db, ana["id"])
+        assert lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal) == "SETTLED"
+
+        goal_cents = money.fee_adjusted_goal_cents(3000, 3)
+        shares = money.compute_shares_cents(goal_cents, [1500, 1500, 1500])
+        ana, bo, cy, dee = pledges_of(test_db, event_id)
+        assert ana["status"] == "DROPPED"
+        assert ana["share_cents"] is None
+        ana_hold = db.fetch_one(test_db, "SELECT * FROM holds WHERE pledge_id = %s", (ana["id"],))
+        assert ana_hold["status"] == "VOIDED"
+        voids = calls_for("void_authorization", [ana_auth])
+        assert len(voids) == 1
+        assert voids[0]["request_id"] == ana_hold["void_request_id"]
+        assert calls_for("capture_authorization", [ana_auth]) == []
+        assert len(calls_to("capture_authorization")) == 3
+        assert lifecycle.find_event(test_db, event_id)["goal_cents"] == goal_cents
+        for position, pledge in enumerate([bo, cy, dee]):
+            assert pledge["status"] == "CHARGED"
+            assert pledge["share_cents"] == shares[position]
+            assert only_capture_of(test_db, pledge["id"])["amount_cents"] == shares[position]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# If the void of an uncounted hold doesn't read back VOIDED, the pledge stays HELD with its hold CREATED
+# for the cleanup sweep (D45), the warning is logged, and she is still never charged.
+def test_d70_a_failed_void_of_an_uncounted_hold_still_charges_nobody_extra(caplog, test_db):
+    fake_paypal.reset()
+    event_id = event_where_ana_waits_for_kim(test_db)
+    try:
+        ana, bo, cy, dee = pledges_of(test_db, event_id)
+        ana_auth = auth_id_of(test_db, ana["id"])
+        fake_paypal.next_answers["get_authorization"] = [fake_paypal.hold_read_back("CREATED", ana_auth)]
+        assert lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal) == "SETTLED"
+        ana = pledges_of(test_db, event_id)[0]
+        assert ana["status"] == "HELD"
+        assert ana["share_cents"] is None
+        ana_hold = db.fetch_one(test_db, "SELECT * FROM holds WHERE pledge_id = %s", (ana["id"],))
+        assert ana_hold["status"] == "CREATED"
+        assert calls_for("capture_authorization", [ana_auth]) == []
+        assert len(calls_to("capture_authorization")) == 3
+        assert "did not read back VOIDED" in caplog.text
+    finally:
+        delete_event(test_db, event_id)
+
+
+# C8 for lifecycle: while last call is open, the board's goal, progress and estimated shares use the
+# same counted pledges the lock charges, with the same money.py numbers. Ana (not counted) has no
+# estimate, but her $10 still counts in the held total (D43). After the lock, each charge equals the
+# estimate the board showed.
+def test_c8_the_board_and_the_lock_use_the_same_counted_set(test_db):
+    fake_paypal.reset()
+    event_id = event_where_ana_waits_for_kim(test_db)
+    try:
+        ana, bo, cy, dee = pledges_of(test_db, event_id)
+        facts = lifecycle.board_facts(test_db, event_id)
+        goal_cents = money.fee_adjusted_goal_cents(3000, 3)
+        shares = money.compute_shares_cents(goal_cents, [1500, 1500, 1500])
+        assert facts["estimated_shares"] == {bo["id"]: shares[0], cy["id"]: shares[1], dee["id"]: shares[2]}
+        assert facts["goal_cents"] == goal_cents
+        assert facts["progress_percent"] == 100
+        assert facts["held_total_cents"] == 5500
+        assert len(facts["rows"]) == 4
+
+        lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal)
+        for pledge in (bo, cy, dee):
+            charged = only_capture_of(test_db, pledge["id"])["amount_cents"]
+            assert charged == facts["estimated_shares"][pledge["id"]]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# F9: Ana joined "only if Kim's in", and Kim did join, so Ana was charged. Then Kim's capture is refused.
+# The money already taken from Ana stays taken: no refund is called (rule 7). Kim is FAILED, the event is
+# NEEDS_ATTENTION, and the treasurer's board says so. The "[Refund everyone]" button is M2 (F7), so
+# only the flag and the absence of an automatic refund are tested here.
+def test_f9_kim_fails_after_ana_was_charged_and_nothing_is_refunded(test_db):
+    import app
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    try:
+        pledge_with_conditions(test_db, event_id, "Ana", 1500, ["Kim"])
+        pledge_and_authorize(test_db, event_id, "Kim", 1500)
+        pledge_and_authorize(test_db, event_id, "Bo", 1500)
+        assert lifecycle.find_event(test_db, event_id)["status"] == "LAST_CALL"
+        ana, kim, bo = pledges_of(test_db, event_id)
+        fake_paypal.next_answers["capture_authorization"] = [
+            fake_paypal.captured(fake_paypal.new_id("CAPTURE"), "COMPLETED"),
+            fake_paypal.capture_refused("TRANSACTION_REFUSED"),
+            fake_paypal.captured(fake_paypal.new_id("CAPTURE"), "COMPLETED")]
+        fake_paypal.next_answers["get_authorization"] = [
+            fake_paypal.hold_read_back("CREATED", auth_id_of(test_db, kim["id"]))]
+        assert lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal) == "NEEDS_ATTENTION"
+
+        ana, kim, bo = pledges_of(test_db, event_id)
+        assert ana["status"] == "CHARGED"
+        assert kim["status"] == "FAILED"
+        assert bo["status"] == "CHARGED"
+        ana_capture = only_capture_of(test_db, ana["id"])
+        assert ana_capture["status"] == "COMPLETED"
+        assert ana_capture["hold_status"] == "CAPTURED"
+        for name in fake_paypal.called_functions():
+            assert "refund" not in name
+        assert lifecycle.find_event(test_db, event_id)["status"] == "NEEDS_ATTENTION"
+
+        board = app.board_for_event(lifecycle.board_facts(test_db, event_id), AFTER_DEADLINE)
+        assert board["banner_text"] == app.NEEDS_ATTENTION_TEXT
+        words = {}
+        for row in board["rows"]:
+            words[row["name"]] = row["status_word"]
+        assert words["Kim"] == "Charge failed"
+        assert words["Ana"].startswith("Charged")
+    finally:
+        delete_event(test_db, event_id)
+
+
+# ---------- D77: min and conditions saved when the friend confirms ----------
+
+# Confirm a pledge with a min and conditions and return the whole answer (the outcome may be a refusal).
+def confirm_with(conn, event_id, name, max_cents, min_cents=None, condition_names=()):
+    return lifecycle.confirm_pledge(conn, event_id, name, max_cents, NOW, min_cents=min_cents,
+                                    condition_names=condition_names)
+
+
+# How many pledge rows and how many condition rows an event has, so a test can show nothing was saved.
+def saved_counts(conn, event_id):
+    pledges = db.fetch_one(conn, "SELECT count(*) AS total FROM pledges WHERE event_id = %s", (event_id,))
+    rows = db.fetch_one(conn, "SELECT count(*) AS total FROM pledge_conditions WHERE pledge_id IN "
+                              "(SELECT id FROM pledges WHERE event_id = %s)", (event_id,))
+    return pledges["total"], rows["total"]
+
+
+# A name of exactly this many characters, for the limit tests.
+def name_of_length(length):
+    return "x" * length
+
+
+# The min and the conditions are saved, tidied: blanks, repeats ("Jay", " jay ") and the pledger's own
+# name ("ANA") are left out, and the first spelling is kept.
+def test_a_confirm_saves_min_and_tidied_conditions(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        result = confirm_with(test_db, event_id, "Ana", 4000, 2000, ["Jay", " jay ", "ANA", "", "Maya"])
+        assert result["outcome"] == "CONFIRMED"
+        ana = pledge_for_event(test_db, event_id, "Ana")
+        assert ana["min_cents"] == 2000
+        assert ana["max_cents"] == 4000
+        assert ana["status"] == "PENDING_PAY"
+        assert lifecycle.pledge_conditions_of(test_db, ana["id"]) == ["Jay", "Maya"]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D77 limit 1: at most MAX_CONDITIONS (3) names, counted after tidying. Four names are refused and
+# nothing is saved; three are accepted, and so are five typed names that tidy down to three.
+def test_a_too_many_conditions_are_refused(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        four = confirm_with(test_db, event_id, "Ana", 4000, None, ["Bo", "Cy", "Dee", "Eve"])
+        assert four == {"outcome": "TOO_MANY_CONDITIONS"}
+        assert saved_counts(test_db, event_id) == (0, 0)
+
+        three = confirm_with(test_db, event_id, "Ana", 4000, None, ["Bo", "Cy", "Dee"])
+        assert three["outcome"] == "CONFIRMED"
+        assert saved_counts(test_db, event_id) == (1, 3)
+
+        tidy = confirm_with(test_db, event_id, "Fay", 4000, None, ["Bo", "bo", "Fay", "", "Cy", "Dee"])
+        assert tidy["outcome"] == "CONFIRMED"
+        assert saved_counts(test_db, event_id) == (2, 6)
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D77 limit 2: a condition name over MAX_NAME_CHARS (40) is refused and nothing is saved; exactly 40 is
+# accepted. The length is counted after tidying, so extra spaces around a name don't count.
+def test_a_condition_name_that_is_too_long_is_refused(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        too_long = confirm_with(test_db, event_id, "Ana", 4000, None, ["Bo", name_of_length(41)])
+        assert too_long == {"outcome": "CONDITION_NAME_TOO_LONG"}
+        assert saved_counts(test_db, event_id) == (0, 0)
+
+        just_right = confirm_with(test_db, event_id, "Ana", 4000, None, ["  " + name_of_length(40) + "  "])
+        assert just_right["outcome"] == "CONFIRMED"
+        ana = pledge_for_event(test_db, event_id, "Ana")
+        assert lifecycle.pledge_conditions_of(test_db, ana["id"]) == [name_of_length(40)]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D77 limit 3: the pledger's own name is held to the same 40 characters, so no condition could be
+# unable to name them. 41 characters are refused and nothing is saved; exactly 40 is accepted.
+def test_a_pledgers_own_name_that_is_too_long_is_refused(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        too_long = confirm_with(test_db, event_id, name_of_length(41), 4000)
+        assert too_long == {"outcome": "NAME_TOO_LONG"}
+        assert saved_counts(test_db, event_id) == (0, 0)
+
+        just_right = confirm_with(test_db, event_id, name_of_length(40), 4000)
+        assert just_right["outcome"] == "CONFIRMED"
+        assert saved_counts(test_db, event_id) == (1, 0)
+    finally:
+        delete_event(test_db, event_id)
+
+
+# Every limit is checked before the database is opened: conn is None here, so any database use would
+# crash instead of returning the refusal.
+def test_a_limits_are_checked_before_the_database_is_opened():
+    assert lifecycle.confirm_pledge(None, 1, name_of_length(41), 4000, NOW) == {"outcome": "NAME_TOO_LONG"}
+    assert lifecycle.confirm_pledge(None, 1, "Ana", 4000, NOW, condition_names=[name_of_length(41)]) == \
+        {"outcome": "CONDITION_NAME_TOO_LONG"}
+    assert lifecycle.confirm_pledge(None, 1, "Ana", 4000, NOW, condition_names=["Bo", "Cy", "Dee", "Eve"]) == \
+        {"outcome": "TOO_MANY_CONDITIONS"}
+    assert lifecycle.confirm_pledge(None, 1, "Ana", 4000, NOW, min_cents=4001) == {"outcome": "MIN_ABOVE_MAX"}
+
+
+# A min above the max is refused and nothing is saved; a min equal to the max is fine.
+def test_a_min_above_the_max_is_refused(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        assert confirm_with(test_db, event_id, "Ana", 4000, 4001) == {"outcome": "MIN_ABOVE_MAX"}
+        assert saved_counts(test_db, event_id) == (0, 0)
+        assert confirm_with(test_db, event_id, "Ana", 4000, 4000)["outcome"] == "CONFIRMED"
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D77 point 5: a retry (D26) replaces the old conditions and min. Jay and Maya become only Maya, the min
+# goes from $20 to $15, and a third try with no min and no conditions clears both.
+def test_a_retry_replaces_the_old_conditions_and_min(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        first = confirm_with(test_db, event_id, "Ana", 4000, 2000, ["Jay", "Maya"])
+        second = confirm_with(test_db, event_id, "Ana", 3000, 1500, ["Maya"])
+        assert second["outcome"] == "CONFIRMED"
+        assert second["pledger_token"] != first["pledger_token"]
+        ana = pledge_for_event(test_db, event_id, "Ana")
+        assert (ana["max_cents"], ana["min_cents"]) == (3000, 1500)
+        assert lifecycle.pledge_conditions_of(test_db, ana["id"]) == ["Maya"]
+
+        confirm_with(test_db, event_id, "Ana", 3000)
+        ana = pledge_for_event(test_db, event_id, "Ana")
+        assert ana["min_cents"] is None
+        assert lifecycle.pledge_conditions_of(test_db, ana["id"]) == []
+        assert saved_counts(test_db, event_id) == (1, 0)
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D77 point 5: once the pledge is HELD its retry is refused, and its max, min and conditions stay as they
+# were. A new set of conditions can't turn a held pledge into a different one.
+def test_a_held_pledges_retry_is_refused_and_keeps_its_conditions(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db)
+    try:
+        pledge_with_conditions(test_db, event_id, "Ana", 2000, ["Kim"])
+        refused = confirm_with(test_db, event_id, "Ana", 3000, 1000, ["Zed"])
+        assert refused == {"outcome": "ALREADY_PLEDGED", "name": "Ana"}
+        ana = pledge_for_event(test_db, event_id, "Ana")
+        assert ana["status"] == "HELD"
+        assert (ana["max_cents"], ana["min_cents"]) == (2000, None)
+        assert lifecycle.pledge_conditions_of(test_db, ana["id"]) == ["Kim"]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D77 point 4: one transaction. If saving the conditions fails, the new pledge is not left behind, and a
+# reused pledge keeps its old max, min, conditions and token.
+def test_a_failed_condition_save_rolls_the_pledge_back(monkeypatch, test_db):
+    def broken_save(conn, pledge_id, names):
+        raise RuntimeError("the condition save failed")
+
+    event_id = make_open_event(test_db)
+    real_save = lifecycle.replace_conditions
+    try:
+        monkeypatch.setattr(lifecycle, "replace_conditions", broken_save)
+        with pytest.raises(RuntimeError):
+            confirm_with(test_db, event_id, "Ana", 4000, 2000, ["Jay"])
+        assert saved_counts(test_db, event_id) == (0, 0)
+        monkeypatch.setattr(lifecycle, "replace_conditions", real_save)
+
+        first = confirm_with(test_db, event_id, "Ana", 2000, 1500, ["Kim"])
+        monkeypatch.setattr(lifecycle, "replace_conditions", broken_save)
+        with pytest.raises(RuntimeError):
+            confirm_with(test_db, event_id, "Ana", 3000, 1000, ["Zed"])
+        monkeypatch.setattr(lifecycle, "replace_conditions", real_save)
+        ana = pledge_for_event(test_db, event_id, "Ana")
+        assert (ana["max_cents"], ana["min_cents"]) == (2000, 1500)
+        assert ana["pledger_token"] == first["pledger_token"]
+        assert lifecycle.pledge_conditions_of(test_db, ana["id"]) == ["Kim"]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D26's race: another request saved "Ana" between our look-up and our INSERT. The look-up is made to miss
+# once, so the INSERT hits the unique name index. That transaction is rolled back, the second try finds
+# the other pledge and reuses it, and there is still exactly one Ana, with the new max and conditions.
+def test_a_same_name_saved_at_the_same_moment_is_retried(monkeypatch, test_db):
+    event_id = make_open_event(test_db)
+    look_ups = []
+    real_find = lifecycle.find_pledge_by_name
+
+    def miss_once(conn, event_id_asked, name):
+        look_ups.append(name)
+        if len(look_ups) == 1:
+            return None
+        return real_find(conn, event_id_asked, name)
+
+    try:
+        confirm_with(test_db, event_id, "Ana", 2000, None, ["Kim"])
+        monkeypatch.setattr(lifecycle, "find_pledge_by_name", miss_once)
+        result = confirm_with(test_db, event_id, "Ana", 3000, None, ["Maya"])
+        assert result["outcome"] == "CONFIRMED"
+        assert len(look_ups) == 2
+        assert saved_counts(test_db, event_id) == (1, 1)
+        ana = real_find(test_db, event_id, "Ana")
+        assert ana["max_cents"] == 3000
+        assert lifecycle.pledge_conditions_of(test_db, ana["id"]) == ["Maya"]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# The conditions friends confirm are the ones the lock counts. Dee joins "only if Kim's in" (Kim never
+# does), then Ana and Jay each join "only if the other's in". All three are saved at confirm. Last call
+# opens on Jay's hold because Ana and Jay count together; at lock they are charged, and Dee's hold is
+# voided and never captured.
+def test_a_saved_conditions_are_counted_at_lock(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    try:
+        pledge_with_conditions(test_db, event_id, "Dee", 1500, ["Kim"])
+        pledge_with_conditions(test_db, event_id, "Ana", 2000, ["Jay"])
+        assert lifecycle.find_event(test_db, event_id)["status"] == "OPEN"
+        pledge_with_conditions(test_db, event_id, "Jay", 2000, ["Ana"])
+        dee, ana, jay = pledges_of(test_db, event_id)
+        assert lifecycle.pledge_conditions_of(test_db, dee["id"]) == ["Kim"]
+        assert lifecycle.pledge_conditions_of(test_db, ana["id"]) == ["Jay"]
+        assert lifecycle.pledge_conditions_of(test_db, jay["id"]) == ["Ana"]
+        assert counted_names(test_db, event_id) == ["Ana", "Jay"]
+        assert lifecycle.find_event(test_db, event_id)["status"] == "LAST_CALL"
+        dee_auth = auth_id_of(test_db, dee["id"])
+
+        assert lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal) == "SETTLED"
+        shares = money.compute_shares_cents(money.fee_adjusted_goal_cents(3000, 2), [2000, 2000])
+        dee, ana, jay = pledges_of(test_db, event_id)
+        assert (dee["status"], ana["status"], jay["status"]) == ("DROPPED", "CHARGED", "CHARGED")
+        assert dee["share_cents"] is None
+        assert only_capture_of(test_db, ana["id"])["amount_cents"] == shares[0]
+        assert only_capture_of(test_db, jay["id"])["amount_cents"] == shares[1]
+        assert len(calls_for("void_authorization", [dee_auth])) == 1
+        assert calls_for("capture_authorization", [dee_auth]) == []
+    finally:
+        delete_event(test_db, event_id)
+
+
+# ---------- D79: "Waiting on Jay" (the board's waiting_on facts) ----------
+
+# The names each uncounted held pledge waits on, as board_facts gives them: {pledge id: [names]}.
+def waiting_on(conn, event_id):
+    return lifecycle.board_facts(conn, event_id)["waiting_on"]
+
+
+# Ana is held "only if Jay's in", and Jay hasn't pledged: she waits on Jay and isn't counted. Bo has no
+# condition, so he's counted and waits on nobody. Once Jay holds, Ana is counted and the wait is over.
+def test_d79_a_held_pledge_waits_on_a_name_nobody_holds_for(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        ana_id = add_held_pledge(test_db, event_id, "Ana", 1000, ["Jay"])
+        bo_id = add_held_pledge(test_db, event_id, "Bo", 1000)
+        facts = lifecycle.board_facts(test_db, event_id)
+        assert facts["waiting_on"] == {ana_id: ["Jay"]}
+        assert facts["counted_ids"] == [bo_id]
+
+        jay_id = add_held_pledge(test_db, event_id, "Jay", 1000)
+        facts = lifecycle.board_facts(test_db, event_id)
+        assert facts["waiting_on"] == {}
+        assert facts["counted_ids"] == [ana_id, bo_id, jay_id]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# Ana waits on Bo and Bo on Cy, who hasn't held. Both are waiting on Cy: Bo is already held, so the
+# name to show is the one nobody holds for. (Showing "Bo" for Ana would send people to the wrong friend.)
+def test_d79_a_chain_names_the_end_nobody_holds_for(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        ana_id = add_held_pledge(test_db, event_id, "Ana", 1000, ["Bo"])
+        bo_id = add_held_pledge(test_db, event_id, "Bo", 1000, ["Cy"])
+        assert waiting_on(test_db, event_id) == {ana_id: ["Cy"], bo_id: ["Cy"]}
+    finally:
+        delete_event(test_db, event_id)
+
+
+# Every name that nobody holds for is listed, in the order the conditions were saved: Jay and Maya never
+# pledged, and Kim confirmed but hasn't placed a hold, so Kim isn't held yet either.
+def test_d79_every_name_not_yet_held_is_listed_including_an_unpaid_one(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        confirm(test_db, event_id, "Kim", 1000)
+        ana_id = add_held_pledge(test_db, event_id, "Ana", 1000, ["Jay", "Maya", "Kim"])
+        assert waiting_on(test_db, event_id) == {ana_id: ["Jay", "Maya", "Kim"]}
+    finally:
+        delete_event(test_db, event_id)
+
+
+# A name that is already counted is not waited on: Ana needs Bo (counted) and Cy (nobody), so only Cy.
+def test_d79_a_counted_name_is_not_waited_on(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        ana_id = add_held_pledge(test_db, event_id, "Ana", 1000, ["Bo", "Cy"])
+        add_held_pledge(test_db, event_id, "Bo", 1000)
+        assert waiting_on(test_db, event_id) == {ana_id: ["Cy"]}
+    finally:
+        delete_event(test_db, event_id)
+
+
+# A circle with one missing end doesn't loop forever: Ana needs Bo, Bo needs Ana and Zed. Zed is the name
+# nobody holds for, so both wait on Zed.
+def test_d79_a_circle_with_a_missing_end_stops_and_names_it(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        ana_id = add_held_pledge(test_db, event_id, "Ana", 1000, ["Bo"])
+        bo_id = add_held_pledge(test_db, event_id, "Bo", 1000, ["Ana", "Zed"])
+        assert waiting_on(test_db, event_id) == {ana_id: ["Zed"], bo_id: ["Zed"]}
+    finally:
+        delete_event(test_db, event_id)
+
+
+# Only while pledging can still change who counts. When the event has ended, a held pledge that isn't
+# counted is only waiting for the cleanup sweep, so there is nothing to wait on.
+def test_d79_nobody_waits_once_pledging_has_ended(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        add_held_pledge(test_db, event_id, "Ana", 1000, ["Jay"])
+        assert len(waiting_on(test_db, event_id)) == 1
+        set_event_status(test_db, event_id, "EXPIRED")
+        assert waiting_on(test_db, event_id) == {}
     finally:
         delete_event(test_db, event_id)

@@ -81,3 +81,4 @@ Not built before the freeze. D47's safe ending stands instead: hold `CAPTURED`, 
 | Date | Who | Idea |
 |---|---|---|
 | Nov 3 | Emmanuel | Rate limit on `POST /api/pledges/parse`. The route is public and each call uses our AI provider's quota, so anyone could use it up by sending many requests. Today only D73's 280-character limit applies |
+| Nov 3 | Emmanuel | Cap the size of the `conditions` list in a request to `POST /api/pledges`. Today lifecycle refuses more than 3 names only after tidying the whole list, so a request with thousands of names is looped over before it is refused (no database use, but no limit on the request's size). Fix: refuse a list over a small number (for example 20) in `app.py` before any tidying, or set Flask's `MAX_CONTENT_LENGTH` |

@@ -40,6 +40,13 @@ AI_TIMEOUT_SECONDS = 8
 # text keeps each AI call small and quick. Longer text is refused before the AI is called.
 MAX_PLEDGE_TEXT_CHARS = 280
 
+# What a friend may save with a pledge (D77). At most this many condition names ("only if Jay's in"),
+# each at most this many characters. The same character limit applies to the pledger's own name, so
+# nobody can pledge under a name that no condition could ever write. The server checks both, because a
+# friend can type conditions by hand and not only through the AI.
+MAX_CONDITIONS = 3
+MAX_NAME_CHARS = 40
+
 # The only PayPal address this app may ever talk to (AGENTS.md rule 12).
 SANDBOX_BASE_URL = "https://api-m.sandbox.paypal.com"
 

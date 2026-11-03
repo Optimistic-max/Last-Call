@@ -201,6 +201,8 @@ Both get the same `board` object, and `board.json` is exactly this object, so th
 | `rows[].status_word` | text: `"Pledged"`, `"Held"`, `"Declined"`, `"Charged $28.33"`, or `"Charge failed"` *(placeholder)* | `"Held"` |
 | `rows[].max_text` | text | `"$40.00"` |
 | `rows[].estimated_share_text` | text: during `LAST_CALL`, what this person would pay if last call ended now (from `money.py`, the same numbers the lock charges), so a late joiner visibly lowers everyone's number; `""` at every other time. Added Nov 2 (D76), Samuel to approve | `"$8.21"` |
+| `rows[].counted` | true or false: true for a held pledge the circle rule counts, and for a pledge already `CHARGED` or `FAILED` at lock; false for Pledged, Declined and held pledges that are still waiting. For styling ("the circle turns green together"). Added Nov 3 (D79), Samuel to approve | `true` |
+| `rows[].waiting_on_text` | text: `"Waiting on Jay"`, `"Waiting on Jay and Maya"` or `"Waiting on Jay, Maya and Kim"` *(placeholder)* for a held pledge that isn't counted yet, naming the people nobody has a hold for (it follows the chain: if Ana waits on Bo and Bo waits on Cy, both say Cy); `""` for everyone else and whenever the event is no longer OPEN or LAST_CALL. Added Nov 3 (D79), Samuel to approve | `"Waiting on Jay"` |
 
 | Event `status` | `banner_text` |
 |---|---|
@@ -225,3 +227,15 @@ Added by Emmanuel on Nov 3. The pledge page's JavaScript sends `{"event_id": 7, 
 | `follow_up_question` | text to show when `status` is `unclear`, otherwise `null`. If the AI fails or times out it is "Couldn't read that. Please retype it, or fill in the amount, cap and condition yourself.", and every box stays editable | `null` |
 
 Refusals come back as `{"message": "..."}`, like the other routes: `"Type your pledge."` *(placeholder)* for an empty box (400), `"Keep it to 280 characters or fewer."` *(placeholder, D73)* for longer text (400), the S4/S5 closed text (409), and the S5 error text for an unknown event (404) or a database error (503).
+
+### S4 `POST /api/pledges` (D31, D77)
+
+Updated by Emmanuel on Nov 3. The page sends what the friend confirmed: `{"event_id": 7, "name": "Ana", "max": "40", "min": "20", "conditions": ["Jay"]}`. Only `event_id`, `name` and `max` are required.
+
+| Key | Type | Notes |
+|---|---|---|
+| `max`, `min` | plain amount text like `"40"` or `"40.50"` | `min` is optional: missing, `null` or `""` mean none. `min` is shown only and never changes the share (D12) |
+| `conditions` | a list of names, optional (missing or `null` mean none) | At most 3 names, each at most 40 characters. Blanks, repeats and the friend's own name are dropped. Saved in the same transaction as the pledge. A retry replaces the old `min` and conditions |
+| `name` | text, at most 40 characters | The same 40-character limit as a condition name |
+
+The answer is `{"pledger_token": "...", "hold_text": "..."}`, as before. Refusals are `{"message": "..."}` with status 400: `"Your amount can't be more than your max."`, `"You can name up to 3 people."`, `"Keep your name to 40 characters or fewer."` and `"Keep each name to 40 characters or fewer."`, all *(placeholders, D57)*, plus the existing ones.
