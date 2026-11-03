@@ -8,7 +8,7 @@ Everything is sandbox and fake money, but we treat keys as if they were real. Ju
 |---|---|---|
 | PayPal client secret | `.env` on your machine, Render environment settings | in git, in chat, in logs, in screenshots |
 | Neon `DATABASE_URL` (contains a password) | same | same |
-| AI API key | same | same |
+| AI API key (`AI_API_KEY`, for the AI provider set in `AI_BASE_URL`: Azure OpenAI or Groq, D75) | same | same |
 | `FLASK_SECRET_KEY` | same | same |
 
 - The PayPal **client ID** is public (the browser needs it). The **secret** is not.
@@ -20,7 +20,7 @@ Everything is sandbox and fake money, but we treat keys as if they were real. Ju
 
 ## If a secret leaks
 
-1. Regenerate it immediately (PayPal Developer Dashboard / Neon / AI provider).
+1. Regenerate it immediately (PayPal Developer Dashboard / Neon / the AI provider set in `AI_BASE_URL`: Azure portal or Groq console).
 2. Update `.env` and Render.
 3. Tell the team. Deleting the commit isn't enough, because the old value stays in git history and may already be copied.
 
@@ -47,6 +47,6 @@ The app refuses to start unless `PAYPAL_BASE_URL` is exactly `https://api-m.sand
 
 ## Privacy
 
-The pledge a friend types is sent to a third-party AI model, and the pledge page says so (D31). The demo uses only a fictional chat and made-up pledges. No real names or phone numbers go in the repo, the test messages or the video.
+The pledge a friend types is sent to a third-party AI model, the AI provider set in `AI_BASE_URL` (Azure OpenAI or Groq, D75), and the pledge page says so, naming that provider (D31). The demo uses only a fictional chat and made-up pledges. No real names or phone numbers go in the repo, the test messages or the video.
 
 **Email is optional; name is required (D31).** If a friend gives an email, it is never logged and never goes in the repo, the tests or the video. It never appears on the public board or in `board.json`.

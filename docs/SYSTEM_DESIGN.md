@@ -156,6 +156,7 @@ The full list of PayPal responses and what we do lives in one place: `PAYPAL_INT
 | Database | Neon `dev` branch | Neon `main` branch |
 | Tests | Neon `test` branch (`TEST_DATABASE_URL`) + fake PayPal | n/a |
 | PayPal | sandbox app keys in `.env` | same sandbox app, keys in Render settings |
+| AI reader | `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` in `.env` | the same three in Render settings. `AI_BASE_URL` picks the AI provider (Azure OpenAI or Groq, D75); left empty, it is Groq |
 
 ## 8. Pages and routes (MVP set)
 

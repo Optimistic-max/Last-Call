@@ -25,9 +25,11 @@ APP_BASE_URL = os.environ.get("APP_BASE_URL", "")
 AI_API_KEY = os.environ.get("AI_API_KEY", "")
 AI_MODEL = os.environ.get("AI_MODEL", "")
 
-# The AI that reads one friend's pledge (D15): Groq's chat API, which follows OpenAI's format.
-# Address read in docs: https://console.groq.com/docs/api-reference (Nov 1). Added by Malama for ai_parser.py.
-AI_BASE_URL = "https://api.groq.com/openai/v1"
+# The AI that reads one friend's pledge: any chat API that follows OpenAI's format (D75: Azure OpenAI or Groq).
+# The provider is a setting, not code. If AI_BASE_URL is missing or empty (".env.example" leaves it empty),
+# Groq's address is used (D15), so nothing breaks. "or" is needed because an empty line in .env gives "", not None.
+# Groq's address read in docs: https://console.groq.com/docs/api-reference (Nov 1). Added by Malama for ai_parser.py.
+AI_BASE_URL = os.environ.get("AI_BASE_URL") or "https://api.groq.com/openai/v1"
 
 # Reading one pledge gives up after this many seconds, and the friend sees "please retype"
 # (docs/AI_PARSER.md section 4). They can always fill in the confirm step by hand.
