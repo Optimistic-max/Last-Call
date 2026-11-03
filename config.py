@@ -87,6 +87,16 @@ DEMO_LAST_CALL_WINDOW = timedelta(minutes=3)
 # request resumes it (D27, built in M2).
 STUCK_LOCK_AFTER = timedelta(minutes=5)
 
+# The cleanup sweep (D80). It makes at most this many PayPal void calls per request, so one slow PayPal
+# can't hold a page past gunicorn's 120 s timeout.
+SWEEP_MAX_HOLDS = 1
+
+# A hold the sweep already tried to void is left alone for this long before it is tried again.
+VOID_RETRY_AFTER = timedelta(minutes=5)
+
+# A PENDING hold (no authorization yet) younger than this may still belong to a checkout in progress.
+PENDING_HOLD_GRACE = timedelta(minutes=10)
+
 
 # Stop the app unless PayPal's address is exactly the sandbox (AGENTS.md rule 12, test E10).
 # It must be an exact match: a live URL, an empty value, a typo or a lookalike such as

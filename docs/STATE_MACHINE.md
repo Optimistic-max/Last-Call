@@ -49,7 +49,7 @@ Who is counted is recomputed by the circle rule every time the goal is checked, 
 
 ## Hold states (PayPal's own names)
 
-`CREATED` (active hold), `CAPTURED`, `VOIDED`, `DENIED`. `PARTIALLY_CAPTURED` only appears in the gap-fill stretch goal, which we are not building.
+`CREATED` (active hold), `CAPTURED`, `VOIDED`, `DENIED`, plus `EXPIRED` when PayPal says so (saved as read). `NOT_PLACED` is our own: a `PENDING` hold whose authorize was never sent, closed by the cleanup sweep (D80). `PARTIALLY_CAPTURED` only appears in the gap-fill stretch goal, which we are not building.
 
 ## Transitions and the PayPal call behind each
 
@@ -79,6 +79,7 @@ Every way a step can go wrong, and where its handling is written down. All of it
 | Authorize times out or returns something unexpected | Retry once with the same request ID, then a generic error. Never treated as held | `PAYPAL_INTEGRATION.md` §4–5 |
 | A hold comes back after the event left `OPEN`/`LAST_CALL` | Void it at once, pledge `DROPPED`, show the "pledging closed" message (F11). The sweep catches any that slip through | `SYSTEM_DESIGN.md` §5A |
 | A void doesn't return 204 | `GET` the authorization and save its real status. Still `CREATED`: the sweep retries on the next wake (F12) | `PAYPAL_INTEGRATION.md` §4 |
+| The sweep finds a hold PayPal already closed (void refused, `GET` shows `VOIDED` or `EXPIRED`) | Save the real status; on a finished event the pledge becomes `DROPPED`. If the `GET` shows `CAPTURED`, the pledge is `FAILED` and an error is logged; the sweep never captures (D80) | `DECISIONS.md` D80 |
 | Two requests try the same status change | Compare-and-set: only one wins (E8) | `SYSTEM_DESIGN.md` §4 |
 | Settling raises an error | Log it and still serve the page | `SYSTEM_DESIGN.md` §3 |
 | At lock, the goal is no longer reached (the invariants say this can't happen) | Charge nobody: void every hold, event `LOCKING → EXPIRED` (F13) | `SYSTEM_DESIGN.md` §5C |

@@ -137,7 +137,7 @@ From `POST /api/orders` on, the B1 order/authorize flow is unchanged. The page s
 ### D. Expire and cleanup
 
 - Compare-and-set `OPEN → EXPIRED`, then void every `CREATED` hold. Unpaid `PENDING_PAY` pledges become `DROPPED`.
-- Cleanup sweep (runs on wake): void any hold still `CREATED` whose pledge is `DROPPED`, whose event is `SETTLED`, `EXPIRED` or `NEEDS_ATTENTION` (for pledges not counted), or whose hold is close to `expires_at`.
+- Cleanup sweep (D80), runs at the end of every `settle_due_events`: void any hold still `CREATED` whose event is `SETTLED`, `EXPIRED` or `NEEDS_ATTENTION`, or whose pledge is `DROPPED` (not on a `LOCKING` or `CHARGING` event), except a `FAILED` pledge's hold. It claims each hold with `holds.void_tried_at` first (compare-and-set, 5-minute retry), makes at most one PayPal void per request, and never captures. A `PENDING` hold on a finished event whose authorize was never sent becomes `NOT_PLACED` with no PayPal call.
 
 ### E. AI reading (milestone M4)
 
