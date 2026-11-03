@@ -25,7 +25,6 @@ Agents check this list before editing a file and mention any open to-do on it (`
 
 | Who | File | To-do |
 |---|---|---|
-| Malama | `docs/AI_PARSER.md` | Add a validator rule: reject any amount, cap or condition that doesn't appear in the friend's message (enforces G1). Doesn't block other work (Oct 26). |
 | Samuel | `static/js/pledge_paypal.js` | The billing ZIP `95131` is PayPal's sample value (kept from the B1 spike) and needs a decision before real users. The file is Emmanuel's, so decide together (Oct 28). |
 | Emmanuel | `config.py` | `FLASK_SECRET_KEY` is empty in Emmanuel's `.env` (config.py reads it). Nothing else uses it yet (Oct 28). |
 | Emmanuel | `app.py` | `import app` refuses to start unless `.env` has the sandbox `PAYPAL_BASE_URL`. `.env.example` leaves it empty, so Samuel, Malama and Render each need it set before `app.py`, `tests/test_health.py` or `tests/test_routes.py` can run (Oct 28). |

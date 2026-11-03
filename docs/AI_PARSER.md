@@ -1,6 +1,6 @@
 # AI pledge reader
 
-Owner: **Malama**. Lives in `ai_parser.py`. Milestone **M4**. No parser code before M4; first, Malama chooses the model (D15) before Oct 29.
+Owner: **Malama**. Lives in `ai_parser.py`. Wired into the pledge page in milestone **M4**; the parser itself may be built earlier, as a parallel lane (D48). The model is chosen (D15).
 
 > **D31 (APPROVED, Oct 26): own-words pledge flow.** This page describes it. Each friend types their own pledge on the event link page, and the AI reads that one message. The treasurer chat paste is deferred (`docs/LATER.md`).
 
@@ -24,7 +24,7 @@ actually im out sorry
 maybe??
 ```
 
-The friend's name (required) and email (optional) come from the form fields, never from the AI, so nobody is asked for the same thing twice. Quick-amount buttons (D31) fill in an amount without typing; the friend still confirms.
+The friend's name (required) comes from the form field, never from the AI, so nobody is asked for the same thing twice. There is no email field before the freeze (D62). Quick-amount buttons (D31) fill in an amount without typing; the friend still confirms.
 
 ## 3. Output (the model must return exactly this JSON)
 
@@ -61,13 +61,15 @@ For "maybe??":
 
 ## 4. Plain-code validation (after the model answers)
 
-Never trust the model's JSON directly. `ai_parser.validate_pledge(raw)` must:
+Never trust the model's JSON directly. `ai_parser.validate_pledge(raw, message_text)` takes the model's answer and the friend's own message, and returns amounts in **cents** (rule 1). It must:
 
-1. Parse the JSON. If it doesn't parse, return a "please retype" result.
-2. Drop unknown fields. Reject wrong types.
-3. Convert dollars to cents with plain code and **no floats**: `int(Decimal(str(dollars)) * 100)`, only after checking the value is a number between 5 and 10,000 (TODO: source needed) with at most two decimals.
-4. Any max under $5 means the card becomes `unclear` with "The minimum is $5. What's your max?".
-5. Keep each condition as a name. It doesn't have to match anyone yet: the circle rule decides who is counted (D06), and the board shows "Waiting on [name]". (With one message there are no chat lines to check names or source lines against.)
+1. Parse the JSON with numbers that have decimals kept as text (`json.loads(raw, parse_float=str)`), so no float is ever made (rule 1, D63). If it doesn't parse, return a "please retype" result.
+2. Drop unknown fields. Reject wrong types ("please retype").
+3. Convert dollars to cents with `money.dollars_text_to_cents` (whole numbers only, at most two decimals). A max must be from `config.MIN_MAX_CENTS` ($5) to `config.MAX_MAX_CENTS` ($2,000, D58), the range test C3 covers (D63).
+4. Any max under $5 means the card becomes `unclear` with "The minimum is $5. What's your max?". A max over $2,000 becomes `unclear` with "The largest max is $2,000.00. What's your max?". An `in` with no max becomes `unclear` with "What's the most you'd pay?". A min above the max becomes "please retype".
+5. **Nothing the friend didn't type (enforces G1).** Every amount (`max_dollars`, `min_dollars`) must be a number that appears in the friend's message (commas removed, so "1,000" reads as 1000; "$40," reads as 40). Every condition must appear in the message as a whole word, ignoring case and punctuation ("Jay" is found in "if Jay's in"). If any value fails, the **whole** suggestion becomes "please retype", not just that field, because quietly dropping a condition would turn "only if Jay's in" into an unconditional pledge. Trade-off: amounts written in words ("forty") always come back as "please retype", and the friend types the number.
+6. Keep each condition as a name, tidied with `conditions.tidy_name`, with blanks and repeats removed. It doesn't have to match anyone yet: the circle rule decides who is counted (D06), and the board shows "Waiting on [name]".
+7. An `out` answer keeps no amounts and no conditions.
 
 If the model call fails or times out, show: **"Couldn't read that. Please retype it, or fill in the amount, cap and condition yourself."** The friend can always fill in the confirm step by hand.
 
