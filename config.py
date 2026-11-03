@@ -66,8 +66,8 @@ MAX_DEPOSIT_CENTS = 200000   # no event can have a deposit over $2,000
 PLEDGING_WINDOW = timedelta(hours=48)
 DEMO_PLEDGING_WINDOW = timedelta(minutes=10)
 
-# How long last call lasts once the goal is reached. Used from M2: in M1, last call runs until the
-# hard deadline instead (D25).
+# How long last call lasts once the goal is reached, but never past the hard deadline (D04).
+# lifecycle.last_call_window picks one. (In M1, last call ran until the hard deadline instead, D25.)
 LAST_CALL_WINDOW = timedelta(hours=1)
 DEMO_LAST_CALL_WINDOW = timedelta(minutes=3)
 
