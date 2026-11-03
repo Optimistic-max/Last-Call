@@ -84,7 +84,7 @@ LAST_CALL_WINDOW = timedelta(hours=1)
 DEMO_LAST_CALL_WINDOW = timedelta(minutes=3)
 
 # A lock still in LOCKING or CHARGING this long after lock_started_at counts as stuck, and the next
-# request resumes it (D27, built in M2).
+# request resumes it (D27, D81: lifecycle.resume_stuck_lock).
 STUCK_LOCK_AFTER = timedelta(minutes=5)
 
 # The cleanup sweep (D80). It makes at most this many PayPal void calls per request, so one slow PayPal
