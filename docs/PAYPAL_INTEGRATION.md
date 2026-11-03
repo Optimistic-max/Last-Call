@@ -77,7 +77,8 @@ Owner: **Emmanuel**. All of this lives in `paypal_client.py`. That file only mak
 | capture: 422 `TRANSACTION_REFUSED` | refused (we've only seen it via the mock) | retry once with a new saved request ID |
 | capture: anything else (another status or error code, a 5xx, a timeout) | result unknown | follow §5 |
 | void: 204 | cancelled | `GET` to confirm `VOIDED` |
-| void: anything other than 204 | not confirmed | `GET` the authorization and save PayPal's status. If it is still `CREATED`, the cleanup sweep tries again on the next wake |
+| void: anything other than 204 | not confirmed | `GET` the authorization and save PayPal's status. If it is still `CREATED`, the cleanup sweep tries again, at least 5 minutes later, with the same saved request ID (D80). Whether PayPal replays a failed void for the same request ID, or runs it again, is `unverified` (F12 is `NOT RUN` with real PayPal) |
+| void: refused because the hold is already closed | `GET` says `VOIDED` or `EXPIRED` (the `EXPIRED` name is `unverified`, TODO (source needed)) | save that status; nothing left to cancel. `CAPTURED` on the `GET` should be impossible: pledge `FAILED`, logged as an error, never captured (D80) |
 | reauthorize in the first 3 days | `REAUTHORIZATION_TOO_SOON` | we never reauthorize. Deadlines stay inside the 3-day honor period |
 
 ## 5. Unknown results (timeouts)
@@ -91,7 +92,7 @@ If a capture call times out (or returns anything not in the table above), **don'
 If an **authorize** call times out:
 1. Retry once with the same saved authorize request ID (rule 4). Whether PayPal returns the same authorization on that retry is `unverified`: only capture retries were tested (A3).
 2. If it still fails, show "Something went wrong. Nothing was charged." and leave the hold `PENDING`.
-3. This is the one gap in "every authorization ID is in our database" (`STATE_MACHINE.md` invariant 6): PayPal may have placed a hold whose ID we never saw. We never capture it, so nobody is charged, but the pledger's card may show a pending hold until PayPal expires it (29 days). A possible fix, `unverified`: `GET /v2/checkout/orders/{order_id}` and look for the authorization.
+3. This is the one gap in "every authorization ID is in our database" (`STATE_MACHINE.md` invariant 6): PayPal may have placed a hold whose ID we never saw. We never capture it, so nobody is charged, but the pledger's card may show a pending hold until PayPal expires it (29 days). A possible fix, `unverified`: `GET /v2/checkout/orders/{order_id}` and look for the authorization (not built; `docs/LATER.md`). Until then the cleanup sweep leaves such a hold `PENDING` and logs a warning (D80).
 
 ## 6. Testing tools (sandbox only)
 

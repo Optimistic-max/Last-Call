@@ -476,6 +476,10 @@ def settle_due_events(conn, now, paypal):
             expire_event(conn, event["id"], now, paypal)
         except psycopg.Error as error:
             logger.warning("settling event %d failed: database error (%s)", event["id"], type(error).__name__)
+    try:
+        sweep_stranded_holds(conn, now, paypal)
+    except psycopg.Error as error:
+        logger.warning("the cleanup sweep failed: database error (%s)", type(error).__name__)
 
 
 # The only path that captures money (AGENTS.md rule 6, docs/SYSTEM_DESIGN.md section 5C).
@@ -690,6 +694,109 @@ def drop_pledges_without_a_hold(conn, event_id):
                         "AND NOT EXISTS (SELECT 1 FROM holds "
                         "WHERE holds.pledge_id = pledges.id AND holds.status = 'CREATED')",
                   (event_id,))
+
+
+# ---------- M2: the cleanup sweep (D80) ----------
+
+# A finished event: nothing on it can be charged any more, so a hold still open on it is stranded.
+FINISHED_EVENT_SQL = "('EXPIRED', 'SETTLED', 'NEEDS_ATTENTION')"
+
+# What PayPal can say about a hold after our void, as the GET reads it back:
+# closed (nothing left to cancel), money moved (we never expected it), or anything else (try again).
+CLOSED_HOLD_STATUSES = ("VOIDED", "EXPIRED", "DENIED")
+MONEY_MOVED_HOLD_STATUSES = ("CAPTURED", "PARTIALLY_CAPTURED")
+
+
+# The cleanup sweep: close holds that should no longer be open (STATE_MACHINE.md, SYSTEM_DESIGN.md
+# section 5D). It only ever cancels holds: it never calls capture (rule 6). It runs at the end of every
+# settle_due_events. Marking never-placed PENDING holds needs no PayPal call, so it is not limited; voids
+# are limited to config.SWEEP_MAX_HOLDS per call, so a slow PayPal can't hold a page past its timeout.
+def sweep_stranded_holds(conn, now, paypal):
+    close_unplaced_holds(conn, now)
+    warn_about_lost_authorizations(conn, now)
+    for hold in stranded_created_holds(conn, now):
+        sweep_one_hold(conn, hold, now, paypal)
+
+
+# PENDING holds on a finished event, older than the grace time, whose authorize call was never sent
+# (authorize_request_id is empty): no authorization can exist at PayPal, so the hold becomes NOT_PLACED
+# with no PayPal call. One UPDATE is the compare-and-set: a hold that is no longer PENDING with an empty
+# authorize_request_id is not changed. This is dev event 19's holds 8 and 9.
+def close_unplaced_holds(conn, now):
+    changed = db.run(conn, "UPDATE holds SET status = 'NOT_PLACED' "
+                           "WHERE status = 'PENDING' AND auth_id IS NULL AND authorize_request_id IS NULL "
+                           "AND created_at < %s AND pledge_id IN (SELECT pledges.id FROM pledges "
+                           "JOIN events ON events.id = pledges.event_id "
+                           "WHERE events.status IN " + FINISHED_EVENT_SQL + ")",
+                     (now - config.PENDING_HOLD_GRACE,))
+    if changed > 0:
+        logger.info("the sweep marked %d never-authorized holds NOT_PLACED", changed)
+
+
+# A PENDING hold whose authorize call WAS sent but whose answer we never saw: PayPal may be holding money
+# we can't see. Without a PayPal call to look it up (docs/LATER.md), it stays PENDING and is logged.
+# Only the oldest is logged, by hold ID alone, so a busy page doesn't flood the log.
+def warn_about_lost_authorizations(conn, now):
+    lost = db.fetch_one(conn, "SELECT holds.id FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
+                              "JOIN events ON events.id = pledges.event_id "
+                              "WHERE holds.status = 'PENDING' AND holds.auth_id IS NULL "
+                              "AND holds.authorize_request_id IS NOT NULL AND holds.created_at < %s "
+                              "AND events.status IN " + FINISHED_EVENT_SQL + " ORDER BY holds.id LIMIT 1",
+                        (now - config.PENDING_HOLD_GRACE,))
+    if lost is not None:
+        logger.warning("hold %d: authorize was sent but no answer was saved; left PENDING", lost["id"])
+
+
+# CREATED holds that should be cancelled, oldest first, at most SWEEP_MAX_HOLDS. A hold qualifies when:
+# its event is finished, or its pledge is DROPPED (and the event is not mid-lock: LOCKING and CHARGING
+# belong to the lock and its D27 resume). A FAILED pledge's hold is never listed (D28 c). A hold the sweep
+# tried less than VOID_RETRY_AFTER ago is skipped, so one stubborn hold can't use up every sweep.
+def stranded_created_holds(conn, now):
+    return db.fetch_all(conn, "SELECT holds.id, pledges.id AS pledge_id, pledges.event_id, "
+                              "events.status AS event_status "
+                              "FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
+                              "JOIN events ON events.id = pledges.event_id "
+                              "WHERE holds.status = 'CREATED' AND holds.auth_id IS NOT NULL "
+                              "AND pledges.status <> 'FAILED' "
+                              "AND (holds.void_tried_at IS NULL OR holds.void_tried_at < %s) "
+                              "AND (events.status IN " + FINISHED_EVENT_SQL + " OR (pledges.status = 'DROPPED' "
+                              "AND events.status NOT IN ('LOCKING', 'CHARGING'))) "
+                              "ORDER BY holds.id LIMIT %s",
+                        (now - config.VOID_RETRY_AFTER, config.SWEEP_MAX_HOLDS))
+
+
+# The sweep's compare-and-set on one hold: save "tried at `now`" only if nobody tried within
+# VOID_RETRY_AFTER. Only the sweep whose UPDATE changed 1 row may call PayPal for this hold.
+# lock_and_charge and expire_event don't claim (they use void_hold directly): if one of them voids the
+# same hold at the same moment, both reuse the hold's saved void_request_id, so PayPal sees one void (D80).
+def claim_hold(conn, hold_id, now):
+    changed = db.run(conn, "UPDATE holds SET void_tried_at = %s "
+                           "WHERE id = %s AND (void_tried_at IS NULL OR void_tried_at < %s)",
+                     (now, hold_id, now - config.VOID_RETRY_AFTER))
+    return changed == 1
+
+
+# Void one stranded hold. void_hold saves the void's PayPal-Request-Id first, reuses it on a retry, and
+# saves what the GET says, not what the void answered (rules 3, 4 and 5). Then:
+# - closed (VOIDED, EXPIRED, DENIED): on a finished event, drop the pledges left with no open hold;
+# - money moved (CAPTURED): we never captured it, so a person did. The pledge is FAILED and it's logged;
+# - still CREATED, or no answer: nothing changes, and the next sweep after VOID_RETRY_AFTER tries again.
+def sweep_one_hold(conn, hold, now, paypal):
+    if not claim_hold(conn, hold["id"], now):
+        return
+    status = void_hold(conn, hold["id"], paypal)
+    if status in MONEY_MOVED_HOLD_STATUSES:
+        db.run(conn, "UPDATE pledges SET status = 'FAILED' WHERE id = %s AND status IN ('HELD', 'DROPPED')",
+               (hold["pledge_id"],))
+        logger.error("hold %d: PayPal says %s but we never captured it. Pledge %d marked FAILED: "
+                     "look at it by hand", hold["id"], status, hold["pledge_id"])
+    elif status in CLOSED_HOLD_STATUSES:
+        logger.info("the sweep closed hold %d (PayPal says %s)", hold["id"], status)
+        if hold["event_status"] in ("EXPIRED", "SETTLED", "NEEDS_ATTENTION"):
+            drop_pledges_without_a_hold(conn, hold["event_id"])
+    else:
+        logger.warning("the sweep could not close hold %d (PayPal says %s); it will try again later",
+                       hold["id"], status)
 
 
 # ---------- Step 5b: create and open an event ----------
