@@ -22,9 +22,21 @@
   {% if not pledging_open %}
   <p>{{ closed_text }}</p>
   {% else %}
+  {# The own-words box, Check button and the min and conditions boxes (M4, D31, D77) are bare elements
+     with new ids, for Samuel to style: pledge-message, check-button, check-message, pledge-min and
+     pledge-conditions. Every older id is unchanged. Their labels are placeholders (D57). Samuel adds the
+     "AI reads. You confirm. Plain code handles the money." line and the privacy note (docs/TEAM.md). #}
   <main id="pledge" data-event-id="{{ event.id }}" data-error-text="{{ error_text }}">
+    <p><label for="pledge-message">Say it in your own words (optional)</label><br>
+      <textarea id="pledge-message" rows="3" maxlength="280"></textarea></p>
+    <button id="check-button" type="button">Check</button>
+    <p id="check-message" role="status"></p>
+
     <p><label for="pledge-name">Your name</label><br><input id="pledge-name" autocomplete="name"></p>
     <p><label for="pledge-max">Your max ($)</label><br><input id="pledge-max" inputmode="decimal"></p>
+    <p><label for="pledge-min">Your minimum ($, optional)</label><br><input id="pledge-min" inputmode="decimal"></p>
+    <p><label for="pledge-conditions">Only if these people are in (optional, separate names with commas)</label><br>
+      <input id="pledge-conditions"></p>
     <button id="confirm-button" type="button">Continue</button>
 
     <p id="hold-text"></p>
