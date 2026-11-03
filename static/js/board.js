@@ -97,13 +97,23 @@ function showRows(rows) {
 
 
 // One person's row, with the same text the template draws: "Ana: Held, max $40.00", plus
-// ", share now $8.21" during last call. Every amount is the server's text, joined as it is.
+// ", share now $8.21" during last call and ", Waiting on Jay" while a condition isn't met (D79).
+// Every amount and the waiting text are the server's text, joined as they are.
+// data-counted is "true" or "false", for styling (the circle turns green together).
 function makeRow(row, maxLabel, shareLabel) {
   const item = document.createElement("li");
   item.dataset.status = row.status;
+  if (row.counted) {
+    item.dataset.counted = "true";
+  } else {
+    item.dataset.counted = "false";
+  }
   let text = row.name + ": " + row.status_word + ", " + maxLabel + " " + row.max_text;
   if (row.estimated_share_text !== "") {
     text = text + ", " + shareLabel + " " + row.estimated_share_text;
+  }
+  if (row.waiting_on_text !== "") {
+    text = text + ", " + row.waiting_on_text;
   }
   item.textContent = text;
   return item;
