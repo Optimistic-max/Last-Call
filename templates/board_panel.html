@@ -1,0 +1,23 @@
+{# The board (docs/UI_DESIGN.md section 10), included by S2 (admin.html) and S3 (board.html), D76.
+   A bare panel from Emmanuel's step 5b C, for Samuel to restyle. It gets one value, board, and every
+   amount and time in it is finished text: this file never formats or adds up money (rule 2).
+   board never holds a token or an email. No JavaScript here: the 10-second refresh is Samuel's
+   board.js, which can read /e/<id>/board.json and tick seconds_left down.
+   "Held so far", "max", "share now" and "Pledge" are placeholder labels until Samuel approves them (D57). #}
+<section class="board" data-event-id="{{ board.event_id }}" data-status="{{ board.status }}">
+  <p class="board-banner" role="status">{{ board.banner_text }}</p>
+  <p>{{ board.goal_text }}</p>
+  <p>Held so far: {{ board.held_total_text }}</p>
+  <progress max="100" value="{{ board.progress_percent }}">{{ board.progress_percent }}%</progress>
+
+  <ul class="board-rows">
+    {% for row in board.rows %}
+    <li data-status="{{ row.status }}">{{ row.name }}: {{ row.status_word }}, max {{ row.max_text }}
+      {%- if row.estimated_share_text %}, share now {{ row.estimated_share_text }}{% endif %}</li>
+    {% endfor %}
+  </ul>
+
+  {% if board.pledging_open %}
+  <p><a href="{{ url_for('pledge_page', event_id=board.event_id) }}">Pledge</a></p>
+  {% endif %}
+</section>

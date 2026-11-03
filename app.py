@@ -1,7 +1,8 @@
 # Flask routes only (AGENTS.md section 7). Owner: Emmanuel.
 # Malama's M0 task added GET /health (docs/MVP_PLAN.md, M0), so Render can see the app is up and the
 # database answers. Emmanuel's step 2.3 added the startup sandbox guard and the pledge and order routes,
-# step 2.4 the pledge page, step 2.5 settle-on-wake, and step 5b creating and opening an event (S1, S2).
+# step 2.4 the pledge page, step 2.5 settle-on-wake, step 5b creating and opening an event (S1, S2),
+# and step 5b C the board (S3, board.json, and the same board on S2).
 # Routes read the request, call lifecycle.py, and turn its answer into JSON or a page. They do no money math.
 
 import logging
@@ -43,6 +44,21 @@ TOO_BIG_TEXT = "The largest max is %s."
 NO_TITLE_TEXT = "Type a title."
 DEPOSIT_TOO_SMALL_TEXT = "The smallest deposit is %s."
 DEPOSIT_TOO_BIG_TEXT = "The largest deposit is %s."
+# The board's texts, copied from docs/UI_DESIGN.md section 10. DRAFT_TEXT and the time formats are
+# D57's placeholders, and the "Charge failed" word is in BOARD_STATUS_WORDS below.
+DRAFT_TEXT = "This event isn't open yet."
+OPEN_BANNER_TEXT = "Pledging open: %s left"
+LAST_CALL_BANNER_TEXT = "Last call! Goal reached. Join in the next %s and everyone's share drops."
+LOCKING_TEXT = "Locking shares…"
+SETTLED_TEXT = "Done! Club receives %s"
+SETTLED_NO_NET_TEXT = "Charged once. PayPal closes the rest of each hold."    # D54, D57
+NEEDS_ATTENTION_TEXT = "Needs the treasurer's attention"
+CANCELLING_TEXT = "Cancelling holds…"                                         # D45
+EXPIRED_TEXT = "Goal not reached. Every hold was cancelled. Nobody paid."
+GOAL_TEXT = "Goal %s so the club gets a full %s after fees"
+CHARGED_WORD = "Charged %s"
+BOARD_STATUS_WORDS = {"PENDING_PAY": "Pledged", "HELD": "Held", "DECLINED": "Declined",
+                      "FAILED": "Charge failed"}
 
 
 # The one place the app reads the clock (AGENTS.md section 5: time is passed in). Always UTC.
@@ -320,13 +336,16 @@ def share_link_for(event_id):
 
 # S2, the treasurer view. The admin_token in the address is the treasurer's login (D18), so the log
 # names the route only, never the token. An unknown token is a 404 with the general error text, like
-# an unknown event. The board joins this page in step C (D54).
+# an unknown event. The board is the same one S3 shows (board_panel.html, D76).
 @app.route("/admin/<admin_token>")
 def admin_page(admin_token):
     try:
         conn = db.connect(config.DATABASE_URL)
         try:
             event = lifecycle.find_event_by_admin_token(conn, admin_token)
+            facts = None
+            if event is not None:
+                facts = lifecycle.board_facts(conn, event["id"])
         finally:
             conn.close()
     except (RuntimeError, psycopg.Error) as error:
@@ -336,7 +355,149 @@ def admin_page(admin_token):
         return ERROR_TEXT, 404
     return render_template("admin.html", title=event["title"], share_link=share_link_for(event["id"]),
                            can_open=event["status"] == "DRAFT",
-                           open_url=url_for("open_pledging", admin_token=admin_token))
+                           open_url=url_for("open_pledging", admin_token=admin_token),
+                           board=board_for_event(facts, utc_now()))
+
+
+# ---------- Step 5b C: the board (S3 and board.json, docs/UI_DESIGN.md section 10) ----------
+
+# S3, the public board. Settle-on-wake has already run for this request (settle_anything_due).
+@app.route("/e/<int:event_id>")
+def board_page(event_id):
+    try:
+        board = board_for_event_id(event_id)
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("GET /e/<id>: database error (%s)", type(error).__name__)
+        return ERROR_TEXT, 503
+    if board is None:
+        return ERROR_TEXT, 404
+    return render_template("board.html", board=board)
+
+
+# The same board as JSON, for Samuel's 10-second refresh. It is exactly the board object, so the page
+# can update key by key. Errors come back as {"message": ...}, like the other JSON routes.
+@app.route("/e/<int:event_id>/board.json")
+def board_json(event_id):
+    try:
+        board = board_for_event_id(event_id)
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("GET /e/<id>/board.json: database error (%s)", type(error).__name__)
+        return message_answer(ERROR_TEXT, 503)
+    if board is None:
+        return message_answer(ERROR_TEXT, 404)
+    return jsonify(board)
+
+
+# The board object for one event, or None if there's no such event. Database errors are left to the
+# route, so each one can answer in its own way (a page or JSON).
+def board_for_event_id(event_id):
+    conn = db.connect(config.DATABASE_URL)
+    try:
+        facts = lifecycle.board_facts(conn, event_id)
+    finally:
+        conn.close()
+    if facts is None:
+        return None
+    return board_for_event(facts, utc_now())
+
+
+# Turn lifecycle.board_facts (cents) into the exact board object of UI_DESIGN.md section 10 (finished
+# text). Formatting only: every amount already comes from SQL's SUM (D43) or money.py (rule 2).
+def board_for_event(facts, now):
+    event = facts["event"]
+    seconds = seconds_left(event, now)
+    return {
+        "event_id": event["id"],
+        "title": event["title"],
+        "status": event["status"],
+        "banner_text": banner_text(facts, seconds),
+        "seconds_left": seconds,
+        "goal_text": GOAL_TEXT % (dollars(facts["goal_cents"]), dollars(event["deposit_cents"])),
+        "held_total_text": dollars(facts["held_total_cents"]),
+        "progress_percent": facts["progress_percent"],
+        "pledging_open": lifecycle.pledging_is_open(event, now),
+        "rows": board_row_texts(facts),
+    }
+
+
+# One text row per pledge, in the order board_facts gives them. estimated_share_text is "" except
+# during LAST_CALL, when it shows what this person would pay if last call ended now.
+def board_row_texts(facts):
+    rows = []
+    for row in facts["rows"]:
+        estimated_share_text = ""
+        if row["id"] in facts["estimated_shares"]:
+            estimated_share_text = dollars(facts["estimated_shares"][row["id"]])
+        rows.append({"name": row["name"], "status": row["status"], "status_word": status_word(row),
+                     "max_text": dollars(row["max_cents"]), "estimated_share_text": estimated_share_text})
+    return rows
+
+
+# The word for one row. A CHARGED row shows the share it paid, saved at lock.
+def status_word(row):
+    if row["status"] == "CHARGED":
+        return CHARGED_WORD % dollars(row["share_cents"])
+    return BOARD_STATUS_WORDS.get(row["status"], "")
+
+
+# Whole seconds until pledging closes: last_call_ends during LAST_CALL, hard_deadline while OPEN, never
+# below 0, and 0 if that time is missing (treated as closed, like pledging_is_open). None for every
+# other status, which has no countdown. Samuel's board.js ticks it down live.
+def seconds_left(event, now):
+    if event["status"] == "LAST_CALL":
+        closes_at = event["last_call_ends"]
+    elif event["status"] == "OPEN":
+        closes_at = event["hard_deadline"]
+    else:
+        return None
+    if closes_at is None:
+        return 0
+    seconds = int((closes_at - now).total_seconds())
+    if seconds < 0:
+        return 0
+    return seconds
+
+
+# The banner for the event's status (UI_DESIGN.md section 10). seconds is seconds_left's answer.
+def banner_text(facts, seconds):
+    status = facts["event"]["status"]
+    if status == "DRAFT":
+        return DRAFT_TEXT
+    if status == "OPEN":
+        return OPEN_BANNER_TEXT % time_left_text(seconds)
+    if status == "LAST_CALL":
+        return LAST_CALL_BANNER_TEXT % countdown_text(seconds)
+    if status == "LOCKING" or status == "CHARGING":
+        return LOCKING_TEXT
+    if status == "SETTLED":
+        if facts["club_net_cents"] is None:
+            return SETTLED_NO_NET_TEXT
+        return SETTLED_TEXT % dollars(facts["club_net_cents"])
+    if status == "NEEDS_ATTENTION":
+        return NEEDS_ATTENTION_TEXT
+    if status == "EXPIRED":
+        if facts["any_hold_created"]:
+            return CANCELLING_TEXT
+        return EXPIRED_TEXT
+    return ""
+
+
+# Time left while OPEN: "1 h 5 min", "9 min" or "less than a minute" (D57 placeholder formats).
+# Whole minutes, rounded down.
+def time_left_text(seconds):
+    if seconds < 60:
+        return "less than a minute"
+    minutes = seconds // 60
+    if minutes < 60:
+        return "%d min" % minutes
+    return "%d h %d min" % (minutes // 60, minutes % 60)
+
+
+# The last-call countdown: "4:59", or "1:02:03" from one hour up (D57 placeholder format).
+def countdown_text(seconds):
+    if seconds < 3600:
+        return "%d:%02d" % (seconds // 60, seconds % 60)
+    return "%d:%02d:%02d" % (seconds // 3600, seconds % 3600 // 60, seconds % 60)
 
 
 # "Open pledging": DRAFT -> OPEN through lifecycle.open_event, then back to S2 with a 303.

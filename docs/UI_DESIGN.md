@@ -154,7 +154,7 @@ Added by Emmanuel on Oct 31 for step 5b (D54–D58). `app.py` passes exactly the
 - Money and times arrive as finished text, so templates and JavaScript never format or add up money (§7, rule 2). The `dollars` filter (`{{ 4000|dollars }}` shows `$40.00`) is for a template that is given cents. No 5b page needs it.
 - No page and no JSON ever gets an email or a `pledger_token`. Only S2 gets anything that contains the `admin_token`.
 - Later milestones may add keys. They never rename one.
-- Files: `create_event.html` (S1), `admin.html` (S2), `board.html` (S3) and `board_panel.html` (the board, shown on S2 and S3). All of them extend `base.html`. The bare versions are Emmanuel's, for Samuel to restyle.
+- Files: `create_event.html` (S1), `admin.html` (S2), `board.html` (S3) and `board_panel.html` (the board). `board_panel.html` is included by S2 and S3; the others extend `base.html` (D76). The bare versions are Emmanuel's, for Samuel to restyle.
 - *Placeholder* marks D57's texts, used until Samuel approves or replaces them in §4.
 
 ### S1 `create_event.html` (`GET /`, and `POST /events` when it refuses)
@@ -190,6 +190,7 @@ Both get the same `board` object, and `board.json` is exactly this object, so th
 | `title` | text | `"Ridgeline Hiking Club cabin"` |
 | `status` | text, for styling only: `DRAFT`, `OPEN`, `LAST_CALL`, `LOCKING`, `CHARGING`, `SETTLED`, `NEEDS_ATTENTION`, `EXPIRED` | `"OPEN"` |
 | `banner_text` | text, from the table below | `"Pledging open: 9 min left"` |
+| `seconds_left` | whole number of seconds until `last_call_ends` during `LAST_CALL`, until `hard_deadline` while `OPEN` (never below 0); `null` for every other status. Lets `board.js` tick the countdown live between refreshes. Added Nov 2 (D76), Samuel to approve | `299` |
 | `goal_text` | text | `"Goal $310.01 so the club gets a full $300.00 after fees"` |
 | `held_total_text` | text: HELD money only (D31, D43). It is `$0.00` after lock, because holds become charges | `"$120.00"` |
 | `progress_percent` | a whole number from 0 to 100. It is 100 only when the goal is reached (D54), and 100 from `LAST_CALL` on (§5) | `39` |
@@ -199,6 +200,7 @@ Both get the same `board` object, and `board.json` is exactly this object, so th
 | `rows[].status` | text, for styling only: `PENDING_PAY`, `HELD`, `DECLINED`, `CHARGED`, `FAILED` | `"HELD"` |
 | `rows[].status_word` | text: `"Pledged"`, `"Held"`, `"Declined"`, `"Charged $28.33"`, or `"Charge failed"` *(placeholder)* | `"Held"` |
 | `rows[].max_text` | text | `"$40.00"` |
+| `rows[].estimated_share_text` | text: during `LAST_CALL`, what this person would pay if last call ended now (from `money.py`, the same numbers the lock charges), so a late joiner visibly lowers everyone's number; `""` at every other time. Added Nov 2 (D76), Samuel to approve | `"$8.21"` |
 
 | Event `status` | `banner_text` |
 |---|---|

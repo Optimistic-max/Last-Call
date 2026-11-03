@@ -1201,3 +1201,118 @@ def test_created_and_opened_event_takes_a_hold(test_db):
         assert lifecycle.find_pledge_by_token(test_db, token)["status"] == "HELD"
     finally:
         delete_event(test_db, event_id)
+
+
+# ---------- Step 5b C: the board facts ----------
+
+# The board leaves out DROPPED pledges (D56) and keeps the rest in join order. The rows never carry a
+# pledger_token.
+def test_board_rows_leave_out_dropped_pledges(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db)
+    try:
+        pledge_and_authorize(test_db, event_id, "Ana", 1000)
+        confirm(test_db, event_id, "Bo", 2000)
+        pledge_and_authorize(test_db, event_id, "Cy", 1500)
+        db.run(test_db, "UPDATE pledges SET status = 'DROPPED' WHERE event_id = %s AND name = 'Bo'", (event_id,))
+        rows = lifecycle.board_facts(test_db, event_id)["rows"]
+        assert [row["name"] for row in rows] == ["Ana", "Cy"]
+        for row in rows:
+            assert "pledger_token" not in row
+        assert lifecycle.board_facts(test_db, 999999999) is None
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D43: the held total is one SQL SUM of HELD maxes. It is 0, not None, when nobody holds, and an
+# unpaid pledge (PENDING_PAY) adds nothing.
+def test_board_held_total_is_zero_until_someone_holds(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db)
+    try:
+        assert lifecycle.board_facts(test_db, event_id)["held_total_cents"] == 0
+        confirm(test_db, event_id, "Bo", 2000)
+        assert lifecycle.board_facts(test_db, event_id)["held_total_cents"] == 0
+        pledge_and_authorize(test_db, event_id, "Ana", 1000)
+        assert lifecycle.board_facts(test_db, event_id)["held_total_cents"] == 1000
+    finally:
+        delete_event(test_db, event_id)
+
+
+# Goal and progress while OPEN: the fee-adjusted goal for the people held now, and Malama's
+# progress_percent (D54), below 100 while short. From LAST_CALL on, progress is 100, still 100 after
+# settling, when nothing is HELD any more. After the lock, the goal is the saved one, and the club's
+# net is the sum of PayPal's nets; a missing net gives None, never a made-up number.
+def test_board_goal_progress_and_net(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    try:
+        pledge_and_authorize(test_db, event_id, "Ana", 1000)
+        facts = lifecycle.board_facts(test_db, event_id)
+        assert facts["goal_cents"] == money.fee_adjusted_goal_cents(3000, 1)
+        assert facts["progress_percent"] == money.progress_percent(3000, [1000])
+        assert facts["progress_percent"] < 100
+        assert facts["club_net_cents"] is None
+
+        pledge_and_authorize(test_db, event_id, "Bo", 1000)
+        pledge_and_authorize(test_db, event_id, "Cy", 1500)
+        assert lifecycle.board_facts(test_db, event_id)["progress_percent"] == 100
+
+        lifecycle.settle_due_events(test_db, AFTER_DEADLINE, fake_paypal)
+        facts = lifecycle.board_facts(test_db, event_id)
+        assert facts["event"]["status"] == "SETTLED"
+        assert facts["progress_percent"] == 100
+        assert facts["held_total_cents"] == 0
+        assert facts["goal_cents"] == facts["event"]["goal_cents"]
+        assert facts["club_net_cents"] == money.club_net_cents([438, 438, 438])
+
+        db.run(test_db, "UPDATE captures SET net_cents = NULL WHERE id = (SELECT captures.id FROM captures "
+                        "JOIN holds ON holds.id = captures.hold_id JOIN pledges ON pledges.id = holds.pledge_id "
+                        "WHERE pledges.event_id = %s ORDER BY captures.id LIMIT 1)", (event_id,))
+        assert lifecycle.board_facts(test_db, event_id)["club_net_cents"] is None
+    finally:
+        delete_event(test_db, event_id)
+
+
+# During LAST_CALL each counted pledge gets an estimated share, the same money.py numbers the lock
+# would charge. Dee joining lowers everyone's estimate. While OPEN there are no estimates.
+def test_board_estimated_shares_drop_when_someone_joins_last_call(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    try:
+        pledge_and_authorize(test_db, event_id, "Ana", 1000)
+        assert lifecycle.board_facts(test_db, event_id)["estimated_shares"] == {}
+        pledge_and_authorize(test_db, event_id, "Bo", 1000)
+        pledge_and_authorize(test_db, event_id, "Cy", 1500)
+        ids = [pledge["id"] for pledge in pledges_of(test_db, event_id)]
+        before = lifecycle.board_facts(test_db, event_id)["estimated_shares"]
+        expected = money.compute_shares_cents(money.fee_adjusted_goal_cents(3000, 3), [1000, 1000, 1500])
+        assert before == {ids[0]: expected[0], ids[1]: expected[1], ids[2]: expected[2]}
+
+        pledge_and_authorize(test_db, event_id, "Dee", 1500, NOW + timedelta(minutes=1))
+        after = lifecycle.board_facts(test_db, event_id)["estimated_shares"]
+        expected = money.compute_shares_cents(money.fee_adjusted_goal_cents(3000, 4), [1000, 1000, 1500, 1500])
+        assert len(after) == 4
+        for position in range(3):
+            assert after[ids[position]] == expected[position]
+            assert after[ids[position]] < before[ids[position]]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# D45: a hold that is still CREATED is reported, so the missed-goal banner can say "Cancelling holds…".
+# Once the event expires and the hold is voided, nothing is CREATED and the dropped pledge leaves the board.
+def test_board_reports_a_created_hold_until_it_is_voided(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db)
+    try:
+        pledge_and_authorize(test_db, event_id, "Ana", 1000)
+        assert lifecycle.board_facts(test_db, event_id)["any_hold_created"] is True
+        lifecycle.settle_due_events(test_db, AFTER_DEADLINE, fake_paypal)
+        facts = lifecycle.board_facts(test_db, event_id)
+        assert facts["event"]["status"] == "EXPIRED"
+        assert facts["any_hold_created"] is False
+        assert facts["rows"] == []
+        assert facts["progress_percent"] == 0
+    finally:
+        delete_event(test_db, event_id)

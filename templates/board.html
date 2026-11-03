@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{# S3, the public board (docs/UI_DESIGN.md section 10). A bare page from Emmanuel's step 5b C, for
+   Samuel to restyle. The board itself is board_panel.html, which S2 shows too (D76). #}
+
+{% block title %}{{ board.title }}{% endblock %}
+
+{% block content %}
+<h1>{{ board.title }}</h1>
+{% include "board_panel.html" %}
+{% endblock %}
