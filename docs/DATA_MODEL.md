@@ -55,8 +55,9 @@ CREATE TABLE holds (
     auth_id         TEXT        UNIQUE,                -- saved the moment authorize returns
     void_request_id TEXT        UNIQUE,                -- saved BEFORE the void call
     amount_cents    INTEGER     NOT NULL,              -- = pledge max
-    status          TEXT        NOT NULL DEFAULT 'PENDING',  -- PENDING, CREATED, DENIED, CAPTURED, VOIDED
+    status          TEXT        NOT NULL DEFAULT 'PENDING',  -- PENDING, CREATED, DENIED, CAPTURED, VOIDED, NOT_PLACED
     expires_at      TIMESTAMPTZ,                       -- from PayPal's expiration_time
+    void_tried_at   TIMESTAMPTZ,                       -- the cleanup sweep's claim on this hold (D80)
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -89,7 +90,7 @@ CREATE TABLE refunds (
 
 ## Notes
 
-- **Why `holds.status` starts at `PENDING` and `order_id` may be empty:** the row is saved with its `create_request_id` *before* the create-order call, and `order_id` is filled in the moment PayPal returns it. That is the "save before you send" rule (D24). A `PENDING` hold older than an hour with no `auth_id` is usually an abandoned checkout, with nothing to void. If its `authorize_request_id` is set, authorize was sent and the answer never came: see `PAYPAL_INTEGRATION.md` §5.
+- **Why `holds.status` starts at `PENDING` and `order_id` may be empty:** the row is saved with its `create_request_id` *before* the create-order call, and `order_id` is filled in the moment PayPal returns it. That is the "save before you send" rule (D24). A `PENDING` hold older than an hour with no `auth_id` is usually an abandoned checkout, with nothing to void. On a finished event, the cleanup sweep marks one whose `authorize_request_id` is empty `NOT_PLACED` (authorize was never sent, D80). If its `authorize_request_id` is set, authorize was sent and the answer never came: see `PAYPAL_INTEGRATION.md` §5.
 - **Names are saved trimmed, with single spaces** (the same cleanup `conditions.py` uses for matching), so the unique index treats "Ana " and "ana" as the same person.
 - **Why the capture `request_id` is unique:** it is the idempotency key. Reusing it on a retry returns the same capture instead of charging again (VERIFIED in sandbox).
 - **The treasurer's real net** is `SUM(captures.net_cents) WHERE status = 'COMPLETED'`, read from PayPal's own numbers. Never compute it from the formula.

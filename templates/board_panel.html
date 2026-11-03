@@ -4,7 +4,10 @@
    static/js/board.js refreshes it every 10 seconds from /e/<id>/board.json and ticks the last call
    countdown. The classes and data- attributes below are its hooks, so keep them when restyling.
    The labels were approved by Samuel on Nov 3 (D57). Each one is set once here and used both in the
-   rows and in the data- attributes board.js reads, so the JavaScript never has its own copy. #}
+   rows and in the data- attributes board.js reads, so the JavaScript never has its own copy.
+   "Waiting on [name]" arrives finished in row.waiting_on_text and is a placeholder until Samuel
+   approves it (D57, D79). row.counted becomes data-counted, for styling (the circle turns green
+   together). #}
 {% set max_label = "max" %}
 {% set share_label = "share now" %}
 {% set pledge_label = "Pledge" %}
@@ -17,8 +20,10 @@
 
   <ul class="board-rows" data-max-label="{{ max_label }}" data-share-label="{{ share_label }}">
     {% for row in board.rows %}
-    <li data-status="{{ row.status }}">{{ row.name }}: {{ row.status_word }}, {{ max_label }} {{ row.max_text }}
-      {%- if row.estimated_share_text %}, {{ share_label }} {{ row.estimated_share_text }}{% endif %}</li>
+    <li data-status="{{ row.status }}" data-counted="{% if row.counted %}true{% else %}false{% endif %}">
+      {{- row.name }}: {{ row.status_word }}, {{ max_label }} {{ row.max_text }}
+      {%- if row.estimated_share_text %}, {{ share_label }} {{ row.estimated_share_text }}{% endif %}
+      {%- if row.waiting_on_text %}, {{ row.waiting_on_text }}{% endif %}</li>
     {% endfor %}
   </ul>
 

@@ -84,49 +84,104 @@ def find_pledge_by_name(conn, event_id, name):
 # token. D26: the same name again reuses that person's unpaid pledge, instead of failing on the unique
 # name index. max_cents is whole cents: the route turned the typed "40" into 4000 with money.py.
 # The max must be from $5 to $2,000 (config.py, D58).
-def confirm_pledge(conn, event_id, name, max_cents, now):
+# D77: min_cents ("in for $20", shown only, D12) and condition_names ("only if Jay's in") are saved too.
+# Every limit is checked before the database is opened. The pledge and its conditions are then saved in
+# ONE transaction, so a pledge is never saved without the conditions the friend confirmed: that would
+# turn "only if Jay's in" into an unconditional pledge. A retry replaces the old min and conditions.
+# Saving conditions does not decide who is counted: counted_held_pledges does, from HELD pledges (D70).
+def confirm_pledge(conn, event_id, name, max_cents, now, min_cents=None, condition_names=()):
     name = conditions.tidy_name(name)
     if name == "":
         return {"outcome": "NO_NAME"}
+    if len(name) > config.MAX_NAME_CHARS:
+        return {"outcome": "NAME_TOO_LONG"}
     if max_cents < config.MIN_MAX_CENTS:
         return {"outcome": "TOO_SMALL"}
     if max_cents > config.MAX_MAX_CENTS:
         return {"outcome": "TOO_BIG"}
+    if min_cents is not None and min_cents > max_cents:
+        return {"outcome": "MIN_ABOVE_MAX"}
+    cleaned = clean_condition_names(condition_names, name)
+    for condition_name in cleaned:
+        if len(condition_name) > config.MAX_NAME_CHARS:
+            return {"outcome": "CONDITION_NAME_TOO_LONG"}
+    if len(cleaned) > config.MAX_CONDITIONS:
+        return {"outcome": "TOO_MANY_CONDITIONS"}
     event = find_event(conn, event_id)
     if event is None:
         return {"outcome": "NOT_FOUND"}
     if not pledging_is_open(event, now):
         return {"outcome": "CLOSED"}
-    existing = find_pledge_by_name(conn, event_id, name)
-    if existing is None:
+    for attempt in range(2):
         try:
-            return create_pledge(conn, event_id, name, max_cents)
+            return save_pledge_and_conditions(conn, event_id, name, max_cents, min_cents, cleaned)
         except psycopg.errors.UniqueViolation:
-            # Someone saved the same name a moment ago, between our check and our INSERT.
-            existing = find_pledge_by_name(conn, event_id, name)
-    return reuse_pledge(conn, existing, max_cents)
+            # Someone saved the same name a moment ago, between our check and our INSERT. That whole
+            # transaction was rolled back; the second try finds their pledge and reuses it (D26).
+            logger.info("event %d: the same name was saved at the same moment, trying again", event_id)
+    return {"outcome": "ERROR"}
+
+
+# D77: the condition names to save, tidied (conditions.tidy_name) with blanks removed, the pledger's own
+# name removed (a condition on yourself is always met, so it would only add a row that does nothing),
+# and repeats removed. Names are compared with name_key, so "Jay", " jay " and "JAY" are one name. The
+# first spelling is kept. Pure: no database. The limits on length and count are checked by the caller.
+def clean_condition_names(condition_names, own_name):
+    seen = [conditions.name_key(own_name)]
+    cleaned = []
+    for condition_name in condition_names:
+        tidy = conditions.tidy_name(condition_name)
+        if tidy != "" and conditions.name_key(tidy) not in seen:
+            cleaned.append(tidy)
+            seen.append(conditions.name_key(tidy))
+    return cleaned
+
+
+# One try at saving the pledge and its conditions, all in one transaction (D77): `with conn.transaction()`
+# is BEGIN ... COMMIT even though db.py runs in autocommit, and any error inside rolls all of it back.
+# The conditions are replaced only when the pledge was really confirmed, so a refused retry (the pledge
+# is already HELD) leaves the old conditions alone. A UniqueViolation is left for confirm_pledge to retry.
+def save_pledge_and_conditions(conn, event_id, name, max_cents, min_cents, cleaned):
+    with conn.transaction():
+        existing = find_pledge_by_name(conn, event_id, name)
+        if existing is None:
+            result = create_pledge(conn, event_id, name, max_cents, min_cents)
+        else:
+            result = reuse_pledge(conn, existing, max_cents, min_cents)
+        if result["outcome"] == "CONFIRMED":
+            replace_conditions(conn, result["pledge_id"], cleaned)
+        return result
 
 
 # A brand-new pledge. Its status starts as PENDING_PAY (the column's default in schema.sql).
-def create_pledge(conn, event_id, name, max_cents):
-    row = db.fetch_one(conn, "INSERT INTO pledges (event_id, name, max_cents, pledger_token) "
-                             "VALUES (%s, %s, %s, %s) RETURNING id, pledger_token",
-                       (event_id, name, max_cents, new_token()))
+def create_pledge(conn, event_id, name, max_cents, min_cents):
+    row = db.fetch_one(conn, "INSERT INTO pledges (event_id, name, max_cents, min_cents, pledger_token) "
+                             "VALUES (%s, %s, %s, %s, %s) RETURNING id, pledger_token",
+                       (event_id, name, max_cents, min_cents, new_token()))
     return {"outcome": "CONFIRMED", "pledge_id": row["id"], "pledger_token": row["pledger_token"]}
 
 
-# D26 and D32: only an unpaid pledge (PENDING_PAY or DECLINED) can be reused. It gets the new max, goes
-# back to PENDING_PAY, and gets a new token, so a page still holding the old token can no longer start
-# or authorize a hold. This is a compare-and-set: if the pledge became HELD a moment ago, 0 rows change
-# and the answer is "[Name] has already pledged."
-def reuse_pledge(conn, pledge, max_cents):
+# D26 and D32: only an unpaid pledge (PENDING_PAY or DECLINED) can be reused. It gets the new max and min
+# (None clears the min), goes back to PENDING_PAY, and gets a new token, so a page still holding the old
+# token can no longer start or authorize a hold. This is a compare-and-set: if the pledge became HELD a
+# moment ago, 0 rows change and the answer is "[Name] has already pledged."
+def reuse_pledge(conn, pledge, max_cents, min_cents):
     token = new_token()
-    changed = db.run(conn, "UPDATE pledges SET max_cents = %s, status = 'PENDING_PAY', pledger_token = %s "
-                           "WHERE id = %s AND status IN ('PENDING_PAY', 'DECLINED')",
-                     (max_cents, token, pledge["id"]))
+    changed = db.run(conn, "UPDATE pledges SET max_cents = %s, min_cents = %s, status = 'PENDING_PAY', "
+                           "pledger_token = %s WHERE id = %s AND status IN ('PENDING_PAY', 'DECLINED')",
+                     (max_cents, min_cents, token, pledge["id"]))
     if changed == 0:
         return {"outcome": "ALREADY_PLEDGED", "name": pledge["name"]}
     return {"outcome": "CONFIRMED", "pledge_id": pledge["id"], "pledger_token": token}
+
+
+# D77: a pledge's conditions are exactly these names. The old rows are deleted first, so a retry replaces
+# the conditions and never adds to them, and a first save and a retry run the same code.
+def replace_conditions(conn, pledge_id, names):
+    db.run(conn, "DELETE FROM pledge_conditions WHERE pledge_id = %s", (pledge_id,))
+    for condition_name in names:
+        db.run(conn, "INSERT INTO pledge_conditions (pledge_id, depends_on_name) VALUES (%s, %s)",
+               (pledge_id, condition_name))
 
 
 # Step 1 of a hold. Save a new hold row with its PayPal-Request-Id first (rule 3), then create the PayPal
@@ -312,12 +367,13 @@ def void_hold(conn, hold_id, paypal):
 # ---------- Step 2.5: goal check, settle-on-wake, lock and charge, expire ----------
 
 # Every HELD pledge of the event with one CREATED hold each, in join order (created_at, then id), the
-# order money.compute_shares_cents needs (MONEY_RULES.md section 6). In M1 every HELD pledge is
-# counted (D37). Only one hold per pledge is taken, so nobody can be charged twice even if a second
-# hold was left open by mistake. A HELD pledge with no CREATED hold (a hold voided by hand) can't be
-# charged, so it isn't listed: drop_pledges_without_a_hold drops it.
+# order money.compute_shares_cents needs (MONEY_RULES.md section 6). These are the pledges that could be
+# charged; counted_among picks which of them are counted (D70). Only one hold per pledge is taken, so
+# nobody can be charged twice even if a second hold was left open by mistake. A HELD pledge with no
+# CREATED hold (a hold voided by hand) can't be charged, so it isn't listed: drop_pledges_without_a_hold
+# drops it.
 def held_pledges(conn, event_id):
-    pledges = db.fetch_all(conn, "SELECT id, max_cents FROM pledges WHERE event_id = %s AND status = 'HELD' "
+    pledges = db.fetch_all(conn, "SELECT id, name, max_cents FROM pledges WHERE event_id = %s AND status = 'HELD' "
                                  "ORDER BY created_at, id", (event_id,))
     chargeable = []
     for pledge in pledges:
@@ -328,6 +384,42 @@ def held_pledges(conn, event_id):
             pledge["auth_id"] = hold["auth_id"]
             chargeable.append(pledge)
     return chargeable
+
+
+# The names one pledge's conditions need ("only if Jay's in"), in the order they were saved.
+def pledge_conditions_of(conn, pledge_id):
+    rows = db.fetch_all(conn, "SELECT depends_on_name FROM pledge_conditions WHERE pledge_id = %s ORDER BY id",
+                        (pledge_id,))
+    names = []
+    for row in rows:
+        names.append(row["depends_on_name"])
+    return names
+
+
+# D70: which of these held pledges are counted. Each pledge's conditions are loaded, Malama's circle rule
+# (conditions.counted_pledges, D06) gives the counted names, and those names are matched back to the
+# pledges with name_key. Names are unique per event, ignoring case (the unique index in schema.sql), so
+# each name matches one pledge. Only someone in `held` (HELD, with a CREATED hold: someone who can really
+# be charged) can meet a condition. The result keeps join order, which D13 needs.
+def counted_among(conn, held):
+    circle_input = []
+    for pledge in held:
+        circle_input.append({"name": pledge["name"], "conditions": pledge_conditions_of(conn, pledge["id"])})
+    counted_keys = []
+    for name in conditions.counted_pledges(circle_input):
+        counted_keys.append(conditions.name_key(name))
+    counted = []
+    for pledge in held:
+        if conditions.name_key(pledge["name"]) in counted_keys:
+            counted.append(pledge)
+    return counted
+
+
+# D70: the counted pledges of an event, in join order. The goal check, the lock and the board all use
+# this, so they can never disagree about who counts (C8). It is worked out every time and never stored
+# (D78), so it can never disagree with the holds either.
+def counted_held_pledges(conn, event_id):
+    return counted_among(conn, held_pledges(conn, event_id))
 
 
 # The max of each pledge, in the same order: the list Malama's money.py functions take.
@@ -347,7 +439,7 @@ def check_goal(conn, event_id, now):
     event = find_event(conn, event_id)
     if event is None or event["status"] != "OPEN":
         return False
-    if not money.goal_is_reached(event["deposit_cents"], max_list(held_pledges(conn, event_id))):
+    if not money.goal_is_reached(event["deposit_cents"], max_list(counted_held_pledges(conn, event_id))):
         return False
     last_call_ends = min(now + last_call_window(event), event["hard_deadline"])
     changed = db.run(conn, "UPDATE events SET status = 'LAST_CALL', last_call_ends = %s "
@@ -384,12 +476,18 @@ def settle_due_events(conn, now, paypal):
             expire_event(conn, event["id"], now, paypal)
         except psycopg.Error as error:
             logger.warning("settling event %d failed: database error (%s)", event["id"], type(error).__name__)
+    try:
+        sweep_stranded_holds(conn, now, paypal)
+    except psycopg.Error as error:
+        logger.warning("the cleanup sweep failed: database error (%s)", type(error).__name__)
 
 
 # The only path that captures money (AGENTS.md rule 6, docs/SYSTEM_DESIGN.md section 5C).
 # Step 1 is the compare-and-set LAST_CALL -> LOCKING: only the request whose UPDATE changed that 1 row
 # goes on, so two requests can never both charge (test E8). The same UPDATE saves lock_started_at
 # (D36; resuming a lock that died halfway is M2, D27).
+# D70: only the counted pledges are charged. `held` is every pledge that could be charged and `pledges`
+# the counted ones among them; the holds of the others are voided before CHARGING, and they are dropped.
 # Returns what happened: NOT_LOCKED, EXPIRED, SETTLED or NEEDS_ATTENTION.
 def lock_and_charge(conn, event_id, now, paypal):
     won = db.run(conn, "UPDATE events SET status = 'LOCKING', lock_started_at = %s "
@@ -398,10 +496,12 @@ def lock_and_charge(conn, event_id, now, paypal):
     if won == 0:
         return "NOT_LOCKED"
     event = find_event(conn, event_id)
-    pledges = held_pledges(conn, event_id)
+    held = held_pledges(conn, event_id)
+    pledges = counted_among(conn, held)
     if not money.goal_is_reached(event["deposit_cents"], max_list(pledges)):
         return give_up_lock(conn, event_id, paypal)
     shares = save_shares(conn, event, pledges)
+    void_uncounted_holds(conn, held, pledges, paypal)
     drop_pledges_without_a_hold(conn, event_id)
     db.run(conn, "UPDATE events SET status = 'CHARGING' WHERE id = %s AND status = 'LOCKING'", (event_id,))
     failed = 0
@@ -414,6 +514,29 @@ def lock_and_charge(conn, event_id, now, paypal):
     db.run(conn, "UPDATE events SET status = %s WHERE id = %s AND status = 'CHARGING'", (final_status, event_id))
     logger.info("event %d is %s: %d of %d charges failed", event_id, final_status, failed, len(pledges))
     return final_status
+
+
+# D70: at lock, a HELD pledge that isn't counted (its condition never came true) is never charged. Each
+# of its CREATED holds is voided by void_hold, which saves the void's PayPal-Request-Id first and reads
+# the hold back with a GET (rules 3 and 4); drop_pledges_without_a_hold then makes the pledge DROPPED.
+# A void that doesn't read back VOIDED is logged, and its pledge stays HELD with the hold CREATED for
+# M2's cleanup sweep (D45). It still can't be charged, because only `counted` is charged.
+# The log shows pledge and hold IDs only, never a name (docs/SECURITY.md).
+def void_uncounted_holds(conn, held, counted, paypal):
+    counted_ids = []
+    for pledge in counted:
+        counted_ids.append(pledge["id"])
+    for pledge in held:
+        if pledge["id"] in counted_ids:
+            continue
+        logger.info("pledge %d isn't counted at lock (D70), so its hold is voided", pledge["id"])
+        holds = db.fetch_all(conn, "SELECT id FROM holds WHERE pledge_id = %s AND status = 'CREATED' ORDER BY id",
+                             (pledge["id"],))
+        for hold in holds:
+            status = void_hold(conn, hold["id"], paypal)
+            if status != "VOIDED":
+                logger.warning("pledge %d: hold %d did not read back VOIDED (%s); left for the cleanup sweep",
+                               pledge["id"], hold["id"], status)
 
 
 # At lock, the goal is no longer reached. STATE_MACHINE.md's invariants say this can't happen, so it
@@ -573,6 +696,109 @@ def drop_pledges_without_a_hold(conn, event_id):
                   (event_id,))
 
 
+# ---------- M2: the cleanup sweep (D80) ----------
+
+# A finished event: nothing on it can be charged any more, so a hold still open on it is stranded.
+FINISHED_EVENT_SQL = "('EXPIRED', 'SETTLED', 'NEEDS_ATTENTION')"
+
+# What PayPal can say about a hold after our void, as the GET reads it back:
+# closed (nothing left to cancel), money moved (we never expected it), or anything else (try again).
+CLOSED_HOLD_STATUSES = ("VOIDED", "EXPIRED", "DENIED")
+MONEY_MOVED_HOLD_STATUSES = ("CAPTURED", "PARTIALLY_CAPTURED")
+
+
+# The cleanup sweep: close holds that should no longer be open (STATE_MACHINE.md, SYSTEM_DESIGN.md
+# section 5D). It only ever cancels holds: it never calls capture (rule 6). It runs at the end of every
+# settle_due_events. Marking never-placed PENDING holds needs no PayPal call, so it is not limited; voids
+# are limited to config.SWEEP_MAX_HOLDS per call, so a slow PayPal can't hold a page past its timeout.
+def sweep_stranded_holds(conn, now, paypal):
+    close_unplaced_holds(conn, now)
+    warn_about_lost_authorizations(conn, now)
+    for hold in stranded_created_holds(conn, now):
+        sweep_one_hold(conn, hold, now, paypal)
+
+
+# PENDING holds on a finished event, older than the grace time, whose authorize call was never sent
+# (authorize_request_id is empty): no authorization can exist at PayPal, so the hold becomes NOT_PLACED
+# with no PayPal call. One UPDATE is the compare-and-set: a hold that is no longer PENDING with an empty
+# authorize_request_id is not changed. This is dev event 19's holds 8 and 9.
+def close_unplaced_holds(conn, now):
+    changed = db.run(conn, "UPDATE holds SET status = 'NOT_PLACED' "
+                           "WHERE status = 'PENDING' AND auth_id IS NULL AND authorize_request_id IS NULL "
+                           "AND created_at < %s AND pledge_id IN (SELECT pledges.id FROM pledges "
+                           "JOIN events ON events.id = pledges.event_id "
+                           "WHERE events.status IN " + FINISHED_EVENT_SQL + ")",
+                     (now - config.PENDING_HOLD_GRACE,))
+    if changed > 0:
+        logger.info("the sweep marked %d never-authorized holds NOT_PLACED", changed)
+
+
+# A PENDING hold whose authorize call WAS sent but whose answer we never saw: PayPal may be holding money
+# we can't see. Without a PayPal call to look it up (docs/LATER.md), it stays PENDING and is logged.
+# Only the oldest is logged, by hold ID alone, so a busy page doesn't flood the log.
+def warn_about_lost_authorizations(conn, now):
+    lost = db.fetch_one(conn, "SELECT holds.id FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
+                              "JOIN events ON events.id = pledges.event_id "
+                              "WHERE holds.status = 'PENDING' AND holds.auth_id IS NULL "
+                              "AND holds.authorize_request_id IS NOT NULL AND holds.created_at < %s "
+                              "AND events.status IN " + FINISHED_EVENT_SQL + " ORDER BY holds.id LIMIT 1",
+                        (now - config.PENDING_HOLD_GRACE,))
+    if lost is not None:
+        logger.warning("hold %d: authorize was sent but no answer was saved; left PENDING", lost["id"])
+
+
+# CREATED holds that should be cancelled, oldest first, at most SWEEP_MAX_HOLDS. A hold qualifies when:
+# its event is finished, or its pledge is DROPPED (and the event is not mid-lock: LOCKING and CHARGING
+# belong to the lock and its D27 resume). A FAILED pledge's hold is never listed (D28 c). A hold the sweep
+# tried less than VOID_RETRY_AFTER ago is skipped, so one stubborn hold can't use up every sweep.
+def stranded_created_holds(conn, now):
+    return db.fetch_all(conn, "SELECT holds.id, pledges.id AS pledge_id, pledges.event_id, "
+                              "events.status AS event_status "
+                              "FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
+                              "JOIN events ON events.id = pledges.event_id "
+                              "WHERE holds.status = 'CREATED' AND holds.auth_id IS NOT NULL "
+                              "AND pledges.status <> 'FAILED' "
+                              "AND (holds.void_tried_at IS NULL OR holds.void_tried_at < %s) "
+                              "AND (events.status IN " + FINISHED_EVENT_SQL + " OR (pledges.status = 'DROPPED' "
+                              "AND events.status NOT IN ('LOCKING', 'CHARGING'))) "
+                              "ORDER BY holds.id LIMIT %s",
+                        (now - config.VOID_RETRY_AFTER, config.SWEEP_MAX_HOLDS))
+
+
+# The sweep's compare-and-set on one hold: save "tried at `now`" only if nobody tried within
+# VOID_RETRY_AFTER. Only the sweep whose UPDATE changed 1 row may call PayPal for this hold.
+# lock_and_charge and expire_event don't claim (they use void_hold directly): if one of them voids the
+# same hold at the same moment, both reuse the hold's saved void_request_id, so PayPal sees one void (D80).
+def claim_hold(conn, hold_id, now):
+    changed = db.run(conn, "UPDATE holds SET void_tried_at = %s "
+                           "WHERE id = %s AND (void_tried_at IS NULL OR void_tried_at < %s)",
+                     (now, hold_id, now - config.VOID_RETRY_AFTER))
+    return changed == 1
+
+
+# Void one stranded hold. void_hold saves the void's PayPal-Request-Id first, reuses it on a retry, and
+# saves what the GET says, not what the void answered (rules 3, 4 and 5). Then:
+# - closed (VOIDED, EXPIRED, DENIED): on a finished event, drop the pledges left with no open hold;
+# - money moved (CAPTURED): we never captured it, so a person did. The pledge is FAILED and it's logged;
+# - still CREATED, or no answer: nothing changes, and the next sweep after VOID_RETRY_AFTER tries again.
+def sweep_one_hold(conn, hold, now, paypal):
+    if not claim_hold(conn, hold["id"], now):
+        return
+    status = void_hold(conn, hold["id"], paypal)
+    if status in MONEY_MOVED_HOLD_STATUSES:
+        db.run(conn, "UPDATE pledges SET status = 'FAILED' WHERE id = %s AND status IN ('HELD', 'DROPPED')",
+               (hold["pledge_id"],))
+        logger.error("hold %d: PayPal says %s but we never captured it. Pledge %d marked FAILED: "
+                     "look at it by hand", hold["id"], status, hold["pledge_id"])
+    elif status in CLOSED_HOLD_STATUSES:
+        logger.info("the sweep closed hold %d (PayPal says %s)", hold["id"], status)
+        if hold["event_status"] in ("EXPIRED", "SETTLED", "NEEDS_ATTENTION"):
+            drop_pledges_without_a_hold(conn, hold["event_id"])
+    else:
+        logger.warning("the sweep could not close hold %d (PayPal says %s); it will try again later",
+                       hold["id"], status)
+
+
 # ---------- Step 5b: create and open an event ----------
 
 # S1, "Create": save a new DRAFT event with its private admin_token, the treasurer's login link (D18).
@@ -641,17 +867,20 @@ GOAL_REACHED_STATUSES = ("LAST_CALL", "LOCKING", "CHARGING", "SETTLED", "NEEDS_A
 
 # Every fact the board needs (S2, S3 and board.json), in cents, or None for an unknown event.
 # It only reads: no PayPal call and no change to the database. app.board_for_event turns it into text.
-# "Counted" is every HELD pledge with a CREATED hold: the same list the lock charges (D37; D70 will
-# change only this list).
+# "Counted" is counted_held_pledges (D70): the same pledges the goal check uses and the lock would
+# charge, so the goal, the progress bar and the estimated shares match what really happens.
 def board_facts(conn, event_id):
     event = find_event(conn, event_id)
     if event is None:
         return None
-    counted = held_pledges(conn, event_id)
+    held = held_pledges(conn, event_id)
+    counted = counted_among(conn, held)
     goal_cents = board_goal_cents(event, counted)
     return {
         "event": event,
         "rows": board_rows(conn, event_id),
+        "counted_ids": pledge_ids(counted),
+        "waiting_on": board_waiting_on(conn, event, held, counted),
         "held_total_cents": held_total_cents(conn, event_id),
         "goal_cents": goal_cents,
         "progress_percent": board_progress_percent(event, counted),
@@ -659,6 +888,58 @@ def board_facts(conn, event_id):
         "any_hold_created": has_created_hold(conn, event_id),
         "club_net_cents": money.club_net_cents(charge_net_cents(conn, event_id)),
     }
+
+
+# The id of each pledge in a list, in the same order.
+def pledge_ids(pledges):
+    ids = []
+    for pledge in pledges:
+        ids.append(pledge["id"])
+    return ids
+
+
+# D79: for each HELD pledge that is not counted, the names it is waiting on, keyed by pledge id, for the
+# "Waiting on Jay" text. Only while pledging can still change who counts (OPEN or LAST_CALL): after that
+# a held pledge that isn't counted is only waiting for the cleanup sweep, so there is nothing to wait on.
+def board_waiting_on(conn, event, held, counted):
+    if event["status"] not in PLEDGING_STATUSES:
+        return {}
+    held_by_key = {}
+    for pledge in held:
+        held_by_key[conditions.name_key(pledge["name"])] = pledge
+    counted_keys = []
+    for pledge in counted:
+        counted_keys.append(conditions.name_key(pledge["name"]))
+    waiting = {}
+    for pledge in held:
+        if conditions.name_key(pledge["name"]) not in counted_keys:
+            waiting[pledge["id"]] = names_not_held_behind(conn, pledge, held_by_key, counted_keys)
+    return waiting
+
+
+# The names that nobody has held for yet, behind one uncounted pledge. Ana waits on Bo, who waits on Cy,
+# who hasn't held: Ana's list is ["Cy"], not ["Bo"], because Bo is already held and the real wait is
+# for Cy. A name is "held" if it is in held_by_key (HELD with a CREATED hold); that covers a name nobody
+# pledged and a name whose pledge is still unpaid. Counted names are skipped (they are satisfied).
+# `seen` stops it going round a circle forever. The first spelling saved is shown, tidied.
+# An uncounted pledge always leads to at least one name nobody holds for, because the circle rule only
+# drops someone for a condition that starts at a missing name.
+def names_not_held_behind(conn, pledge, held_by_key, counted_keys):
+    seen = [conditions.name_key(pledge["name"])]
+    to_visit = [pledge]
+    missing = []
+    while len(to_visit) > 0:
+        current = to_visit.pop(0)
+        for condition_name in pledge_conditions_of(conn, current["id"]):
+            key = conditions.name_key(condition_name)
+            if key in seen or key in counted_keys:
+                continue
+            seen.append(key)
+            if key in held_by_key:
+                to_visit.append(held_by_key[key])
+            else:
+                missing.append(conditions.tidy_name(condition_name))
+    return missing
 
 
 # The board's rows: every pledge except DROPPED ones (D56), in join order. pledger_token is never

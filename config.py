@@ -40,6 +40,13 @@ AI_TIMEOUT_SECONDS = 8
 # text keeps each AI call small and quick. Longer text is refused before the AI is called.
 MAX_PLEDGE_TEXT_CHARS = 280
 
+# What a friend may save with a pledge (D77). At most this many condition names ("only if Jay's in"),
+# each at most this many characters. The same character limit applies to the pledger's own name, so
+# nobody can pledge under a name that no condition could ever write. The server checks both, because a
+# friend can type conditions by hand and not only through the AI.
+MAX_CONDITIONS = 3
+MAX_NAME_CHARS = 40
+
 # The only PayPal address this app may ever talk to (AGENTS.md rule 12).
 SANDBOX_BASE_URL = "https://api-m.sandbox.paypal.com"
 
@@ -79,6 +86,16 @@ DEMO_LAST_CALL_WINDOW = timedelta(minutes=3)
 # A lock still in LOCKING or CHARGING this long after lock_started_at counts as stuck, and the next
 # request resumes it (D27, built in M2).
 STUCK_LOCK_AFTER = timedelta(minutes=5)
+
+# The cleanup sweep (D80). It makes at most this many PayPal void calls per request, so one slow PayPal
+# can't hold a page past gunicorn's 120 s timeout.
+SWEEP_MAX_HOLDS = 1
+
+# A hold the sweep already tried to void is left alone for this long before it is tried again.
+VOID_RETRY_AFTER = timedelta(minutes=5)
+
+# A PENDING hold (no authorization yet) younger than this may still belong to a checkout in progress.
+PENDING_HOLD_GRACE = timedelta(minutes=10)
 
 
 # Stop the app unless PayPal's address is exactly the sandbox (AGENTS.md rule 12, test E10).

@@ -53,8 +53,9 @@ CREATE TABLE holds (
     auth_id         TEXT        UNIQUE,                -- saved the moment authorize returns
     void_request_id TEXT        UNIQUE,                -- saved BEFORE the void call
     amount_cents    INTEGER     NOT NULL,              -- = pledge max
-    status          TEXT        NOT NULL DEFAULT 'PENDING',  -- PENDING, CREATED, DENIED, CAPTURED, VOIDED
+    status          TEXT        NOT NULL DEFAULT 'PENDING',  -- PENDING, CREATED, DENIED, CAPTURED, VOIDED, NOT_PLACED
     expires_at      TIMESTAMPTZ,                       -- from PayPal's expiration_time
+    void_tried_at   TIMESTAMPTZ,                       -- the cleanup sweep's claim on this hold (D80)
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

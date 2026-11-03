@@ -204,6 +204,8 @@ Both get the same `board` object, and `board.json` is exactly this object, so th
 | `rows[].status_word` | text: `"Pledged"`, `"Held"`, `"Declined"`, `"Charged $28.33"`, or `"Charge failed"` *(placeholder)* | `"Held"` |
 | `rows[].max_text` | text | `"$40.00"` |
 | `rows[].estimated_share_text` | text: during `LAST_CALL`, what this person would pay if last call ended now (from `money.py`, the same numbers the lock charges), so a late joiner visibly lowers everyone's number; `""` at every other time. Added Nov 2 (D76), approved by Samuel Nov 3 | `"$8.21"` |
+| `rows[].counted` | true or false: true for a held pledge the circle rule counts, and for a pledge already `CHARGED` or `FAILED` at lock; false for Pledged, Declined and held pledges that are still waiting. For styling ("the circle turns green together"). Added Nov 3 (D79), Samuel to approve | `true` |
+| `rows[].waiting_on_text` | text: `"Waiting on Jay"`, `"Waiting on Jay and Maya"` or `"Waiting on Jay, Maya and Kim"` *(placeholder)* for a held pledge that isn't counted yet, naming the people nobody has a hold for (it follows the chain: if Ana waits on Bo and Bo waits on Cy, both say Cy); `""` for everyone else and whenever the event is no longer OPEN or LAST_CALL. Added Nov 3 (D79), Samuel to approve | `"Waiting on Jay"` |
 
 | Event `status` | `banner_text` |
 |---|---|
@@ -228,3 +230,36 @@ Added by Emmanuel on Nov 3. The pledge page's JavaScript sends `{"event_id": 7, 
 | `follow_up_question` | text to show when `status` is `unclear`, otherwise `null`. If the AI fails or times out it is "Couldn't read that. Please retype it, or fill in the amount, cap and condition yourself.", and every box stays editable | `null` |
 
 Refusals come back as `{"message": "..."}`, like the other routes: `"Type your pledge."` *(placeholder)* for an empty box (400), `"Keep it to 280 characters or fewer."` *(placeholder, D73)* for longer text (400), the S4/S5 closed text (409), and the S5 error text for an unknown event (404) or a database error (503).
+
+### S4 `POST /api/pledges` (D31, D77)
+
+Updated by Emmanuel on Nov 3. The page sends what the friend confirmed: `{"event_id": 7, "name": "Ana", "max": "40", "min": "20", "conditions": ["Jay"]}`. Only `event_id`, `name` and `max` are required.
+
+| Key | Type | Notes |
+|---|---|---|
+| `max`, `min` | plain amount text like `"40"` or `"40.50"` | `min` is optional: missing, `null` or `""` mean none. `min` is shown only and never changes the share (D12) |
+| `conditions` | a list of names, optional (missing or `null` mean none) | At most 3 names, each at most 40 characters. Blanks, repeats and the friend's own name are dropped. Saved in the same transaction as the pledge. A retry replaces the old `min` and conditions |
+| `name` | text, at most 40 characters | The same 40-character limit as a condition name |
+
+The answer is `{"pledger_token": "...", "hold_text": "..."}`, as before. Refusals are `{"message": "..."}` with status 400: `"Your amount can't be more than your max."`, `"You can name up to 3 people."`, `"Keep your name to 40 characters or fewer."` and `"Keep each name to 40 characters or fewer."`, all *(placeholders, D57)*, plus the existing ones.
+
+### S4 `pledge.html`: the Check button and the new boxes (M4, D31, D77)
+
+Added by Emmanuel on Nov 3 as bare elements for Samuel to style. **Every older id is unchanged** (`pledge`, `pledge-name`, `pledge-max`, `confirm-button`, `hold-text`, `hold-button`, `message`, `paypal-card-fields-name`, `-number`, `-expiry`, `-cvv`). A test checks that the page has all of them and that every id `static/js/pledge_paypal.js` looks up exists. Style by these ids; don't rename them.
+
+| New id | Element | What it is | Labels are placeholders (D57) |
+|---|---|---|---|
+| `pledge-message` | `textarea`, `maxlength="280"` | The friend's pledge in their own words (optional). 280 is `config.MAX_PLEDGE_TEXT_CHARS` (D73); the server counts the real limit | "Say it in your own words (optional)" |
+| `check-button` | `button` | Sends the words to `POST /api/pledges/parse` | "Check" |
+| `check-message` | `p role="status"` | The AI's follow-up question, "Check the boxes below…", or an error from the Check | (filled by the script) |
+| `pledge-min` | `input` | The minimum, as typed text (optional, shown only, D12) | "Your minimum ($, optional)" |
+| `pledge-conditions` | `input` | Names separated by commas (optional, at most 3 names of at most 40 characters, D77) | "Only if these people are in (optional, separate names with commas)" |
+
+How it behaves (for the design, not for restyling away):
+- **Check fills three boxes as a suggestion**: `pledge-max`, `pledge-min` and `pledge-conditions`. Nothing is saved until the friend presses Continue. The boxes stay editable, and the friend can skip Check and type them by hand.
+- **Continue sends what is in the boxes**, never the AI's answer: `name`, `max`, `min` and `conditions` (the box split on commas). The server checks everything again and answers in the S4 `POST /api/pledges` table above.
+- **An "in" answer sets all three boxes** (empty where the AI gave nothing). **An "unclear" answer sets only what the AI gave** and shows its question. **An "out" answer fills nothing** and shows a short line.
+- **Buttons are off while a request runs**, so a double click sends one request. While a Check runs the four suggestion boxes are off too. After Continue succeeds, the name and all the boxes are locked, so the hold is for exactly what was saved.
+- **A Check that fails** (a 400, 409 or 503 answer, a network error, or no answer in 20 seconds) shows the server's message, or the general error text, and leaves every box editable.
+- **Two placeholder texts are in `static/js/pledge_paypal.js`**, not in the page: `REVIEW_TEXT` = "Check the boxes below. Nothing is saved until you press Continue." and `OUT_TEXT` = "That sounds like a no, so nothing was filled in." Samuel may move them into `pledge.html`; ask Emmanuel to read them from `data-` attributes like `data-error-text`.
+- **Still Samuel's:** the line "AI reads. You confirm. Plain code handles the money." and the privacy note (§4, `AI_PARSER.md` §6), which must name the AI provider that is really used.
