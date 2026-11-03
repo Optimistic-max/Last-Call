@@ -56,7 +56,7 @@ def fake_api(monkeypatch, response):
     return sent
 
 
-# create_order sends intent AUTHORIZE, the amount as "40.00" text, the saved request ID and a 20 s timeout.
+# create_order sends intent AUTHORIZE, the amount as "40.00" text, the saved request ID and a 10 s timeout (D71).
 def test_create_order_body_and_headers(monkeypatch):
     use_fake_settings(monkeypatch)
     sent = fake_api(monkeypatch, make_response(201, {"id": "ORDER1", "status": "CREATED"}))
@@ -72,7 +72,7 @@ def test_create_order_body_and_headers(monkeypatch):
     assert unit["reference_id"] == "pledge-7"
     assert unit["custom_id"] == "pledge-7"
     assert call["options"]["headers"]["PayPal-Request-Id"] == "request-id-1"
-    assert call["options"]["timeout"] == 20
+    assert call["options"]["timeout"] == 10
     assert result == {"http_status": 201,
                       "data": {"id": "ORDER1", "status": "CREATED"},
                       "debug_id": "FAKE-DEBUG-ID"}

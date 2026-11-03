@@ -111,6 +111,7 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 | ID | Test | Status |
 |---|---|---|
 | H1 | 3–5 people who haven't used the app pledge on the live link (sandbox). Record where they got stuck, with no names or emails. Timing: NOT RUN until measured, and no timing claims before then | NOT RUN |
+| H2 | **5 real people tried it (G6):** at least 5 people from the target audience (club members and treasurers; classmates count) complete a pledge on the live URL (sandbox) by Nov 9. Each result goes in the run log, one row per person, with no names or emails. A quote is used only if the person really said it and agreed to it (AGENTS.md rule 17). Overlaps H1: running H2 also covers H1 | NOT RUN |
 
 ## Run log
 

@@ -53,8 +53,9 @@ def test_dollars_formats_cents_for_the_screen():
     assert app.dollars(100000000) == "$1,000,000.00"
 
 
-# D41 and D46: requests for /static/ files and /health never settle; any other request does, once.
-# db.connect is replaced so /health answers 503 at once instead of opening a real database.
+# D41, D46 and D72: requests for /static/ files, /health and /favicon.ico never settle; any other
+# request does, once. db.connect is replaced so /health answers 503 at once instead of opening a real
+# database. There is no favicon, so /favicon.ico is a 404, but it still must not settle.
 def test_only_page_requests_settle(monkeypatch):
     def no_database(url):
         raise RuntimeError("no database in this test")
@@ -63,6 +64,7 @@ def test_only_page_requests_settle(monkeypatch):
     client = app.app.test_client()
     assert client.get("/static/js/pledge_paypal.js").status_code == 200
     assert client.get("/health").status_code == 503
+    assert client.get("/favicon.ico").status_code == 404
     assert settle_requests == []
     assert client.get("/e/abc/pledge").status_code == 404
     assert len(settle_requests) == 1

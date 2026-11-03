@@ -52,11 +52,12 @@ def utc_now():
 
 
 # Settle-on-wake (docs/SYSTEM_DESIGN.md section 3): the free server sleeps and has no timer, so before
-# each request, any event whose time is up is settled first. Requests for /static/ files (D41) and
-# /health (D46) skip it: they come often, and /health must stay a quick database ping.
+# each request, any event whose time is up is settled first. Requests for /static/ files (D41),
+# /health (D46) and /favicon.ico (D72) skip it: they come often, and /health must stay a quick database
+# ping. Browsers ask for /favicon.ico by themselves, so settling there would double every page visit.
 @app.before_request
 def settle_anything_due():
-    if request.path.startswith("/static/") or request.path == "/health":
+    if request.path.startswith("/static/") or request.path == "/health" or request.path == "/favicon.ico":
         return
     settle_on_wake(utc_now())
 
