@@ -85,3 +85,4 @@ Not built before the freeze. D47's safe ending stands instead: hold `CAPTURED`, 
 | Nov 3 | Emmanuel | Treasurer dashboard: one page listing all of the treasurer's events with their status and progress (needs accounts and login) |
 | Nov 3 | Emmanuel | `paypal_client.get_order(order_id)` (`GET /v2/checkout/orders/{id}`, `unverified`): lets the cleanup sweep look for the authorization of a `PENDING` hold whose authorize was sent but whose answer was lost (D80). Today those holds stay `PENDING` and log a warning |
 | Nov 3 | Emmanuel | Stop retrying a failed void after N tries (D80): the sweep retries a hold PayPal never closes every 5 minutes, with a log line each time, with no end |
+| Nov 3 | Samuel | After submission: merge the plan docs into one PLAN.md and fold DECISIONS/TEAM into it (Samuel). |
