@@ -239,3 +239,24 @@ Updated by Emmanuel on Nov 3. The page sends what the friend confirmed: `{"event
 | `name` | text, at most 40 characters | The same 40-character limit as a condition name |
 
 The answer is `{"pledger_token": "...", "hold_text": "..."}`, as before. Refusals are `{"message": "..."}` with status 400: `"Your amount can't be more than your max."`, `"You can name up to 3 people."`, `"Keep your name to 40 characters or fewer."` and `"Keep each name to 40 characters or fewer."`, all *(placeholders, D57)*, plus the existing ones.
+
+### S4 `pledge.html`: the Check button and the new boxes (M4, D31, D77)
+
+Added by Emmanuel on Nov 3 as bare elements for Samuel to style. **Every older id is unchanged** (`pledge`, `pledge-name`, `pledge-max`, `confirm-button`, `hold-text`, `hold-button`, `message`, `paypal-card-fields-name`, `-number`, `-expiry`, `-cvv`). A test checks that the page has all of them and that every id `static/js/pledge_paypal.js` looks up exists. Style by these ids; don't rename them.
+
+| New id | Element | What it is | Labels are placeholders (D57) |
+|---|---|---|---|
+| `pledge-message` | `textarea`, `maxlength="280"` | The friend's pledge in their own words (optional). 280 is `config.MAX_PLEDGE_TEXT_CHARS` (D73); the server counts the real limit | "Say it in your own words (optional)" |
+| `check-button` | `button` | Sends the words to `POST /api/pledges/parse` | "Check" |
+| `check-message` | `p role="status"` | The AI's follow-up question, "Check the boxes below…", or an error from the Check | (filled by the script) |
+| `pledge-min` | `input` | The minimum, as typed text (optional, shown only, D12) | "Your minimum ($, optional)" |
+| `pledge-conditions` | `input` | Names separated by commas (optional, at most 3 names of at most 40 characters, D77) | "Only if these people are in (optional, separate names with commas)" |
+
+How it behaves (for the design, not for restyling away):
+- **Check fills three boxes as a suggestion**: `pledge-max`, `pledge-min` and `pledge-conditions`. Nothing is saved until the friend presses Continue. The boxes stay editable, and the friend can skip Check and type them by hand.
+- **Continue sends what is in the boxes**, never the AI's answer: `name`, `max`, `min` and `conditions` (the box split on commas). The server checks everything again and answers in the S4 `POST /api/pledges` table above.
+- **An "in" answer sets all three boxes** (empty where the AI gave nothing). **An "unclear" answer sets only what the AI gave** and shows its question. **An "out" answer fills nothing** and shows a short line.
+- **Buttons are off while a request runs**, so a double click sends one request. While a Check runs the four suggestion boxes are off too. After Continue succeeds, the name and all the boxes are locked, so the hold is for exactly what was saved.
+- **A Check that fails** (a 400, 409 or 503 answer, a network error, or no answer in 20 seconds) shows the server's message, or the general error text, and leaves every box editable.
+- **Two placeholder texts are in `static/js/pledge_paypal.js`**, not in the page: `REVIEW_TEXT` = "Check the boxes below. Nothing is saved until you press Continue." and `OUT_TEXT` = "That sounds like a no, so nothing was filled in." Samuel may move them into `pledge.html`; ask Emmanuel to read them from `data-` attributes like `data-error-text`.
+- **Still Samuel's:** the line "AI reads. You confirm. Plain code handles the money." and the privacy note (§4, `AI_PARSER.md` §6), which must name the AI provider that is really used.

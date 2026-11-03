@@ -7,7 +7,9 @@
 
 import json
 import logging
+import re
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 from flask import render_template_string
@@ -810,3 +812,70 @@ def test_board_escapes_a_waiting_on_name(monkeypatch, test_db, test_db_url):
         assert "<i>Jay</i>" not in page
     finally:
         delete_event(test_db, event_id)
+
+
+# Ana needs Jay and Jay needs Ana, and both hold: the circle counts them together (D06), so neither row
+# says "Waiting on", on board.json or on the S3 page. When only Ana has held, she is waiting on Jay.
+def test_board_a_held_circle_has_no_waiting_text(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    event_id = make_open_event(test_db)
+    client = app.app.test_client()
+    try:
+        add_held_pledge(test_db, event_id, "Ana", 4000, ["Jay"])
+        alone = client.get("/e/%d/board.json" % event_id).get_json()["rows"]
+        assert (alone[0]["counted"], alone[0]["waiting_on_text"]) == (False, "Waiting on Jay")
+
+        add_held_pledge(test_db, event_id, "Jay", 4000, ["Ana"])
+        rows = client.get("/e/%d/board.json" % event_id).get_json()["rows"]
+        assert [row["name"] for row in rows] == ["Ana", "Jay"]
+        assert [row["counted"] for row in rows] == [True, True]
+        assert [row["waiting_on_text"] for row in rows] == ["", ""]
+        assert "Waiting on" not in client.get("/e/%d" % event_id).get_data(as_text=True)
+    finally:
+        delete_event(test_db, event_id)
+
+
+# ---------- The pledge page and the Check button (M4) ----------
+
+# The ids the pledge page had before the Check button, and the five added for it (docs/UI_DESIGN.md
+# section 10). Samuel styles the page by these ids, so none may disappear.
+OLD_PLEDGE_IDS = ["pledge", "pledge-name", "pledge-max", "confirm-button", "hold-text", "hold-button",
+                  "message", "paypal-card-fields-name", "paypal-card-fields-number",
+                  "paypal-card-fields-expiry", "paypal-card-fields-cvv"]
+NEW_PLEDGE_IDS = ["pledge-message", "check-button", "check-message", "pledge-min", "pledge-conditions"]
+
+
+# The open pledge page, as the server renders it, has every old id and every new one. The own-words box
+# is limited to the same 280 characters the parse route accepts (D73), and the page still has the
+# sandbox banner and the promise.
+def test_pledge_page_has_the_old_ids_and_the_check_button_ids(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    event_id = make_open_event(test_db)
+    try:
+        page = app.app.test_client().get("/e/%d/pledge" % event_id)
+        assert page.status_code == 200
+        html = page.get_data(as_text=True)
+        for element_id in OLD_PLEDGE_IDS + NEW_PLEDGE_IDS:
+            assert 'id="%s"' % element_id in html
+        assert 'maxlength="%d"' % config.MAX_PLEDGE_TEXT_CHARS in html
+        assert "SANDBOX DEMO: fake money, no real charges" in html
+    finally:
+        delete_event(test_db, event_id)
+
+
+# There is no JavaScript test tool in this repo (AGENTS.md: no build step), so this reads the script as
+# text. Every id it looks up with a plain getElementById("...") must exist in pledge.html, so a typo
+# can't silently break the page. The ids in its list of suggestion boxes must exist too. And outside
+# comments it never uses innerHTML: text from the server goes on the page with textContent only.
+def test_pledge_script_only_uses_ids_that_the_template_has():
+    root = Path(__file__).resolve().parent.parent
+    script = (root / "static" / "js" / "pledge_paypal.js").read_text(encoding="utf-8")
+    template = (root / "templates" / "pledge.html").read_text(encoding="utf-8")
+    code_lines = [line for line in script.split("\n") if not line.strip().startswith("//")]
+    code = "\n".join(code_lines)
+    used = re.findall(r'getElementById\("([^"]+)"\)', code)
+    listed = re.findall(r'"([a-z-]+)"', re.search(r"suggestionBoxIds = \[(.*?)\]", code, re.S).group(1))
+    assert "check-button" in used and "pledge-min" in used and len(listed) == 4
+    for element_id in used + listed:
+        assert 'id="%s"' % element_id in template, element_id
+    assert "innerHTML" not in code
