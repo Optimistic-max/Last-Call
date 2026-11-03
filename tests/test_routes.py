@@ -1,21 +1,26 @@
-# Tests for the pledge and order routes (step 2.3), the pledge page (step 2.4) and which requests
-# settle (step 2.5) in app.py. Not docs/TEST_PLAN.md IDs.
+# Tests for the pledge and order routes (step 2.3), the pledge page (step 2.4), which requests
+# settle (step 2.5), creating and opening an event and the board (step 5b) and the AI parse route (M4,
+# TEST_PLAN G4) in app.py. Test numbers in comments are from the plan for each step, not TEST_PLAN IDs.
 # Flask's test client sends requests to the app without starting a server.
 # The first tests need no database. The rest use the Neon test branch (Malama's test_db and test_db_url
 # fixtures) with tests/fake_paypal.py in place of PayPal, and are skipped while TEST_DATABASE_URL is empty.
 
+import json
+import logging
 from datetime import timedelta
 
 import pytest
 from flask import render_template_string
 from markupsafe import escape
 
+import ai_parser
 import app
 import config
 import db
 import lifecycle
 import paypal_client
 from tests import fake_paypal
+from tests.test_ai_parser import groq_response
 from tests.test_lifecycle import (NOW, confirm, delete_event, make_open_event, pledge_and_authorize,
                                   set_event_status)
 
@@ -521,3 +526,161 @@ def test_board_when_the_database_is_down(monkeypatch):
     assert response.get_json() == {"message": app.ERROR_TEXT}
     assert client.get("/e/7").status_code == 503
     assert len(settle_requests) == 2
+
+
+# ---------- The AI parse route (M4, D31, D73) ----------
+
+# A made-up pledge, as a friend might type it (AGENTS.md rule 17: synthetic, not a real message).
+PLEDGE_TEXT = "down if Jay goes, max 40"
+
+# The model's JSON answer for PLEDGE_TEXT (docs/AI_PARSER.md section 3).
+GOOD_ANSWER = json.dumps({"status": "in", "max_dollars": 40, "min_dollars": None, "conditions": ["Jay"],
+                          "follow_up_question": None})
+
+
+# Put a stand-in where ai_parser.call_model was, so no request ever goes to the AI. It returns `raw`
+# (the model's JSON text, or None for a failed call) and records each message it was given, so a test
+# can check the AI was never asked. Malama's real validator still checks the answer, G1 included.
+def stand_in_ai(monkeypatch, raw):
+    messages = []
+
+    def fake_call_model(message_text):
+        messages.append(message_text)
+        return raw
+
+    monkeypatch.setattr(ai_parser, "call_model", fake_call_model)
+    return messages
+
+
+def pledge_count(conn, event_id):
+    row = db.fetch_one(conn, "SELECT count(*) AS pledges FROM pledges WHERE event_id = %s", (event_id,))
+    return row["pledges"]
+
+
+# Test 1: a good suggestion comes back with its amounts as plain text, and nothing is saved (D31, D62).
+# The spaces around the text are trimmed before the AI sees it.
+def test_parse_route_returns_the_suggestion(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    messages = stand_in_ai(monkeypatch, GOOD_ANSWER)
+    event_id = make_open_event(test_db)
+    try:
+        response = app.app.test_client().post("/api/pledges/parse",
+                                              json={"event_id": event_id, "text": "  " + PLEDGE_TEXT + " "})
+        assert response.status_code == 200
+        assert response.get_json() == {"status": "in", "max": "40.00", "min": None, "conditions": ["Jay"],
+                                       "follow_up_question": None}
+        assert messages == [PLEDGE_TEXT]
+        assert pledge_count(test_db, event_id) == 0
+    finally:
+        delete_event(test_db, event_id)
+
+
+# Test 2: the AI fails (no answer, a timeout or a bad answer all reach the route as None from call_model).
+# The answer is still a 200 carrying the "please retype" question, with every field empty, so the page
+# keeps the boxes editable.
+def test_parse_route_when_the_ai_fails(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    stand_in_ai(monkeypatch, None)
+    event_id = make_open_event(test_db)
+    try:
+        response = app.app.test_client().post("/api/pledges/parse",
+                                              json={"event_id": event_id, "text": PLEDGE_TEXT})
+        assert response.status_code == 200
+        assert response.get_json() == {"status": "unclear", "max": None, "min": None, "conditions": [],
+                                       "follow_up_question": ai_parser.PLEASE_RETYPE_TEXT}
+    finally:
+        delete_event(test_db, event_id)
+
+
+# Test 3: D73's limit. 281 characters is refused before the AI is called; exactly 280 is read.
+def test_parse_route_text_length_limit(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    messages = stand_in_ai(monkeypatch, GOOD_ANSWER)
+    event_id = make_open_event(test_db)
+    longest = PLEDGE_TEXT + " " + "x" * (280 - len(PLEDGE_TEXT) - 1)
+    client = app.app.test_client()
+    try:
+        assert len(longest) == 280
+        too_long = client.post("/api/pledges/parse", json={"event_id": event_id, "text": longest + "x"})
+        assert too_long.status_code == 400
+        assert too_long.get_json() == {"message": "Keep it to 280 characters or fewer."}
+        assert messages == []
+        just_right = client.post("/api/pledges/parse", json={"event_id": event_id, "text": longest})
+        assert just_right.status_code == 200
+        assert messages == [longest]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# Test 4: empty text, text made only of spaces, and a body of the wrong shape are refused before the
+# database is opened (db.connect would raise, giving a 503) and before the AI is called.
+def test_parse_route_refuses_empty_or_bad_input(monkeypatch):
+    def no_database(url):
+        raise RuntimeError("no database in this test")
+
+    monkeypatch.setattr(db, "connect", no_database)
+    messages = stand_in_ai(monkeypatch, GOOD_ANSWER)
+    client = app.app.test_client()
+    for text in ["", "   "]:
+        empty = client.post("/api/pledges/parse", json={"event_id": 7, "text": text})
+        assert empty.status_code == 400
+        assert empty.get_json() == {"message": "Type your pledge."}
+    assert client.post("/api/pledges/parse").status_code == 400
+    assert client.post("/api/pledges/parse", json={"event_id": "7", "text": PLEDGE_TEXT}).status_code == 400
+    assert client.post("/api/pledges/parse", json={"event_id": 7, "text": 40}).status_code == 400
+    assert messages == []
+
+
+# Test 5: a closed event is a 409 with the closed text, and an unknown event a 404. Neither asks the AI.
+# 2147483647 is the biggest id a SERIAL column can hold, so no test event has it.
+def test_parse_route_closed_or_unknown_event(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    messages = stand_in_ai(monkeypatch, GOOD_ANSWER)
+    event_id = make_open_event(test_db)
+    client = app.app.test_client()
+    try:
+        set_event_status(test_db, event_id, "EXPIRED")
+        closed = client.post("/api/pledges/parse", json={"event_id": event_id, "text": PLEDGE_TEXT})
+        assert closed.status_code == 409
+        assert closed.get_json() == {"message": app.CLOSED_TEXT}
+        unknown = client.post("/api/pledges/parse", json={"event_id": 2147483647, "text": PLEDGE_TEXT})
+        assert unknown.status_code == 404
+        assert unknown.get_json() == {"message": app.ERROR_TEXT}
+        assert messages == []
+    finally:
+        delete_event(test_db, event_id)
+
+
+# Test 6: privacy. This time the real call_model runs, with a made-up key, and only requests.post is
+# replaced, so the key really passes through the code. The log, at every level, must hold neither the
+# friend's text nor the key. The "HTTP 200" line shows the log was really captured, so the test can fail.
+# The key is fake, so even if this test fails and pytest prints the log, no real secret is shown.
+def test_parse_route_logs_no_message_and_no_key(monkeypatch, caplog, test_db, test_db_url):
+    fake_key = "FAKE-AI-KEY-not-real-456"
+
+    def fake_post(url, **options):
+        return groq_response(200, GOOD_ANSWER)
+
+    use_test_setup(monkeypatch, test_db_url)
+    monkeypatch.setattr(config, "AI_API_KEY", fake_key)
+    monkeypatch.setattr(config, "AI_MODEL", "made-up-model")
+    monkeypatch.setattr(ai_parser.requests, "post", fake_post)
+    caplog.set_level(logging.DEBUG)
+    event_id = make_open_event(test_db)
+    try:
+        response = app.app.test_client().post("/api/pledges/parse",
+                                              json={"event_id": event_id, "text": PLEDGE_TEXT})
+        assert response.status_code == 200
+        assert response.get_json()["status"] == "in"
+        assert "AI call -> HTTP 200" in caplog.text
+        assert PLEDGE_TEXT not in caplog.text
+        assert "max 40" not in caplog.text
+        assert fake_key not in caplog.text
+    finally:
+        delete_event(test_db, event_id)
+
+
+# Test 7: the two limits Emmanuel approved in D73 (Nov 3).
+def test_parse_limits_match_d73():
+    assert config.MAX_PLEDGE_TEXT_CHARS == 280
+    assert config.AI_TIMEOUT_SECONDS == 8

@@ -32,8 +32,13 @@ AI_MODEL = os.environ.get("AI_MODEL", "")
 AI_BASE_URL = os.environ.get("AI_BASE_URL") or "https://api.groq.com/openai/v1"
 
 # Reading one pledge gives up after this many seconds, and the friend sees "please retype"
-# (docs/AI_PARSER.md section 4). They can always fill in the confirm step by hand.
-AI_TIMEOUT_SECONDS = 15
+# (docs/AI_PARSER.md section 4). They can always fill in the confirm step by hand. 8 seconds (D73), so
+# the confirm step never hangs for long.
+AI_TIMEOUT_SECONDS = 8
+
+# The longest pledge text POST /api/pledges/parse accepts, counted after trimming spaces (D73). Short
+# text keeps each AI call small and quick. Longer text is refused before the AI is called.
+MAX_PLEDGE_TEXT_CHARS = 280
 
 # The only PayPal address this app may ever talk to (AGENTS.md rule 12).
 SANDBOX_BASE_URL = "https://api-m.sandbox.paypal.com"

@@ -80,4 +80,4 @@ Not built before the freeze. D47's safe ending stands instead: hold `CAPTURED`, 
 
 | Date | Who | Idea |
 |---|---|---|
-| | | |
+| Nov 3 | Emmanuel | Rate limit on `POST /api/pledges/parse`. The route is public and each call uses our AI provider's quota, so anyone could use it up by sending many requests. Today only D73's 280-character limit applies |
