@@ -26,14 +26,18 @@ from tests import fake_paypal
 NOW = datetime(2026, 10, 27, 20, 0, tzinfo=timezone.utc)
 
 
-# Add one OPEN event whose pledging ends 10 minutes after NOW (demo mode), and return its id.
+# Add one OPEN event that opened at NOW, and return its id. Pledging ends 10 minutes after NOW in demo
+# mode (the default), or 48 hours after NOW when a test asks for demo_mode=False.
 # Opening an event through the app comes in step 5b, so the test writes the row itself.
 # The deposit is $300 unless a test asks for another one (a small one makes the goal easy to reach).
-def make_open_event(conn, deposit_cents=30000):
+def make_open_event(conn, deposit_cents=30000, demo_mode=True):
+    hard_deadline = NOW + config.DEMO_PLEDGING_WINDOW
+    if not demo_mode:
+        hard_deadline = NOW + config.PLEDGING_WINDOW
     row = db.fetch_one(conn, "INSERT INTO events (title, deposit_cents, status, admin_token, demo_mode, "
-                             "opens_at, hard_deadline) VALUES (%s, %s, 'OPEN', %s, TRUE, %s, %s) RETURNING id",
-                       ("lifecycle test event", deposit_cents, lifecycle.new_token(), NOW,
-                        NOW + timedelta(minutes=10)))
+                             "opens_at, hard_deadline) VALUES (%s, %s, 'OPEN', %s, %s, %s, %s) RETURNING id",
+                       ("lifecycle test event", deposit_cents, lifecycle.new_token(), demo_mode, NOW,
+                        hard_deadline))
     return row["id"]
 
 
@@ -55,19 +59,21 @@ def set_event_status(conn, event_id, status):
 
 
 # Confirm a pledge and return its private token. The test fails here if it wasn't confirmed.
-def confirm(conn, event_id, name, max_cents):
-    result = lifecycle.confirm_pledge(conn, event_id, name, max_cents, NOW)
+# The clock is NOW unless a test passes another time.
+def confirm(conn, event_id, name, max_cents, now=NOW):
+    result = lifecycle.confirm_pledge(conn, event_id, name, max_cents, now)
     assert result["outcome"] == "CONFIRMED"
     return result["pledger_token"]
 
 
 # Do what the pledge page does: confirm, create the order, then authorize it.
-# Returns the token, the order ID and what authorize_hold answered.
-def pledge_and_authorize(conn, event_id, name, max_cents):
-    token = confirm(conn, event_id, name, max_cents)
-    order = lifecycle.start_hold(conn, token, NOW, fake_paypal)
+# Returns the token, the order ID and what authorize_hold answered. The clock is NOW unless a test
+# passes another time.
+def pledge_and_authorize(conn, event_id, name, max_cents, now=NOW):
+    token = confirm(conn, event_id, name, max_cents, now)
+    order = lifecycle.start_hold(conn, token, now, fake_paypal)
     assert order["outcome"] == "ORDER_CREATED"
-    result = lifecycle.authorize_hold(conn, order["order_id"], token, NOW, fake_paypal)
+    result = lifecycle.authorize_hold(conn, order["order_id"], token, now, fake_paypal)
     return token, order["order_id"], result
 
 
@@ -138,11 +144,17 @@ def test_e10_app_starts_with_the_sandbox_url():
 
 # ---------- Pledging (step 2.3) ----------
 
-# Pledges are taken only while the event is OPEN or LAST_CALL and before the hard deadline.
+# Pledges are taken only while the event is OPEN (before the hard deadline) or LAST_CALL (before last
+# call ends, D04).
 def test_pledging_is_open_checks_status_and_clock():
     deadline = NOW + timedelta(minutes=10)
+    last_call_ends = NOW + timedelta(minutes=3)
+    in_last_call = {"status": "LAST_CALL", "hard_deadline": deadline, "last_call_ends": last_call_ends}
     assert lifecycle.pledging_is_open({"status": "OPEN", "hard_deadline": deadline}, NOW)
-    assert lifecycle.pledging_is_open({"status": "LAST_CALL", "hard_deadline": deadline}, NOW)
+    assert lifecycle.pledging_is_open(in_last_call, NOW)
+    assert not lifecycle.pledging_is_open(in_last_call, last_call_ends)
+    assert not lifecycle.pledging_is_open({"status": "LAST_CALL", "hard_deadline": deadline,
+                                           "last_call_ends": None}, NOW)
     assert not lifecycle.pledging_is_open({"status": "OPEN", "hard_deadline": deadline}, deadline)
     assert not lifecycle.pledging_is_open({"status": "DRAFT", "hard_deadline": None}, NOW)
     for status in ["LOCKING", "CHARGING", "SETTLED", "NEEDS_ATTENTION", "EXPIRED"]:
@@ -642,9 +654,10 @@ def use_app_after_the_deadline(monkeypatch, app, test_db_url):
     monkeypatch.setattr(app, "utc_now", after_the_deadline)
 
 
-# D25 (M1): the hold that brings the held total up to the goal opens last call, which runs until the
-# hard deadline. The holds before it leave the event OPEN.
-def test_d25_the_hold_that_reaches_the_goal_opens_last_call(test_db):
+# D04: the hold that brings the held total up to the goal opens last call, which lasts 3 minutes in
+# demo mode. The holds before it leave the event OPEN. (Until M2 this was the D25 test, where last call
+# ran until the hard deadline.)
+def test_d04_the_hold_that_reaches_the_goal_opens_last_call(test_db):
     fake_paypal.reset()
     event_id = make_open_event(test_db, 3000)
     try:
@@ -654,7 +667,92 @@ def test_d25_the_hold_that_reaches_the_goal_opens_last_call(test_db):
         pledge_and_authorize(test_db, event_id, "Cy", 1500)
         event = lifecycle.find_event(test_db, event_id)
         assert event["status"] == "LAST_CALL"
+        assert event["last_call_ends"] == NOW + config.DEMO_LAST_CALL_WINDOW
+        assert event["last_call_ends"] < event["hard_deadline"]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# E1: on a 48-hour event, the goal is reached at hour 10, so last call gets its full hour and ends at
+# hour 11. One second before that, pledging is open and settling does nothing; at hour 11 pledging is
+# closed and the next settle locks and charges.
+def test_e1_goal_at_hour_10_gives_a_full_hour_of_last_call(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000, demo_mode=False)
+    hour_10 = NOW + timedelta(hours=10)
+    hour_11 = NOW + timedelta(hours=11)
+    try:
+        pledge_and_authorize(test_db, event_id, "Ana", 1000)
+        pledge_and_authorize(test_db, event_id, "Bo", 1000)
+        token, order_id, result = pledge_and_authorize(test_db, event_id, "Cy", 1500, hour_10)
+        assert result["outcome"] == "HELD"
+        event = lifecycle.find_event(test_db, event_id)
+        assert event["status"] == "LAST_CALL"
+        assert event["last_call_ends"] == hour_11
+
+        just_before = hour_11 - timedelta(seconds=1)
+        assert lifecycle.pledging_is_open(event, just_before)
+        lifecycle.settle_due_events(test_db, just_before, fake_paypal)
+        assert lifecycle.find_event(test_db, event_id)["status"] == "LAST_CALL"
+        assert calls_to("capture_authorization") == []
+
+        assert not lifecycle.pledging_is_open(event, hour_11)
+        lifecycle.settle_due_events(test_db, hour_11, fake_paypal)
+        assert lifecycle.find_event(test_db, event_id)["status"] == "SETTLED"
+        assert len(calls_to("capture_authorization")) == 3
+    finally:
+        delete_event(test_db, event_id)
+
+
+# E2: on a 48-hour event, the goal is reached at hour 47. One more hour would pass the 48-hour cap, so
+# last call ends at the hard deadline instead (D04).
+def test_e2_goal_at_hour_47_ends_last_call_at_hour_48(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000, demo_mode=False)
+    try:
+        pledge_and_authorize(test_db, event_id, "Ana", 1000)
+        pledge_and_authorize(test_db, event_id, "Bo", 1000)
+        pledge_and_authorize(test_db, event_id, "Cy", 1500, NOW + timedelta(hours=47))
+        event = lifecycle.find_event(test_db, event_id)
+        assert event["status"] == "LAST_CALL"
+        assert event["hard_deadline"] == NOW + timedelta(hours=48)
         assert event["last_call_ends"] == event["hard_deadline"]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# E4: Dee joins one minute into a 3-minute demo last call. Her hold is taken, and at lock all four are
+# charged, each a smaller share than the three would have paid without her. The expected shares come
+# from money.py, as the lock works them out. Eve, who tries at the moment last call ends, is refused,
+# even though the hard deadline is still 7 minutes away.
+def test_e4_joining_during_last_call_lowers_shares(test_db):
+    fake_paypal.reset()
+    event_id = make_open_event(test_db, 3000)
+    last_call_ends = NOW + config.DEMO_LAST_CALL_WINDOW
+    try:
+        three_holds_that_reach_the_goal(test_db, event_id)
+        assert lifecycle.find_event(test_db, event_id)["status"] == "LAST_CALL"
+        token, order_id, result = pledge_and_authorize(test_db, event_id, "Dee", 1500,
+                                                       NOW + timedelta(minutes=1))
+        assert result["outcome"] == "HELD"
+
+        late = lifecycle.confirm_pledge(test_db, event_id, "Eve", 1500, last_call_ends)
+        assert late["outcome"] == "CLOSED"
+        assert last_call_ends < lifecycle.find_event(test_db, event_id)["hard_deadline"]
+
+        lifecycle.settle_due_events(test_db, last_call_ends, fake_paypal)
+        assert lifecycle.find_event(test_db, event_id)["status"] == "SETTLED"
+        shares_without_dee = money.compute_shares_cents(money.fee_adjusted_goal_cents(3000, 3),
+                                                        [1000, 1000, 1500])
+        shares_with_dee = money.compute_shares_cents(money.fee_adjusted_goal_cents(3000, 4),
+                                                     [1000, 1000, 1500, 1500])
+        pledges = pledges_of(test_db, event_id)
+        assert len(pledges) == 4
+        for position in range(4):
+            assert pledges[position]["status"] == "CHARGED"
+            assert only_capture_of(test_db, pledges[position]["id"])["amount_cents"] == shares_with_dee[position]
+        for position in range(3):
+            assert shares_with_dee[position] < shares_without_dee[position]
     finally:
         delete_event(test_db, event_id)
 

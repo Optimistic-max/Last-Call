@@ -68,10 +68,10 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 
 | ID | Test | Status |
 |---|---|---|
-| E1 | Goal at hour 10 gives a full hour of last call | NOT RUN |
-| E2 | Goal at hour 47 ends last call at hour 48 | NOT RUN |
+| E1 | Goal at hour 10 gives a full hour of last call | VERIFIED (Nov 2, fake PayPal + Neon test branch, `tests/test_lifecycle.py`). On a 48-hour event the goal is reached at hour 10: `last_call_ends` is hour 11; one second before, pledging is open and settling does nothing; at hour 11 pledging is closed and settling charges all three. With the old M1 line (`last_call_ends = hard_deadline`) put back, this test fails |
+| E2 | Goal at hour 47 ends last call at hour 48 | VERIFIED (Nov 2, fake PayPal + Neon test branch, `tests/test_lifecycle.py`): `last_call_ends` equals the hard deadline, hour 48 |
 | E3 | A counted pledger can't leave during last call | NOT RUN |
-| E4 | Joining during last call lowers shares | NOT RUN |
+| E4 | Joining during last call lowers shares | VERIFIED (Nov 2, fake PayPal + Neon test branch, `tests/test_lifecycle.py`). A 4th pledger joins 1 minute into a 3-minute demo last call; at lock all four are charged the `money.py` shares for four, each lower than the share for three. A pledge at the moment last call ends is refused (`CLOSED`) though the hard deadline is 7 minutes away. On the board: NOT RUN (the board isn't built) |
 | E5 | Missed goal voids every hold, nobody charged | VERIFIED (Oct 28, fake PayPal + Neon test branch, `tests/test_lifecycle.py`). `settle_due_events` after the deadline: the event is `EXPIRED`, both `CREATED` holds are voided (each void's request ID saved first), no capture call is made, and all three pledges are `DROPPED`, including the unpaid one (D45). The D45 cases pass too: pledges with no `CREATED` hold left are dropped with no PayPal call, and a void that reads back `CREATED` keeps its pledge `HELD`. With real PayPal: NOT RUN |
 | E6 | Leaving before last call voids that hold | NOT RUN |
 | E7 | **Settle on wake:** deadline passed while "asleep", the next request settles it (formerly "test 28", must pass before submission) | VERIFIED (Oct 28, fake PayPal + Neon test branch, `tests/test_lifecycle.py`). A page request through Flask's test client, with the clock after the deadline, settles before the page is built. A `LAST_CALL` event is `SETTLED`, with each share (from `money.py`) captured once and PayPal's fee and net saved. An `OPEN` event short of its goal is `EXPIRED`, with its hold voided. Requests for `/static/` and `/health` don't settle (D41, D46, `tests/test_routes.py`). With real PayPal and on Render: NOT RUN |
@@ -111,6 +111,7 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 | ID | Test | Status |
 |---|---|---|
 | H1 | 3–5 people who haven't used the app pledge on the live link (sandbox). Record where they got stuck, with no names or emails. Timing: NOT RUN until measured, and no timing claims before then | NOT RUN |
+| H2 | **5 real people tried it (G6):** at least 5 people from the target audience (club members and treasurers; classmates count) complete a pledge on the live URL (sandbox) by Nov 9. Each result goes in the run log, one row per person, with no names or emails. A quote is used only if the person really said it and agreed to it (AGENTS.md rule 17). Overlaps H1: running H2 also covers H1 | NOT RUN |
 
 ## Run log
 

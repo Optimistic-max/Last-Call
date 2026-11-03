@@ -50,15 +50,19 @@ def read_paypal_time(text):
         return None
 
 
-# True only if the event takes pledges right now: status OPEN or LAST_CALL, and the hard deadline
-# hasn't passed. The clock is checked too, in case settling failed earlier in this request (approved
-# item 11). In M1, last call also ends at the hard deadline (D25). M2 must check last_call_ends here.
+# True only if the event takes pledges right now: OPEN before its hard deadline, or LAST_CALL before
+# last call ends (D04). The clock is checked too, in case settling failed earlier in this request
+# (approved item 11). last_call_ends is never after the hard deadline, so a LAST_CALL event needs only it.
 def pledging_is_open(event, now):
     if event is None or event["status"] not in PLEDGING_STATUSES:
         return False
-    if event["hard_deadline"] is None:
+    if event["status"] == "LAST_CALL":
+        closes_at = event["last_call_ends"]
+    else:
+        closes_at = event["hard_deadline"]
+    if closes_at is None:
         return False
-    return now < event["hard_deadline"]
+    return now < closes_at
 
 
 def find_event(conn, event_id):
@@ -335,8 +339,9 @@ def max_list(pledges):
 
 
 # Did this event reach its goal? If so, open last call: OPEN -> LAST_CALL in one compare-and-set
-# (docs/SYSTEM_DESIGN.md section 5B). In M1 last call runs until the hard deadline (D25), so `now` isn't
-# used yet: M2 changes only the last_call_ends part, to min(now + 1 hour, hard_deadline).
+# (docs/SYSTEM_DESIGN.md section 5B). Last call lasts one window from now, but never past the hard
+# deadline (D04): last_call_ends = min(now + window, hard_deadline). When settling finds the goal only
+# after the deadline, that gives the deadline itself, so the same request locks at once.
 # Runs after each new hold, and once more when a due event is settled. True if this call opened it.
 def check_goal(conn, event_id, now):
     event = find_event(conn, event_id)
@@ -344,8 +349,9 @@ def check_goal(conn, event_id, now):
         return False
     if not money.goal_is_reached(event["deposit_cents"], max_list(held_pledges(conn, event_id))):
         return False
-    changed = db.run(conn, "UPDATE events SET status = 'LAST_CALL', last_call_ends = hard_deadline "
-                           "WHERE id = %s AND status = 'OPEN'", (event_id,))
+    last_call_ends = min(now + last_call_window(event), event["hard_deadline"])
+    changed = db.run(conn, "UPDATE events SET status = 'LAST_CALL', last_call_ends = %s "
+                           "WHERE id = %s AND status = 'OPEN'", (last_call_ends, event_id))
     if changed == 1:
         logger.info("event %d reached its goal: last call is open", event_id)
     return changed == 1
@@ -599,6 +605,13 @@ def pledging_window(event):
     if event["demo_mode"]:
         return config.DEMO_PLEDGING_WINDOW
     return config.PLEDGING_WINDOW
+
+
+# How long last call lasts once the goal is reached (D04): 1 hour, or 3 minutes in demo mode.
+def last_call_window(event):
+    if event["demo_mode"]:
+        return config.DEMO_LAST_CALL_WINDOW
+    return config.LAST_CALL_WINDOW
 
 
 # S2, "Open pledging": DRAFT -> OPEN in one compare-and-set (STATE_MACHINE.md). The same UPDATE saves

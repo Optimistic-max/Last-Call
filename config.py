@@ -39,8 +39,9 @@ AI_TIMEOUT_SECONDS = 15
 SANDBOX_BASE_URL = "https://api-m.sandbox.paypal.com"
 
 # Every PayPal request gives up after this many seconds. A timeout means "result unknown"
-# (docs/PAYPAL_INTEGRATION.md section 5).
-PAYPAL_TIMEOUT_SECONDS = 20
+# (docs/PAYPAL_INTEGRATION.md section 5). 10 seconds, so a lock with a few slow calls still finishes
+# inside gunicorn's 120-second worker timeout (D71).
+PAYPAL_TIMEOUT_SECONDS = 10
 
 # PayPal's access token says how long it lasts. We treat it as expired this many seconds early,
 # so a token never runs out in the middle of a call.
@@ -65,8 +66,8 @@ MAX_DEPOSIT_CENTS = 200000   # no event can have a deposit over $2,000
 PLEDGING_WINDOW = timedelta(hours=48)
 DEMO_PLEDGING_WINDOW = timedelta(minutes=10)
 
-# How long last call lasts once the goal is reached. Used from M2: in M1, last call runs until the
-# hard deadline instead (D25).
+# How long last call lasts once the goal is reached, but never past the hard deadline (D04).
+# lifecycle.last_call_window picks one. (In M1, last call ran until the hard deadline instead, D25.)
 LAST_CALL_WINDOW = timedelta(hours=1)
 DEMO_LAST_CALL_WINDOW = timedelta(minutes=3)
 

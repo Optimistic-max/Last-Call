@@ -62,7 +62,7 @@ It also runs the cleanup sweep (void any hold that is still open on a finished e
 
 If settling raises an error, catch it, log it (no secrets) and still serve the page, so one PayPal problem can't take down every page.
 
-Requests for `/static/` files (D41) and for `/health` (D46) don't settle.
+Requests for `/static/` files (D41), for `/health` (D46) and for `/favicon.ico` (D72) don't settle.
 
 **Known limit (be honest about it):** if nobody visits the app after a deadline, nothing settles until someone does. PayPal's honor period for a hold is 3 days, so an event left unvisited for more than about 3 days after its deadline may fail to capture. For the demo this never matters (we view the board). For real use, an optional free external pinger requesting a page every 10 minutes would fix it. It must hit a page, not `/health`, because `/health` doesn't settle (D46). That idea is `unverified`: check Render's monthly free hours and the pinger's terms first.
 
@@ -151,7 +151,7 @@ The full list of PayPal responses and what we do lives in one place: `PAYPAL_INT
 
 | | Local | Production (demo) |
 |---|---|---|
-| App | `flask run` | Render free web service, `gunicorn app:app` |
+| App | `flask run` | Render free web service. Start command: `gunicorn app:app --timeout 120` (D71; set on Render Nov 2, reported by Emmanuel) |
 | Python | 3.14.7 (`.venv`) | 3.14.7, from `.python-version` (D52) |
 | Database | Neon `dev` branch | Neon `main` branch |
 | Tests | Neon `test` branch (`TEST_DATABASE_URL`) + fake PayPal | n/a |

@@ -23,6 +23,20 @@ From the project plan (section 10), with the agreed corrections. Samuel edits th
 | 1:50–2:15 | **The money** | Shares lock and each person is charged once. "PayPal closes the rest of each hold." The board shows the club's **real net from PayPal's numbers**. Quick cut: a refused charge (labeled "simulated") marks the event "needs attention" and the treasurer chooses what happens. Quick cut: a missed goal, where every hold is cancelled and nobody pays. | B5, E5, F4 |
 | 2:15–2:30 | **Close** | Three seconds of passing tests. "Everything shown runs in PayPal's sandbox. Untested parts are labeled in the README." Repo link. | — |
 
+## What the judges will see (check the video against this list)
+
+1. The sandbox banner on every screen.
+2. The treasurer creates "Ridgeline Hiking Club cabin" ($300, demo mode) and copies the pledge link. S2's own address is never shown (it holds the `admin_token`, D59).
+3. A friend types "down if Jay goes, max 40"; the AI fills in max $40 and the condition "Jay"; the friend confirms.
+4. The card goes into PayPal's card fields, then "Held".
+5. A decline test card shows "Card declined".
+6. The board: the goal line (the goal that covers fees), progress bar, held total, "Waiting on Jay".
+7. Jay pledges "in if Ana is"; both rows turn "Counted" together and the goal is reached.
+8. The last-call banner with a 3-minute countdown; a late joiner pledges and every estimated share drops.
+9. Last call ends, "Charging…", then the club's real net from PayPal and "Charged $x" per person.
+10. A missed-goal event: every hold cancelled, nobody paid.
+11. Only if E3, F7 and the D31 manual checks pass by Nov 8: the "can't leave during last call" message, a simulated refused charge with the refund-all confirm, quick-amount buttons, the Share button. Anything that doesn't pass is cut, not faked.
+
 ## Lines we never say
 
 - "Sent to the cabin" or "pays the venue" (Payouts is cut).
