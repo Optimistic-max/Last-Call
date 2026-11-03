@@ -108,6 +108,11 @@ Typing a pledge sends that text to a third-party AI service. The pledge page mus
 
 **Honesty rule:** if the prompt changes after the first scored run, report **both** scores (before and after).
 
-## 8. Model choice (decided: D15, Oct 27)
+## 8. Model choice (D15, Oct 27; provider made a setting by D75, Nov 2)
 
-Groq, `openai/gpt-oss-20b`, with strict `json_schema` output. The privacy note in §6 names Groq. Free-plan limits are still `unverified` until someone reads them in the Groq console. Details, sources and the backup model are in `docs/DECISIONS.md` D15.
+The model is called through the AI provider set in `AI_BASE_URL` (Azure OpenAI or Groq), with the key in `AI_API_KEY` and the model in `AI_MODEL`, all from the environment (D75). With no `AI_BASE_URL`, `config.py` uses Groq's address. Malama may move to Azure OpenAI (Azure for Students credit) only if a real test call works by the end of Tue Nov 3; otherwise it stays Groq, which is always the fallback. Output is strict `json_schema` either way.
+
+- **Groq (D15):** `openai/gpt-oss-20b`. Free-plan limits are still `unverified` until someone reads them in the Groq console. Details, sources and the old backup model are in `docs/DECISIONS.md` D15.
+- **Azure OpenAI (D75):** the deployment, its strict `json_schema` support, its rate limits, its data terms and which header carries the key are all `unverified` until Malama's test call (`docs/TEAM.md`).
+
+The privacy note in §6 names the AI provider set in `AI_BASE_URL` (Azure OpenAI or Groq): whichever one is really used.
