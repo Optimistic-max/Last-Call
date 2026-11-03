@@ -67,6 +67,7 @@ CANCELLING_TEXT = "Cancelling holds…"                                         
 EXPIRED_TEXT = "Goal not reached. Every hold was cancelled. Nobody paid."
 GOAL_TEXT = "Goal %s so the club gets a full %s after fees"
 CHARGED_WORD = "Charged %s"
+WAITING_ON_TEXT = "Waiting on %s"    # D79, a placeholder (D57)
 BOARD_STATUS_WORDS = {"PENDING_PAY": "Pledged", "HELD": "Held", "DECLINED": "Declined",
                       "FAILED": "Charge failed"}
 
@@ -528,15 +529,31 @@ def board_for_event(facts, now):
 
 # One text row per pledge, in the order board_facts gives them. estimated_share_text is "" except
 # during LAST_CALL, when it shows what this person would pay if last call ended now.
+# D79: counted is true for a held pledge the circle rule counts, and for one already charged or failed at
+# lock (they were counted). waiting_on_text is "Waiting on Jay" for a held pledge that isn't counted yet,
+# and "" for everyone else. The ids stay in facts and never reach the board.
 def board_row_texts(facts):
     rows = []
     for row in facts["rows"]:
         estimated_share_text = ""
         if row["id"] in facts["estimated_shares"]:
             estimated_share_text = dollars(facts["estimated_shares"][row["id"]])
+        counted = row["id"] in facts["counted_ids"] or row["status"] in ("CHARGED", "FAILED")
         rows.append({"name": row["name"], "status": row["status"], "status_word": status_word(row),
-                     "max_text": dollars(row["max_cents"]), "estimated_share_text": estimated_share_text})
+                     "max_text": dollars(row["max_cents"]), "estimated_share_text": estimated_share_text,
+                     "counted": counted,
+                     "waiting_on_text": waiting_on_text(facts["waiting_on"].get(row["id"], []))})
     return rows
+
+
+# "Waiting on Jay", "Waiting on Jay and Maya", "Waiting on Jay, Maya and Kim"; "" when there is nobody.
+# A placeholder wording until Samuel approves it (D57).
+def waiting_on_text(names):
+    if len(names) == 0:
+        return ""
+    if len(names) == 1:
+        return WAITING_ON_TEXT % names[0]
+    return WAITING_ON_TEXT % (", ".join(names[:-1]) + " and " + names[-1])
 
 
 # The word for one row. A CHARGED row shows the share it paid, saved at lock.

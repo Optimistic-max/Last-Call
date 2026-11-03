@@ -1898,3 +1898,89 @@ def test_a_saved_conditions_are_counted_at_lock(test_db):
         assert calls_for("capture_authorization", [dee_auth]) == []
     finally:
         delete_event(test_db, event_id)
+
+
+# ---------- D79: "Waiting on Jay" (the board's waiting_on facts) ----------
+
+# The names each uncounted held pledge waits on, as board_facts gives them: {pledge id: [names]}.
+def waiting_on(conn, event_id):
+    return lifecycle.board_facts(conn, event_id)["waiting_on"]
+
+
+# Ana is held "only if Jay's in", and Jay hasn't pledged: she waits on Jay and isn't counted. Bo has no
+# condition, so he's counted and waits on nobody. Once Jay holds, Ana is counted and the wait is over.
+def test_d79_a_held_pledge_waits_on_a_name_nobody_holds_for(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        ana_id = add_held_pledge(test_db, event_id, "Ana", 1000, ["Jay"])
+        bo_id = add_held_pledge(test_db, event_id, "Bo", 1000)
+        facts = lifecycle.board_facts(test_db, event_id)
+        assert facts["waiting_on"] == {ana_id: ["Jay"]}
+        assert facts["counted_ids"] == [bo_id]
+
+        jay_id = add_held_pledge(test_db, event_id, "Jay", 1000)
+        facts = lifecycle.board_facts(test_db, event_id)
+        assert facts["waiting_on"] == {}
+        assert facts["counted_ids"] == [ana_id, bo_id, jay_id]
+    finally:
+        delete_event(test_db, event_id)
+
+
+# Ana waits on Bo and Bo on Cy, who hasn't held. Both are waiting on Cy: Bo is already held, so the
+# name to show is the one nobody holds for. (Showing "Bo" for Ana would send people to the wrong friend.)
+def test_d79_a_chain_names_the_end_nobody_holds_for(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        ana_id = add_held_pledge(test_db, event_id, "Ana", 1000, ["Bo"])
+        bo_id = add_held_pledge(test_db, event_id, "Bo", 1000, ["Cy"])
+        assert waiting_on(test_db, event_id) == {ana_id: ["Cy"], bo_id: ["Cy"]}
+    finally:
+        delete_event(test_db, event_id)
+
+
+# Every name that nobody holds for is listed, in the order the conditions were saved: Jay and Maya never
+# pledged, and Kim confirmed but hasn't placed a hold, so Kim isn't held yet either.
+def test_d79_every_name_not_yet_held_is_listed_including_an_unpaid_one(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        confirm(test_db, event_id, "Kim", 1000)
+        ana_id = add_held_pledge(test_db, event_id, "Ana", 1000, ["Jay", "Maya", "Kim"])
+        assert waiting_on(test_db, event_id) == {ana_id: ["Jay", "Maya", "Kim"]}
+    finally:
+        delete_event(test_db, event_id)
+
+
+# A name that is already counted is not waited on: Ana needs Bo (counted) and Cy (nobody), so only Cy.
+def test_d79_a_counted_name_is_not_waited_on(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        ana_id = add_held_pledge(test_db, event_id, "Ana", 1000, ["Bo", "Cy"])
+        add_held_pledge(test_db, event_id, "Bo", 1000)
+        assert waiting_on(test_db, event_id) == {ana_id: ["Cy"]}
+    finally:
+        delete_event(test_db, event_id)
+
+
+# A circle with one missing end doesn't loop forever: Ana needs Bo, Bo needs Ana and Zed. Zed is the name
+# nobody holds for, so both wait on Zed.
+def test_d79_a_circle_with_a_missing_end_stops_and_names_it(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        ana_id = add_held_pledge(test_db, event_id, "Ana", 1000, ["Bo"])
+        bo_id = add_held_pledge(test_db, event_id, "Bo", 1000, ["Ana", "Zed"])
+        assert waiting_on(test_db, event_id) == {ana_id: ["Zed"], bo_id: ["Zed"]}
+    finally:
+        delete_event(test_db, event_id)
+
+
+# Only while pledging can still change who counts. When the event has ended, a held pledge that isn't
+# counted is only waiting for the cleanup sweep, so there is nothing to wait on.
+def test_d79_nobody_waits_once_pledging_has_ended(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        add_held_pledge(test_db, event_id, "Ana", 1000, ["Jay"])
+        assert len(waiting_on(test_db, event_id)) == 1
+        set_event_status(test_db, event_id, "EXPIRED")
+        assert waiting_on(test_db, event_id) == {}
+    finally:
+        delete_event(test_db, event_id)

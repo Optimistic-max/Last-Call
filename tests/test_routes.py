@@ -21,8 +21,8 @@ import lifecycle
 import paypal_client
 from tests import fake_paypal
 from tests.test_ai_parser import groq_response
-from tests.test_lifecycle import (NOW, confirm, delete_event, make_open_event, pledge_and_authorize,
-                                  set_event_status)
+from tests.test_lifecycle import (NOW, add_held_pledge, confirm, delete_event, make_open_event,
+                                  pledge_and_authorize, set_event_status)
 
 # The moments app.settle_on_wake was asked to settle, in the current test.
 settle_requests = []
@@ -368,7 +368,7 @@ def test_s2_shows_the_open_button_only_for_a_draft(monkeypatch, test_db, test_db
 # The exact keys of docs/UI_DESIGN.md section 10. A key may be added there later, never renamed.
 BOARD_KEYS = {"event_id", "title", "status", "banner_text", "seconds_left", "goal_text", "held_total_text",
               "progress_percent", "pledging_open", "rows"}
-ROW_KEYS = {"name", "status", "status_word", "max_text", "estimated_share_text"}
+ROW_KEYS = {"name", "status", "status_word", "max_text", "estimated_share_text", "counted", "waiting_on_text"}
 
 
 # Hand-made board facts for the text tests below, so they need no database.
@@ -377,7 +377,8 @@ def facts_for(status, any_hold_created=False, club_net_cents=None):
              "hard_deadline": NOW + timedelta(minutes=9, seconds=30),
              "last_call_ends": NOW + timedelta(minutes=4, seconds=59)}
     return {"event": event, "rows": [], "held_total_cents": 0, "goal_cents": 31001, "progress_percent": 0,
-            "estimated_shares": {}, "any_hold_created": any_hold_created, "club_net_cents": club_net_cents}
+            "estimated_shares": {}, "any_hold_created": any_hold_created, "club_net_cents": club_net_cents,
+            "counted_ids": [], "waiting_on": {}}
 
 
 # Every key of a JSON object, at any depth, so a test can look for a forbidden name anywhere.
@@ -445,8 +446,10 @@ def test_board_json_keys_match_the_contract(monkeypatch, test_db, test_db_url):
         for row in board["rows"]:
             assert set(row.keys()) == ROW_KEYS
         assert board["rows"][0] == {"name": "Ana", "status": "HELD", "status_word": "Held",
-                                    "max_text": "$40.00", "estimated_share_text": ""}
+                                    "max_text": "$40.00", "estimated_share_text": "", "counted": True,
+                                    "waiting_on_text": ""}
         assert board["rows"][1]["status_word"] == "Pledged"
+        assert board["rows"][1]["counted"] is False
         assert board["held_total_text"] == "$40.00"
         assert board["seconds_left"] == 600
         assert board["banner_text"] == "Pledging open: 10 min left"
@@ -759,5 +762,51 @@ def test_confirm_route_limit_messages(monkeypatch, test_db, test_db_url):
         assert min_above_max.get_json() == {"message": "Your amount can't be more than your max."}
         row = db.fetch_one(test_db, "SELECT count(*) AS total FROM pledges WHERE event_id = %s", (event_id,))
         assert row["total"] == 0
+    finally:
+        delete_event(test_db, event_id)
+
+
+# ---------- "Waiting on Jay" on the board (D79) ----------
+
+# The wording for one, two and three names, and nothing for nobody. A placeholder until Samuel approves it.
+def test_waiting_on_text_for_one_two_and_three_names():
+    assert app.waiting_on_text([]) == ""
+    assert app.waiting_on_text(["Jay"]) == "Waiting on Jay"
+    assert app.waiting_on_text(["Jay", "Maya"]) == "Waiting on Jay and Maya"
+    assert app.waiting_on_text(["Jay", "Maya", "Kim"]) == "Waiting on Jay, Maya and Kim"
+
+
+# board.json and the S3 page: Ana is held "only if Jay's in" so her row says "Waiting on Jay" and is not
+# counted; Bo is counted and waits on nobody. When Jay holds, Ana's wait is gone and she is counted.
+def test_board_shows_who_a_pledge_is_waiting_on(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    event_id = make_open_event(test_db)
+    client = app.app.test_client()
+    try:
+        add_held_pledge(test_db, event_id, "Ana", 4000, ["Jay"])
+        add_held_pledge(test_db, event_id, "Bo", 4000)
+        rows = client.get("/e/%d/board.json" % event_id).get_json()["rows"]
+        assert (rows[0]["name"], rows[0]["counted"], rows[0]["waiting_on_text"]) == ("Ana", False, "Waiting on Jay")
+        assert (rows[1]["name"], rows[1]["counted"], rows[1]["waiting_on_text"]) == ("Bo", True, "")
+        assert "Waiting on Jay" in client.get("/e/%d" % event_id).get_data(as_text=True)
+
+        add_held_pledge(test_db, event_id, "Jay", 4000)
+        rows = client.get("/e/%d/board.json" % event_id).get_json()["rows"]
+        assert [row["counted"] for row in rows] == [True, True, True]
+        assert [row["waiting_on_text"] for row in rows] == ["", "", ""]
+        assert "Waiting on" not in client.get("/e/%d" % event_id).get_data(as_text=True)
+    finally:
+        delete_event(test_db, event_id)
+
+
+# A condition name is typed by a friend, so the page must escape it (Jinja does, by default).
+def test_board_escapes_a_waiting_on_name(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    event_id = make_open_event(test_db)
+    try:
+        add_held_pledge(test_db, event_id, "Ana", 4000, ["<i>Jay</i>"])
+        page = app.app.test_client().get("/e/%d" % event_id).get_data(as_text=True)
+        assert "Waiting on &lt;i&gt;Jay&lt;/i&gt;" in page
+        assert "<i>Jay</i>" not in page
     finally:
         delete_event(test_db, event_id)

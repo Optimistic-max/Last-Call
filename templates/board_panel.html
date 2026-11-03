@@ -3,7 +3,8 @@
    amount and time in it is finished text: this file never formats or adds up money (rule 2).
    board never holds a token or an email. No JavaScript here: the 10-second refresh is Samuel's
    board.js, which can read /e/<id>/board.json and tick seconds_left down.
-   "Held so far", "max", "share now" and "Pledge" are placeholder labels until Samuel approves them (D57). #}
+   "Held so far", "max", "share now", "Pledge" and "Waiting on [name]" are placeholder labels until Samuel
+   approves them (D57). row.counted is for Samuel's styling (the circle turns green together). #}
 <section class="board" data-event-id="{{ board.event_id }}" data-status="{{ board.status }}">
   <p class="board-banner" role="status">{{ board.banner_text }}</p>
   <p>{{ board.goal_text }}</p>
@@ -13,7 +14,8 @@
   <ul class="board-rows">
     {% for row in board.rows %}
     <li data-status="{{ row.status }}">{{ row.name }}: {{ row.status_word }}, max {{ row.max_text }}
-      {%- if row.estimated_share_text %}, share now {{ row.estimated_share_text }}{% endif %}</li>
+      {%- if row.estimated_share_text %}, share now {{ row.estimated_share_text }}{% endif %}
+      {%- if row.waiting_on_text %}, {{ row.waiting_on_text }}{% endif %}</li>
     {% endfor %}
   </ul>
 

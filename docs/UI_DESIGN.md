@@ -201,6 +201,8 @@ Both get the same `board` object, and `board.json` is exactly this object, so th
 | `rows[].status_word` | text: `"Pledged"`, `"Held"`, `"Declined"`, `"Charged $28.33"`, or `"Charge failed"` *(placeholder)* | `"Held"` |
 | `rows[].max_text` | text | `"$40.00"` |
 | `rows[].estimated_share_text` | text: during `LAST_CALL`, what this person would pay if last call ended now (from `money.py`, the same numbers the lock charges), so a late joiner visibly lowers everyone's number; `""` at every other time. Added Nov 2 (D76), Samuel to approve | `"$8.21"` |
+| `rows[].counted` | true or false: true for a held pledge the circle rule counts, and for a pledge already `CHARGED` or `FAILED` at lock; false for Pledged, Declined and held pledges that are still waiting. For styling ("the circle turns green together"). Added Nov 3 (D79), Samuel to approve | `true` |
+| `rows[].waiting_on_text` | text: `"Waiting on Jay"`, `"Waiting on Jay and Maya"` or `"Waiting on Jay, Maya and Kim"` *(placeholder)* for a held pledge that isn't counted yet, naming the people nobody has a hold for (it follows the chain: if Ana waits on Bo and Bo waits on Cy, both say Cy); `""` for everyone else and whenever the event is no longer OPEN or LAST_CALL. Added Nov 3 (D79), Samuel to approve | `"Waiting on Jay"` |
 
 | Event `status` | `banner_text` |
 |---|---|

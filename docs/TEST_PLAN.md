@@ -63,6 +63,7 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 | D5 | Two conditions on one pledge, both needed | VERIFIED (Oct 27) **Through `lifecycle.py` (D70): VERIFIED (Nov 3, Neon test branch, `tests/test_lifecycle.py`).** |
 | D6 | Names match ignoring case and extra spaces | VERIFIED (Oct 27) **Through `lifecycle.py` (D70): VERIFIED (Nov 3, Neon test branch, `tests/test_lifecycle.py`).** |
 | D7 | Adding a pledger never un-counts anyone (invariant 1) | VERIFIED for `conditions.py` (Oct 27: 2,000 random groups, seed 7, plus a hand example; an "only if X is not in" rule fails it). Through `lifecycle.py` (D70): VERIFIED (Nov 3, 5 random groups of 4, seed 7, loaded from the Neon test branch: nobody counted before is dropped when someone joins, and the counted names equal `conditions.counted_pledges`). In the running app with real PayPal: NOT RUN |
+| D8 | **The board names who a held pledge is waiting on** (D79, `tests/test_lifecycle.py` and `tests/test_routes.py`): "Waiting on Jay" for a name nobody holds for, an unpaid name counts as not held, a chain names its far end, a counted name is not waited on, a circle with a missing end stops, nobody waits once pledging has ended, the wait disappears when the name holds, a typed name is escaped on the page | VERIFIED (Nov 3, Neon test branch). Mutation check: naming the direct condition instead of following the chain fails the chain and circle tests. In a browser with real PayPal: NOT RUN |
 
 ## E. Timing and lifecycle (`tests/test_lifecycle.py`, Emmanuel, fake PayPal)
 

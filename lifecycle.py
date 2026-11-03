@@ -766,11 +766,14 @@ def board_facts(conn, event_id):
     event = find_event(conn, event_id)
     if event is None:
         return None
-    counted = counted_held_pledges(conn, event_id)
+    held = held_pledges(conn, event_id)
+    counted = counted_among(conn, held)
     goal_cents = board_goal_cents(event, counted)
     return {
         "event": event,
         "rows": board_rows(conn, event_id),
+        "counted_ids": pledge_ids(counted),
+        "waiting_on": board_waiting_on(conn, event, held, counted),
         "held_total_cents": held_total_cents(conn, event_id),
         "goal_cents": goal_cents,
         "progress_percent": board_progress_percent(event, counted),
@@ -778,6 +781,58 @@ def board_facts(conn, event_id):
         "any_hold_created": has_created_hold(conn, event_id),
         "club_net_cents": money.club_net_cents(charge_net_cents(conn, event_id)),
     }
+
+
+# The id of each pledge in a list, in the same order.
+def pledge_ids(pledges):
+    ids = []
+    for pledge in pledges:
+        ids.append(pledge["id"])
+    return ids
+
+
+# D79: for each HELD pledge that is not counted, the names it is waiting on, keyed by pledge id, for the
+# "Waiting on Jay" text. Only while pledging can still change who counts (OPEN or LAST_CALL): after that
+# a held pledge that isn't counted is only waiting for the cleanup sweep, so there is nothing to wait on.
+def board_waiting_on(conn, event, held, counted):
+    if event["status"] not in PLEDGING_STATUSES:
+        return {}
+    held_by_key = {}
+    for pledge in held:
+        held_by_key[conditions.name_key(pledge["name"])] = pledge
+    counted_keys = []
+    for pledge in counted:
+        counted_keys.append(conditions.name_key(pledge["name"]))
+    waiting = {}
+    for pledge in held:
+        if conditions.name_key(pledge["name"]) not in counted_keys:
+            waiting[pledge["id"]] = names_not_held_behind(conn, pledge, held_by_key, counted_keys)
+    return waiting
+
+
+# The names that nobody has held for yet, behind one uncounted pledge. Ana waits on Bo, who waits on Cy,
+# who hasn't held: Ana's list is ["Cy"], not ["Bo"], because Bo is already held and the real wait is
+# for Cy. A name is "held" if it is in held_by_key (HELD with a CREATED hold); that covers a name nobody
+# pledged and a name whose pledge is still unpaid. Counted names are skipped (they are satisfied).
+# `seen` stops it going round a circle forever. The first spelling saved is shown, tidied.
+# An uncounted pledge always leads to at least one name nobody holds for, because the circle rule only
+# drops someone for a condition that starts at a missing name.
+def names_not_held_behind(conn, pledge, held_by_key, counted_keys):
+    seen = [conditions.name_key(pledge["name"])]
+    to_visit = [pledge]
+    missing = []
+    while len(to_visit) > 0:
+        current = to_visit.pop(0)
+        for condition_name in pledge_conditions_of(conn, current["id"]):
+            key = conditions.name_key(condition_name)
+            if key in seen or key in counted_keys:
+                continue
+            seen.append(key)
+            if key in held_by_key:
+                to_visit.append(held_by_key[key])
+            else:
+                missing.append(conditions.tidy_name(condition_name))
+    return missing
 
 
 # The board's rows: every pledge except DROPPED ones (D56), in join order. pledger_token is never
