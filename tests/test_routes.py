@@ -8,6 +8,7 @@ from datetime import timedelta
 
 import pytest
 from flask import render_template_string
+from markupsafe import escape
 
 import app
 import config
@@ -15,7 +16,8 @@ import db
 import lifecycle
 import paypal_client
 from tests import fake_paypal
-from tests.test_lifecycle import NOW, delete_event, make_open_event, set_event_status
+from tests.test_lifecycle import (NOW, confirm, delete_event, make_open_event, pledge_and_authorize,
+                                  set_event_status)
 
 # The moments app.settle_on_wake was asked to settle, in the current test.
 settle_requests = []
@@ -354,3 +356,168 @@ def test_s2_shows_the_open_button_only_for_a_draft(monkeypatch, test_db, test_db
             assert "Open pledging" not in client.get(admin_url).get_data(as_text=True)
     finally:
         delete_event(test_db, result["event_id"])
+
+
+# ---------- Step 5b C: the board (S3, board.json, and S2's panel) ----------
+
+# The exact keys of docs/UI_DESIGN.md section 10. A key may be added there later, never renamed.
+BOARD_KEYS = {"event_id", "title", "status", "banner_text", "seconds_left", "goal_text", "held_total_text",
+              "progress_percent", "pledging_open", "rows"}
+ROW_KEYS = {"name", "status", "status_word", "max_text", "estimated_share_text"}
+
+
+# Hand-made board facts for the text tests below, so they need no database.
+def facts_for(status, any_hold_created=False, club_net_cents=None):
+    event = {"id": 7, "title": "Cabin (made up)", "status": status, "deposit_cents": 30000,
+             "hard_deadline": NOW + timedelta(minutes=9, seconds=30),
+             "last_call_ends": NOW + timedelta(minutes=4, seconds=59)}
+    return {"event": event, "rows": [], "held_total_cents": 0, "goal_cents": 31001, "progress_percent": 0,
+            "estimated_shares": {}, "any_hold_created": any_hold_created, "club_net_cents": club_net_cents}
+
+
+# Every key of a JSON object, at any depth, so a test can look for a forbidden name anywhere.
+def all_keys(value):
+    keys = []
+    if isinstance(value, dict):
+        for key in value:
+            keys.append(key)
+            keys.extend(all_keys(value[key]))
+    if isinstance(value, list):
+        for item in value:
+            keys.extend(all_keys(item))
+    return keys
+
+
+# The banner for every status (UI_DESIGN.md section 10), including D45's "Cancelling holds…" and the
+# SETTLED fallback when a net is missing.
+def test_board_banner_for_every_status():
+    def banner(facts):
+        return app.banner_text(facts, app.seconds_left(facts["event"], NOW))
+
+    assert banner(facts_for("DRAFT")) == "This event isn't open yet."
+    assert banner(facts_for("OPEN")) == "Pledging open: 9 min left"
+    assert banner(facts_for("LAST_CALL")) == ("Last call! Goal reached. Join in the next 4:59 "
+                                              "and everyone's share drops.")
+    assert banner(facts_for("LOCKING")) == "Locking shares…"
+    assert banner(facts_for("CHARGING")) == "Locking shares…"
+    assert banner(facts_for("SETTLED", club_net_cents=131400)) == "Done! Club receives $1,314.00"
+    assert banner(facts_for("SETTLED", club_net_cents=None)) == "Charged once. PayPal closes the rest of each hold."
+    assert banner(facts_for("NEEDS_ATTENTION")) == "Needs the treasurer's attention"
+    assert banner(facts_for("EXPIRED", any_hold_created=True)) == "Cancelling holds…"
+    assert banner(facts_for("EXPIRED", any_hold_created=False)) == ("Goal not reached. Every hold was "
+                                                                    "cancelled. Nobody paid.")
+
+
+# D57's placeholder time formats, and seconds_left: whole seconds while OPEN or LAST_CALL, never below
+# 0, 0 when the time is missing, and None (null in JSON) for every other status.
+def test_board_times():
+    assert app.time_left_text(3900) == "1 h 5 min"
+    assert app.time_left_text(599) == "9 min"
+    assert app.time_left_text(59) == "less than a minute"
+    assert app.countdown_text(299) == "4:59"
+    assert app.countdown_text(3723) == "1:02:03"
+    assert app.seconds_left(facts_for("OPEN")["event"], NOW) == 570
+    assert app.seconds_left(facts_for("LAST_CALL")["event"], NOW) == 299
+    assert app.seconds_left(facts_for("OPEN")["event"], NOW + timedelta(hours=1)) == 0
+    assert app.seconds_left({"status": "LAST_CALL", "last_call_ends": None}, NOW) == 0
+    for status in ["DRAFT", "LOCKING", "CHARGING", "SETTLED", "NEEDS_ATTENTION", "EXPIRED"]:
+        assert app.seconds_left(facts_for(status)["event"], NOW) is None
+
+
+# board.json has exactly the section 10 keys, and so does each row. Money and times are finished text.
+def test_board_json_keys_match_the_contract(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    fake_paypal.reset()
+    event_id = make_open_event(test_db)
+    try:
+        pledge_and_authorize(test_db, event_id, "Ana", 4000)
+        confirm(test_db, event_id, "Bo", 2500)
+        response = app.app.test_client().get("/e/%d/board.json" % event_id)
+        assert response.status_code == 200
+        board = response.get_json()
+        assert set(board.keys()) == BOARD_KEYS
+        assert len(board["rows"]) == 2
+        for row in board["rows"]:
+            assert set(row.keys()) == ROW_KEYS
+        assert board["rows"][0] == {"name": "Ana", "status": "HELD", "status_word": "Held",
+                                    "max_text": "$40.00", "estimated_share_text": ""}
+        assert board["rows"][1]["status_word"] == "Pledged"
+        assert board["held_total_text"] == "$40.00"
+        assert board["seconds_left"] == 600
+        assert board["banner_text"] == "Pledging open: 10 min left"
+        assert board["pledging_open"] is True
+    finally:
+        delete_event(test_db, event_id)
+
+
+# No token and no email ever reach the board: not the admin_token, not any pledger_token, and no key
+# with "token" or "email" in its name, in board.json or on S3. S2 shows the board without pledger tokens.
+def test_board_never_shows_a_token_or_email(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    fake_paypal.reset()
+    client = app.app.test_client()
+    result = lifecycle.create_event(test_db, "Cabin (made up)", 30000, True)
+    event_id = result["event_id"]
+    try:
+        assert client.post("/admin/" + result["admin_token"] + "/open").status_code == 303
+        tokens = [pledge_and_authorize(test_db, event_id, "Ana", 4000)[0], confirm(test_db, event_id, "Bo", 2500)]
+        response = client.get("/e/%d/board.json" % event_id)
+        board_page = client.get("/e/%d" % event_id).get_data(as_text=True)
+        admin_page = client.get("/admin/" + result["admin_token"]).get_data(as_text=True)
+        for text in [response.get_data(as_text=True), board_page]:
+            assert result["admin_token"] not in text
+            for token in tokens:
+                assert token not in text
+        for token in tokens:
+            assert token not in admin_page
+        for key in all_keys(response.get_json()):
+            assert "token" not in key and "email" not in key
+    finally:
+        delete_event(test_db, event_id)
+
+
+# S3 shows the rows and the Pledge link only while pledging is open. S2 shows the same board.
+# An unknown event is a 404 on both board routes.
+def test_board_page_and_s2_panel(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    fake_paypal.reset()
+    client = app.app.test_client()
+    result = lifecycle.create_event(test_db, "Cabin (made up)", 30000, True)
+    event_id = result["event_id"]
+    admin_url = "/admin/" + result["admin_token"]
+    pledge_link = 'href="/e/%d/pledge"' % event_id
+    try:
+        # The page escapes the apostrophe in "isn't" (Jinja's autoescape), so compare with escaped text.
+        assert str(escape("This event isn't open yet.")) in client.get(admin_url).get_data(as_text=True)
+        assert client.post(admin_url + "/open").status_code == 303
+        pledge_and_authorize(test_db, event_id, "Ana", 4000)
+        page = client.get("/e/%d" % event_id)
+        assert page.status_code == 200
+        text = page.get_data(as_text=True)
+        assert "Ana: Held, max $40.00" in text
+        assert "Pledging open: 10 min left" in text
+        assert pledge_link in text
+        assert "Ana: Held, max $40.00" in client.get(admin_url).get_data(as_text=True)
+        set_event_status(test_db, event_id, "EXPIRED")
+        assert pledge_link not in client.get("/e/%d" % event_id).get_data(as_text=True)
+        assert client.get("/e/999999999").status_code == 404
+        unknown = client.get("/e/999999999/board.json")
+        assert unknown.status_code == 404
+        assert unknown.get_json() == {"message": app.ERROR_TEXT}
+    finally:
+        delete_event(test_db, event_id)
+
+
+# With the database down, board.json answers 503 with the error message and S3 a 503 page. Both routes
+# still asked settle-on-wake to run first, once per request.
+def test_board_when_the_database_is_down(monkeypatch):
+    def no_database(url):
+        raise RuntimeError("no database in this test")
+
+    monkeypatch.setattr(db, "connect", no_database)
+    client = app.app.test_client()
+    response = client.get("/e/7/board.json")
+    assert response.status_code == 503
+    assert response.get_json() == {"message": app.ERROR_TEXT}
+    assert client.get("/e/7").status_code == 503
+    assert len(settle_requests) == 2

@@ -630,3 +630,98 @@ def open_event(conn, admin_token, now):
         return "ALREADY_OPENED"
     logger.info("event %d is open", event["id"])
     return "OPENED"
+
+
+# ---------- Step 5b C: the board ----------
+
+# From LAST_CALL on, the goal has been reached, so the progress bar shows 100 (UI_DESIGN.md section 10)
+# even after the holds have turned into charges and nothing is HELD any more.
+GOAL_REACHED_STATUSES = ("LAST_CALL", "LOCKING", "CHARGING", "SETTLED", "NEEDS_ATTENTION")
+
+
+# Every fact the board needs (S2, S3 and board.json), in cents, or None for an unknown event.
+# It only reads: no PayPal call and no change to the database. app.board_for_event turns it into text.
+# "Counted" is every HELD pledge with a CREATED hold: the same list the lock charges (D37; D70 will
+# change only this list).
+def board_facts(conn, event_id):
+    event = find_event(conn, event_id)
+    if event is None:
+        return None
+    counted = held_pledges(conn, event_id)
+    goal_cents = board_goal_cents(event, counted)
+    return {
+        "event": event,
+        "rows": board_rows(conn, event_id),
+        "held_total_cents": held_total_cents(conn, event_id),
+        "goal_cents": goal_cents,
+        "progress_percent": board_progress_percent(event, counted),
+        "estimated_shares": estimated_shares(event, counted, goal_cents),
+        "any_hold_created": has_created_hold(conn, event_id),
+        "club_net_cents": money.club_net_cents(charge_net_cents(conn, event_id)),
+    }
+
+
+# The board's rows: every pledge except DROPPED ones (D56), in join order. pledger_token is never
+# selected, so it can't reach the board by mistake.
+def board_rows(conn, event_id):
+    return db.fetch_all(conn, "SELECT id, name, status, max_cents, share_cents FROM pledges "
+                              "WHERE event_id = %s AND status <> 'DROPPED' ORDER BY created_at, id",
+                        (event_id,))
+
+
+# The held total: one SQL SUM of the HELD pledges' maxes (D43). SUM over no rows gives NULL, so
+# COALESCE turns that into 0.
+def held_total_cents(conn, event_id):
+    row = db.fetch_one(conn, "SELECT COALESCE(SUM(max_cents), 0) AS total FROM pledges "
+                             "WHERE event_id = %s AND status = 'HELD'", (event_id,))
+    return row["total"]
+
+
+# The goal to show: the one the lock saved, once it has saved one. Before that, the fee-adjusted goal
+# for the people counted right now, so it rises a little with each person (PayPal's fixed fee per charge).
+def board_goal_cents(event, counted):
+    if event["goal_cents"] is not None:
+        return event["goal_cents"]
+    return money.fee_adjusted_goal_cents(event["deposit_cents"], len(counted))
+
+
+# 100 from LAST_CALL on; before that, Malama's progress_percent over the counted maxes (D54).
+def board_progress_percent(event, counted):
+    if event["status"] in GOAL_REACHED_STATUSES:
+        return 100
+    return money.progress_percent(event["deposit_cents"], max_list(counted))
+
+
+# During LAST_CALL only: what each counted pledge would pay if last call ended now, keyed by pledge id.
+# These are the same money.py calls save_shares makes at lock, so a late joiner visibly lowers everyone's
+# number. Outside LAST_CALL there are no estimates.
+def estimated_shares(event, counted, goal_cents):
+    if event["status"] != "LAST_CALL":
+        return {}
+    shares = money.compute_shares_cents(goal_cents, max_list(counted))
+    shares_by_pledge = {}
+    for position in range(len(counted)):
+        shares_by_pledge[counted[position]["id"]] = shares[position]
+    return shares_by_pledge
+
+
+# True while any hold of the event is still CREATED. The missed-goal banner must not say "Every hold was
+# cancelled" until this is False (D45).
+def has_created_hold(conn, event_id):
+    row = db.fetch_one(conn, "SELECT COUNT(*) AS created FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
+                             "WHERE pledges.event_id = %s AND holds.status = 'CREATED'", (event_id,))
+    return row["created"] > 0
+
+
+# PayPal's net for each completed charge of the event (None where it wasn't saved), for
+# money.club_net_cents. An event with no charges gives an empty list.
+def charge_net_cents(conn, event_id):
+    rows = db.fetch_all(conn, "SELECT captures.net_cents FROM captures "
+                              "JOIN holds ON holds.id = captures.hold_id "
+                              "JOIN pledges ON pledges.id = holds.pledge_id "
+                              "WHERE pledges.event_id = %s AND captures.status = 'COMPLETED' ORDER BY captures.id",
+                        (event_id,))
+    nets = []
+    for row in rows:
+        nets.append(row["net_cents"])
+    return nets
