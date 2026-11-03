@@ -312,12 +312,13 @@ def void_hold(conn, hold_id, paypal):
 # ---------- Step 2.5: goal check, settle-on-wake, lock and charge, expire ----------
 
 # Every HELD pledge of the event with one CREATED hold each, in join order (created_at, then id), the
-# order money.compute_shares_cents needs (MONEY_RULES.md section 6). In M1 every HELD pledge is
-# counted (D37). Only one hold per pledge is taken, so nobody can be charged twice even if a second
-# hold was left open by mistake. A HELD pledge with no CREATED hold (a hold voided by hand) can't be
-# charged, so it isn't listed: drop_pledges_without_a_hold drops it.
+# order money.compute_shares_cents needs (MONEY_RULES.md section 6). These are the pledges that could be
+# charged; counted_among picks which of them are counted (D70). Only one hold per pledge is taken, so
+# nobody can be charged twice even if a second hold was left open by mistake. A HELD pledge with no
+# CREATED hold (a hold voided by hand) can't be charged, so it isn't listed: drop_pledges_without_a_hold
+# drops it.
 def held_pledges(conn, event_id):
-    pledges = db.fetch_all(conn, "SELECT id, max_cents FROM pledges WHERE event_id = %s AND status = 'HELD' "
+    pledges = db.fetch_all(conn, "SELECT id, name, max_cents FROM pledges WHERE event_id = %s AND status = 'HELD' "
                                  "ORDER BY created_at, id", (event_id,))
     chargeable = []
     for pledge in pledges:
@@ -328,6 +329,42 @@ def held_pledges(conn, event_id):
             pledge["auth_id"] = hold["auth_id"]
             chargeable.append(pledge)
     return chargeable
+
+
+# The names one pledge's conditions need ("only if Jay's in"), in the order they were saved.
+def pledge_conditions_of(conn, pledge_id):
+    rows = db.fetch_all(conn, "SELECT depends_on_name FROM pledge_conditions WHERE pledge_id = %s ORDER BY id",
+                        (pledge_id,))
+    names = []
+    for row in rows:
+        names.append(row["depends_on_name"])
+    return names
+
+
+# D70: which of these held pledges are counted. Each pledge's conditions are loaded, Malama's circle rule
+# (conditions.counted_pledges, D06) gives the counted names, and those names are matched back to the
+# pledges with name_key. Names are unique per event, ignoring case (the unique index in schema.sql), so
+# each name matches one pledge. Only someone in `held` (HELD, with a CREATED hold: someone who can really
+# be charged) can meet a condition. The result keeps join order, which D13 needs.
+def counted_among(conn, held):
+    circle_input = []
+    for pledge in held:
+        circle_input.append({"name": pledge["name"], "conditions": pledge_conditions_of(conn, pledge["id"])})
+    counted_keys = []
+    for name in conditions.counted_pledges(circle_input):
+        counted_keys.append(conditions.name_key(name))
+    counted = []
+    for pledge in held:
+        if conditions.name_key(pledge["name"]) in counted_keys:
+            counted.append(pledge)
+    return counted
+
+
+# D70: the counted pledges of an event, in join order. The goal check, the lock and the board all use
+# this, so they can never disagree about who counts (C8). It is worked out every time and never stored
+# (D78), so it can never disagree with the holds either.
+def counted_held_pledges(conn, event_id):
+    return counted_among(conn, held_pledges(conn, event_id))
 
 
 # The max of each pledge, in the same order: the list Malama's money.py functions take.
@@ -347,7 +384,7 @@ def check_goal(conn, event_id, now):
     event = find_event(conn, event_id)
     if event is None or event["status"] != "OPEN":
         return False
-    if not money.goal_is_reached(event["deposit_cents"], max_list(held_pledges(conn, event_id))):
+    if not money.goal_is_reached(event["deposit_cents"], max_list(counted_held_pledges(conn, event_id))):
         return False
     last_call_ends = min(now + last_call_window(event), event["hard_deadline"])
     changed = db.run(conn, "UPDATE events SET status = 'LAST_CALL', last_call_ends = %s "
@@ -390,6 +427,8 @@ def settle_due_events(conn, now, paypal):
 # Step 1 is the compare-and-set LAST_CALL -> LOCKING: only the request whose UPDATE changed that 1 row
 # goes on, so two requests can never both charge (test E8). The same UPDATE saves lock_started_at
 # (D36; resuming a lock that died halfway is M2, D27).
+# D70: only the counted pledges are charged. `held` is every pledge that could be charged and `pledges`
+# the counted ones among them; the holds of the others are voided before CHARGING, and they are dropped.
 # Returns what happened: NOT_LOCKED, EXPIRED, SETTLED or NEEDS_ATTENTION.
 def lock_and_charge(conn, event_id, now, paypal):
     won = db.run(conn, "UPDATE events SET status = 'LOCKING', lock_started_at = %s "
@@ -398,10 +437,12 @@ def lock_and_charge(conn, event_id, now, paypal):
     if won == 0:
         return "NOT_LOCKED"
     event = find_event(conn, event_id)
-    pledges = held_pledges(conn, event_id)
+    held = held_pledges(conn, event_id)
+    pledges = counted_among(conn, held)
     if not money.goal_is_reached(event["deposit_cents"], max_list(pledges)):
         return give_up_lock(conn, event_id, paypal)
     shares = save_shares(conn, event, pledges)
+    void_uncounted_holds(conn, held, pledges, paypal)
     drop_pledges_without_a_hold(conn, event_id)
     db.run(conn, "UPDATE events SET status = 'CHARGING' WHERE id = %s AND status = 'LOCKING'", (event_id,))
     failed = 0
@@ -414,6 +455,29 @@ def lock_and_charge(conn, event_id, now, paypal):
     db.run(conn, "UPDATE events SET status = %s WHERE id = %s AND status = 'CHARGING'", (final_status, event_id))
     logger.info("event %d is %s: %d of %d charges failed", event_id, final_status, failed, len(pledges))
     return final_status
+
+
+# D70: at lock, a HELD pledge that isn't counted (its condition never came true) is never charged. Each
+# of its CREATED holds is voided by void_hold, which saves the void's PayPal-Request-Id first and reads
+# the hold back with a GET (rules 3 and 4); drop_pledges_without_a_hold then makes the pledge DROPPED.
+# A void that doesn't read back VOIDED is logged, and its pledge stays HELD with the hold CREATED for
+# M2's cleanup sweep (D45). It still can't be charged, because only `counted` is charged.
+# The log shows pledge and hold IDs only, never a name (docs/SECURITY.md).
+def void_uncounted_holds(conn, held, counted, paypal):
+    counted_ids = []
+    for pledge in counted:
+        counted_ids.append(pledge["id"])
+    for pledge in held:
+        if pledge["id"] in counted_ids:
+            continue
+        logger.info("pledge %d isn't counted at lock (D70), so its hold is voided", pledge["id"])
+        holds = db.fetch_all(conn, "SELECT id FROM holds WHERE pledge_id = %s AND status = 'CREATED' ORDER BY id",
+                             (pledge["id"],))
+        for hold in holds:
+            status = void_hold(conn, hold["id"], paypal)
+            if status != "VOIDED":
+                logger.warning("pledge %d: hold %d did not read back VOIDED (%s); left for the cleanup sweep",
+                               pledge["id"], hold["id"], status)
 
 
 # At lock, the goal is no longer reached. STATE_MACHINE.md's invariants say this can't happen, so it
@@ -641,13 +705,13 @@ GOAL_REACHED_STATUSES = ("LAST_CALL", "LOCKING", "CHARGING", "SETTLED", "NEEDS_A
 
 # Every fact the board needs (S2, S3 and board.json), in cents, or None for an unknown event.
 # It only reads: no PayPal call and no change to the database. app.board_for_event turns it into text.
-# "Counted" is every HELD pledge with a CREATED hold: the same list the lock charges (D37; D70 will
-# change only this list).
+# "Counted" is counted_held_pledges (D70): the same pledges the goal check uses and the lock would
+# charge, so the goal, the progress bar and the estimated shares match what really happens.
 def board_facts(conn, event_id):
     event = find_event(conn, event_id)
     if event is None:
         return None
-    counted = held_pledges(conn, event_id)
+    counted = counted_held_pledges(conn, event_id)
     goal_cents = board_goal_cents(event, counted)
     return {
         "event": event,

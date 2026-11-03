@@ -37,15 +37,15 @@ friend confirms, row created ──────────► PENDING_PAY ─�
 | State | Meaning |
 |---|---|
 | `PENDING_PAY` | The first state. The pledge row is created here, when the friend confirms (D31). Waiting for this person to hold their max. There is no `PARSED` state: the AI's suggestion stays only in the page and is never saved (D62) |
-| `HELD` | PayPal hold in place, but not counted (their condition isn't met yet) |
-| `COUNTED` | Held and counted toward the goal by the circle rule. Can't leave during last call |
+| `HELD` | PayPal hold in place. Whether this pledge is counted is worked out each time by the circle rule and never stored (D70, D78) |
+| `COUNTED` | Not a stored status (D78): a `HELD` pledge that the circle rule counts toward the goal. Can't leave during last call |
 | `DROPPED` | Left before last call, never counted at lock, or still unpaid (`PENDING_PAY`) when the event locked or expired. Hold voided, if there was one. **When an event expires (D45):** a pledge that was `HELD` becomes `DROPPED` once its hold is voided, or at once (no PayPal call) if it has no `CREATED` hold left, for example a hold voided or declined earlier. A pledge whose void failed stays `HELD`, with its hold still `CREATED`, until M2's cleanup sweep voids it |
 | `DECLINED` | Authorization came back `DENIED`. Nothing to void (trying again: D26) |
 | `CHARGED` | Share captured |
 | `FAILED` | Capture failed twice |
 | `REFUNDED` | Refunded because the treasurer chose refund-all |
 
-`HELD` and `COUNTED` are recomputed by the circle rule every time the goal is checked.
+Who is counted is recomputed by the circle rule every time the goal is checked, at lock and on the board, always by `lifecycle.counted_held_pledges` (D70, D78). At lock, a `HELD` pledge that is not counted has its hold voided and becomes `DROPPED`; it is never charged. If that void does not read back `VOIDED`, the pledge stays `HELD` with its hold `CREATED` until M2's cleanup sweep voids it (D45).
 
 ## Hold states (PayPal's own names)
 
