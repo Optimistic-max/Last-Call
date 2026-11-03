@@ -2,7 +2,7 @@
 
 Anything not in the current milestone goes here, not in the code. Nothing on this page may be claimed as built.
 
-## Stretch goals (only if every must-have is done and tested before the Nov 5 freeze, D51)
+## Stretch goals (only if every must-have is done and tested before the Nov 8 freeze, D69)
 
 | Idea | Note |
 |---|---|
@@ -17,7 +17,7 @@ Anything not in the current milestone goes here, not in the code. Nothing on thi
 
 ## Deferred (D31, Oct 26)
 
-Not built before the Nov 5 freeze (D51). Research on each: `unverified`.
+Not built before the Nov 8 freeze (D69). Research on each: `unverified`.
 
 | Idea | Note |
 |---|---|

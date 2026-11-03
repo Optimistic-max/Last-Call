@@ -1,6 +1,6 @@
 # MVP plan
 
-Written **Sunday, Oct 25**. Feature freeze is **Thursday, Nov 5** (moved from Nov 3 on Oct 30, D51; the M1 to M5 dates were re-dated the same day to match where the work really is). Submit by **Tuesday, Nov 10** (official deadline Nov 12, 12:00 PM PT). The app must stay live through **Dec 15** (end of judging).
+Written **Sunday, Oct 25**. Feature freeze is **Sunday, Nov 8** (end of day, ET; moved from Nov 5 on Nov 2, D69, which replaces D51's date; D51 had moved it from Nov 3 on Oct 30). All M2 to M5 features stay in scope (D69). The M2 to M5 dates below were re-dated on Nov 2 to match D69. Submit by **Tuesday, Nov 10** (official deadline Nov 12, 12:00 PM PT). The app must stay live through **Dec 15** (end of judging).
 
 **The MVP is milestone M1:** one event, card holds in a real browser, a live board, and settle-on-wake that charges or cancels correctly, deployed on the real URL. Everything after M1 is added on top, one milestone at a time. **Don't start a milestone until the previous one's "definition of done" is met**, except for the parallel lanes marked below.
 
@@ -21,7 +21,7 @@ Malama's and Samuel's lanes (conditions, ai_parser, screens) run in parallel thr
 | Samuel | `templates/base.html` with the sandbox banner, the fonts and the color tokens. Sketch S3 (board) and S4 (pledge) on paper or in a design tool. |
 | Everyone | Register on the hackathon's Devpost page, then accept the team invite. |
 
-**Git (D22):** Emmanuel pushes directly to `main` only during the docs and planning phase. Once coding starts, everyone works on branches and merges through pull requests; Emmanuel reviews and merges Samuel's and Malama's. Run `pytest` before merging into `main`, because Render deploys `main` to the live URL. Malama reviews any pull request that touches capture or `lock_and_charge`. `main` is never locked (changed Oct 26). After the Nov 5 freeze (D51), only bug fixes, docs (README, Devpost text) and judge test logins merge into `main`.
+**Git (D22):** Emmanuel pushes directly to `main` only during the docs and planning phase. Once coding starts, everyone works on branches and merges through pull requests; Emmanuel reviews and merges Samuel's and Malama's. Run `pytest` before merging into `main`, because Render deploys `main` to the live URL. Malama reviews any pull request that touches capture or `lock_and_charge`. `main` is never locked (changed Oct 26). After the Nov 8 freeze (D69), only bug fixes, docs (README, Devpost text) and judge test logins merge into `main`.
 
 **Done when:** the live Render URL shows the base page with the sandbox banner, `/health` returns ok with the database connected, `pytest` runs (even with zero tests), and `.env` is not in the repo.
 
@@ -45,17 +45,17 @@ Simplification for M1 only: there is **no last call yet**. At the hard deadline,
 - [ ] C1–C8 pass
 - [ ] `docs/TEST_PLAN.md` statuses updated for everything that ran
 
-## M2: Last call, leaving and failures (Sun Nov 1 – Mon Nov 2)
+## M2: Last call, leaving and failures (Mon Nov 2 – Sun Nov 8)
 
 | Who | Task |
 |---|---|
-| Emmanuel | First step: write tests E11 and F14 (agreed Oct 30). `LAST_CALL` state with `last_call_ends = min(now + 1h, hard_deadline)`. `pledging_is_open` must compare `LAST_CALL` events against `last_call_ends`, not `hard_deadline`. Leave rules. Cleanup sweep. Capture retry → `NEEDS_ATTENTION`. D27 resume: finish a lock stuck in `LOCKING` or `CHARGING` longer than `STUCK_LOCK_AFTER` (D50). Refund-all action. Finding a lost capture (F5/F6) and the new pay link (F8) moved to `docs/LATER.md` (D49). |
+| Emmanuel | First step: write tests E11 and F14 (agreed Oct 30). `LAST_CALL` state with `last_call_ends = min(now + 1h, hard_deadline)`. `pledging_is_open` must compare `LAST_CALL` events against `last_call_ends`, not `hard_deadline`. Cleanup sweep. D27 resume: finish a lock stuck in `LOCKING` or `CHARGING` longer than `STUCK_LOCK_AFTER` (D50). Last call, the sweep and the D27 resume by **Wed Nov 4**. Capture retry → `NEEDS_ATTENTION` on **Fri Nov 6**. Refund-all action on **Sat Nov 7**: blocked until D28 (a) the event's status after refund-all, (c) whether a `FAILED` pledge's still-`CREATED` hold is voided on refund-all, and (d) what happens if a refund fails are decided, **needed by Thu Nov 5**. Leave rules on **Sun Nov 8**. Finding a lost capture (F5/F6) and the new pay link (F8) moved to `docs/LATER.md` (D49). |
 | Samuel | S6 I'm out page, last call banner + countdown, needs-attention panel, refund-all confirmation. |
 | Malama | Keep building `conditions.py` (parallel lane). `ai_parser.py` may start now, as a parallel lane (D48). |
 
 **Done when:** E1–E6, E11, F2, F4, F7, F11–F14 pass, and a sandbox run on the live URL shows last call → a late joiner → shares drop → lock → charges.
 
-## M3: Conditional pledges and the circle rule (Mon Nov 2 – Tue Nov 3)
+## M3: Conditional pledges and the circle rule (Mon Nov 2 – Wed Nov 4)
 
 | Who | Task |
 |---|---|
@@ -65,7 +65,7 @@ Simplification for M1 only: there is **no last call yet**. At the hard deadline,
 
 **Done when:** D1–D7 and F9 pass, and a sandbox run shows Ana ↔ Jay counted together.
 
-## M4: AI reader and the own-words pledge flow (Mon Nov 2 – Tue Nov 3)
+## M4: AI reader and the own-words pledge flow (Mon Nov 2 – Wed Nov 4; D31 #3, #4 and #6 Fri Nov 6 – Sun Nov 8)
 
 | Who | Task |
 |---|---|
@@ -80,28 +80,23 @@ Simplification for M1 only: there is **no last call yet**. At the hard deadline,
 - [ ] Manual check, D31 #6: a pledge shows Pledged before the card step and Held after it, and the board total changes only at Held. Hold pending shows for a hold whose authorize answer hasn't come back (check with the fake PayPal)
 - [ ] Manual check, D31 #7: the decline test card shows the declined-card text on the friend's own link
 
-## M5: Demo polish → FREEZE (Wed Nov 4 – Thu Nov 5, D51)
+**M2–M4 check-in.** Emmanuel is over capacity through Nov 8 (about 14 h over). Revisit Wed Nov 4, 9 PM ET. **Wed Nov 4, 9 PM ET:** if the conditions wiring and the timed last call are not passing on localhost, stop and talk to the team before building anything else.
 
-Demo mode badge (E9), the three video moments, the slow-load screen, README draft, `CLAIMS.md` synced with `TEST_PLAN.md`, final project name. **Freeze at the end of Nov 5 (D51): after this, no new features and no new APIs.** After the freeze, only bug fixes, docs (README, Devpost text) and judge test logins merge into `main` (D22); `main` is never locked.
+## M5: Demo polish → FREEZE (Thu Nov 5 – end of Sun Nov 8, D69)
 
-## After the freeze (Nov 6–10)
+Demo mode badge (E9), the three video moments, the slow-load screen, README draft, `CLAIMS.md` synced with `TEST_PLAN.md`, final project name. **Freeze at the end of Nov 8 (D69): after this, no new features and no new APIs.** After the freeze, only bug fixes, docs (README, Devpost text) and judge test logins merge into `main` (D22); `main` is never locked.
+
+## After the freeze (Nov 9–10)
 
 Record the video (under 3 minutes, see `docs/DEMO_SCRIPT.md`), write the README, add judge test logins, submit by **Nov 10**. Then check the live link once a week until **Dec 15**.
 
 ---
 
-## If you're behind on Oct 31, cut in this order
+## No automatic cuts
 
-One list, including D31's cut order (D31: its #6 and #7 go before #4).
+No automatic cuts (D69). If the Nov 4 check fails, the owner decides, in writing, what moves.
 
-1. PayPal-button pledgers (already a stretch goal), unless B1 failed and it became the main path.
-2. D31 #6: the three visible states (the board total still counts only held money).
-3. D31 #7: the declined-card text on the friend's own link (S5's "Card declined" stays).
-4. D31 #4: the share button and the Open Graph tags (S2's copy button stays).
-5. AI follow-up questions (keep "please retype").
-6. The polished needs-attention screen (keep a plain message and the refund-all button; the new pay link moved to `docs/LATER.md`, D49).
-
-**Never cut:** hold → charge → void, settle-on-wake, the cleanup sweep, compare-and-set, the D27 resume of a lock that died halfway (D50), the tests, and D31 #5 (D04's 48-hour window inside the 3-day honor period).
+Never cut (D50, D31 #5): hold → charge → void, settle-on-wake, the cleanup sweep, compare-and-set, the D27 resume, the tests.
 
 ## Other dates that land in this window
 
