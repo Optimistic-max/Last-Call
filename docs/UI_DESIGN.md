@@ -211,3 +211,17 @@ Both get the same `board` object, and `board.json` is exactly this object, so th
 | `SETTLED` | "Done! Club receives $[real net]". If PayPal's net is missing for any charge: "Charged once. PayPal closes the rest of each hold." (D54, D57) |
 | `NEEDS_ATTENTION` | "Needs the treasurer's attention" |
 | `EXPIRED` | "Cancelling holds…" while any hold of the event is still CREATED (D45), then "Goal not reached. Every hold was cancelled. Nobody paid." |
+
+### S4 `POST /api/pledges/parse` (M4, D31, D73)
+
+Added by Emmanuel on Nov 3. The pledge page's JavaScript sends `{"event_id": 7, "text": "down if Jay goes, max 40"}` and gets the AI's **suggestion** back. Nothing is saved (D31, D62): the friend fixes it in the boxes and confirms with `POST /api/pledges`.
+
+| Key | Type | Example |
+|---|---|---|
+| `status` | text: `in`, `out` or `unclear` | `"in"` |
+| `max` | plain amount text with no `$` and no commas, ready to put back in the "Your max ($)" box; `null` when there is none | `"40.00"` |
+| `min` | the same, for "in for $20" (D12); `null` when there is none | `null` |
+| `conditions` | a list of names that must also be in (can be empty) | `["Jay"]` |
+| `follow_up_question` | text to show when `status` is `unclear`, otherwise `null`. If the AI fails or times out it is "Couldn't read that. Please retype it, or fill in the amount, cap and condition yourself.", and every box stays editable | `null` |
+
+Refusals come back as `{"message": "..."}`, like the other routes: `"Type your pledge."` *(placeholder)* for an empty box (400), `"Keep it to 280 characters or fewer."` *(placeholder, D73)* for longer text (400), the S4/S5 closed text (409), and the S5 error text for an unknown event (404) or a database error (503).

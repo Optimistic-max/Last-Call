@@ -2,7 +2,7 @@
 # Malama's M0 task added GET /health (docs/MVP_PLAN.md, M0), so Render can see the app is up and the
 # database answers. Emmanuel's step 2.3 added the startup sandbox guard and the pledge and order routes,
 # step 2.4 the pledge page, step 2.5 settle-on-wake, step 5b creating and opening an event (S1, S2),
-# and step 5b C the board (S3, board.json, and the same board on S2).
+# step 5b C the board (S3, board.json, and the same board on S2), and M4 the AI parse route.
 # Routes read the request, call lifecycle.py, and turn its answer into JSON or a page. They do no money math.
 
 import logging
@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 import psycopg
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
+import ai_parser
 import config
 import db
 import lifecycle
@@ -44,6 +45,9 @@ TOO_BIG_TEXT = "The largest max is %s."
 NO_TITLE_TEXT = "Type a title."
 DEPOSIT_TOO_SMALL_TEXT = "The smallest deposit is %s."
 DEPOSIT_TOO_BIG_TEXT = "The largest deposit is %s."
+# The parse route's refusals (M4). Placeholders until Samuel adds them to UI_DESIGN section 4 (D57).
+NO_PLEDGE_TEXT = "Type your pledge."
+PLEDGE_TOO_LONG_TEXT = "Keep it to %d characters or fewer."
 # The board's texts, copied from docs/UI_DESIGN.md section 10. DRAFT_TEXT and the time formats are
 # D57's placeholders, and the "Charge failed" word is in BOARD_STATUS_WORDS below.
 DRAFT_TEXT = "This event isn't open yet."
@@ -97,6 +101,15 @@ def settle_on_wake(now):
 # "02" pads the cents to two digits.
 def dollars(cents):
     return "$" + "{:,}.{:02d}".format(cents // 100, cents % 100)
+
+
+# Cents as the plain text a friend would type in the max box: 4000 -> "40.00", 100050 -> "1000.50".
+# No "$" and no commas, so the page can put it straight back in the box and money.py can read it
+# again at confirm. None (no amount) stays None, which JSON sends as null.
+def plain_dollars_text(cents):
+    if cents is None:
+        return None
+    return "{}.{:02d}".format(cents // 100, cents % 100)
 
 
 # The same dollars() as a template filter: {{ 4000|dollars }} shows "$40.00" (docs/UI_DESIGN.md
@@ -220,6 +233,58 @@ def api_create_pledge():
         return jsonify({"pledger_token": result["pledger_token"],
                         "hold_text": HOLD_PROMISE_TEXT % dollars(max_cents)})
     return refusal_answer(result)
+
+
+# D31: the AI reads one friend's pledge, typed in their own words, and suggests a status, max, min and
+# conditions. The page sends {"event_id": 7, "text": "down if Jay goes, max 40"}. Nothing is saved
+# (D31, D62): the suggestion goes back to the page, where the friend fixes it and confirms it with
+# POST /api/pledges. The cheap checks run first, so an empty, too long or closed request never reaches
+# the AI. If the AI fails or times out, parse_pledge gives the "please retype" suggestion, which is
+# still a normal answer: the page shows the question and the friend fills in the boxes by hand.
+# Privacy: nothing here logs the friend's text (ai_parser.py logs only the HTTP code, never the key).
+@app.route("/api/pledges/parse", methods=["POST"])
+def api_parse_pledge():
+    body = json_body()
+    event_id = body.get("event_id")
+    text = body.get("text")
+    if type(event_id) is not int or not isinstance(text, str):
+        return message_answer(ERROR_TEXT, 400)
+    text = text.strip()
+    if text == "":
+        return message_answer(NO_PLEDGE_TEXT, 400)
+    if len(text) > config.MAX_PLEDGE_TEXT_CHARS:
+        return message_answer(PLEDGE_TOO_LONG_TEXT % config.MAX_PLEDGE_TEXT_CHARS, 400)
+    try:
+        event = event_for_id(event_id)
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("POST /api/pledges/parse: database error (%s)", type(error).__name__)
+        return message_answer(ERROR_TEXT, 503)
+    if event is None:
+        return message_answer(ERROR_TEXT, 404)
+    if not lifecycle.pledging_is_open(event, utc_now()):
+        return message_answer(CLOSED_TEXT, 409)
+    return jsonify(suggestion_answer(ai_parser.parse_pledge(text)))
+
+
+# One event's row, or None. The connection is closed before this returns, so the AI call that comes
+# next never holds a database connection while it waits (up to config.AI_TIMEOUT_SECONDS).
+# Database errors are left for the route to answer.
+def event_for_id(event_id):
+    conn = db.connect(config.DATABASE_URL)
+    try:
+        return lifecycle.find_event(conn, event_id)
+    finally:
+        conn.close()
+
+
+# The parser's suggestion as the page receives it: the same five fields, with each amount as plain
+# text like "40.00" instead of cents, ready to go back in the boxes (docs/UI_DESIGN.md section 10).
+def suggestion_answer(suggestion):
+    return {"status": suggestion["status"],
+            "max": plain_dollars_text(suggestion["max_cents"]),
+            "min": plain_dollars_text(suggestion["min_cents"]),
+            "conditions": suggestion["conditions"],
+            "follow_up_question": suggestion["follow_up_question"]}
 
 
 # Create the hold row and the PayPal order (intent AUTHORIZE) for a confirmed pledge.
