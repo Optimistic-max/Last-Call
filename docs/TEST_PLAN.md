@@ -106,7 +106,7 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 | G2 | Model failure shows "please retype" | NOT RUN |
 | G3 | **Accuracy on the 50 frozen made-up messages: X/50** (report both scores if the prompt changed) | NOT RUN |
 
-## H. New users (after the Nov 5 freeze, D31, D51)
+## H. New users (after the Nov 8 freeze, D31, D69)
 
 | ID | Test | Status |
 |---|---|---|
