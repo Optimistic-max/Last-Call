@@ -89,6 +89,8 @@ If a capture call times out (or returns anything not in the table above), **don'
 3. If still `CREATED`: retry once with a new saved request ID (attempt 2, M2). This is the only case that retries (F14). PayPal itself rejects a second capture on a fully captured hold, so this can't double-charge.
 4. Anything else: pledge `FAILED`, event `NEEDS_ATTENTION`.
 
+The D27 resume (`resume_stuck_lock`, D81) does the same for a capture row left `PENDING` by a lock that died: it `GET`s the authorization first, and only if the hold is still `CREATED` does it send the capture again, with the row's saved `PayPal-Request-Id` and amount (rule 4). `CAPTURED` follows step 2 (D47). A `GET` that gets no answer changes nothing and the event stays `CHARGING` until the next resume. `unverified`: the HTTP status PayPal gives when a capture is replayed with the same request ID (A3 showed only that the same capture comes back), and how long PayPal remembers a request ID.
+
 If an **authorize** call times out:
 1. Retry once with the same saved authorize request ID (rule 4). Whether PayPal returns the same authorization on that retry is `unverified`: only capture retries were tested (A3).
 2. If it still fails, show "Something went wrong. Nothing was charged." and leave the hold `PENDING`.

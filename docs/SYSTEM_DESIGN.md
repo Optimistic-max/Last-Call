@@ -56,7 +56,7 @@ def settle_anything_due():
 `settle_due_events(now)` looks for events where:
 - status is `OPEN` and `now >= hard_deadline`, so it expires the event and voids every hold, or
 - status is `LAST_CALL` and `now >= last_call_ends`, so it locks and charges, or
-- status is `LOCKING` or `CHARGING` and `lock_started_at` is more than 5 minutes old, so it resumes a lock that died halfway (D27).
+- status is `LOCKING` or `CHARGING` and `lock_started_at` is more than 5 minutes old, so it resumes a lock that died halfway (D27, D81: `resume_stuck_lock`, which charges only pledges with a saved share and sends a `PENDING` capture row again with its saved request ID after a `GET` of the hold).
 
 It also runs the cleanup sweep (void any hold that is still open on a finished event).
 
@@ -76,7 +76,7 @@ SET status = 'LOCKING'
 WHERE id = %s AND status = 'LAST_CALL';
 ```
 
-Only the request whose `UPDATE` changed exactly **1 row** continues to `lock_and_charge()`. The other sees 0 rows changed and does nothing. The same pattern guards `OPEN → EXPIRED`, `OPEN → LAST_CALL` and the resume of a stuck lock (D27).
+Only the request whose `UPDATE` changed exactly **1 row** continues to `lock_and_charge()`. The other sees 0 rows changed and does nothing. The same pattern guards `OPEN → EXPIRED`, `OPEN → LAST_CALL` and the resume of a stuck lock (D27, D81). Only `send_capture()` ever calls capture, and only after one of these compare-and-sets is won (rule 6).
 
 There are two more layers of protection:
 - each capture has its own saved `PayPal-Request-Id`, so a retried request returns the same capture instead of a new one (VERIFIED in sandbox), and

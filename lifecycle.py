@@ -461,8 +461,9 @@ def check_goal_after_hold(conn, event_id, now):
 # Settle-on-wake (docs/SYSTEM_DESIGN.md section 3): settle every event whose time is up.
 # OPEN past its hard deadline: check the goal one last time (in case the check after a hold failed),
 # then lock and charge if last call opened, otherwise expire. LAST_CALL past last_call_ends: lock and
-# charge. Each of the three steps starts with its own compare-and-set, so a step does nothing unless
-# the status fits, and two requests settling at once can't both act (test E8).
+# charge. LOCKING or CHARGING for longer than STUCK_LOCK_AFTER: resume the lock that died (D27, D81).
+# Each step starts with its own compare-and-set, so a step does nothing unless the status fits, and
+# two requests settling at once can't both act (tests E8, E11). The cleanup sweep (D80) runs last.
 # A database error on one event is logged, and the next event is still settled.
 def settle_due_events(conn, now, paypal):
     due = db.fetch_all(conn, "SELECT id FROM events "
@@ -476,6 +477,13 @@ def settle_due_events(conn, now, paypal):
             expire_event(conn, event["id"], now, paypal)
         except psycopg.Error as error:
             logger.warning("settling event %d failed: database error (%s)", event["id"], type(error).__name__)
+    stuck = db.fetch_all(conn, "SELECT id FROM events WHERE status IN ('LOCKING', 'CHARGING') "
+                               "AND lock_started_at < %s ORDER BY id", (now - config.STUCK_LOCK_AFTER,))
+    for event in stuck:
+        try:
+            resume_stuck_lock(conn, event["id"], now, paypal)
+        except psycopg.Error as error:
+            logger.warning("resuming event %d failed: database error (%s)", event["id"], type(error).__name__)
     try:
         sweep_stranded_holds(conn, now, paypal)
     except psycopg.Error as error:
@@ -485,7 +493,7 @@ def settle_due_events(conn, now, paypal):
 # The only path that captures money (AGENTS.md rule 6, docs/SYSTEM_DESIGN.md section 5C).
 # Step 1 is the compare-and-set LAST_CALL -> LOCKING: only the request whose UPDATE changed that 1 row
 # goes on, so two requests can never both charge (test E8). The same UPDATE saves lock_started_at
-# (D36; resuming a lock that died halfway is M2, D27).
+# (D36), which resume_stuck_lock uses to find a lock that died halfway (D27, D81).
 # D70: only the counted pledges are charged. `held` is every pledge that could be charged and `pledges`
 # the counted ones among them; the holds of the others are voided before CHARGING, and they are dropped.
 # Returns what happened: NOT_LOCKED, EXPIRED, SETTLED or NEEDS_ATTENTION.
@@ -551,34 +559,44 @@ def give_up_lock(conn, event_id, paypal):
 # Work out every share and save it before any charge (STATE_MACHINE.md: LOCKING saves every share_cents
 # and goal_cents). The math is Malama's money.py (rule 2): the fee-adjusted goal for this many people,
 # then the even split, never above anyone's max, in join order. Returns the shares in the same order.
+# D81: the goal and every share are saved in ONE transaction, all or nothing. So a saved goal_cents means
+# every share is saved, and that is how a resume tells "died before the shares" from "died after".
 def save_shares(conn, event, pledges):
     goal_cents = money.fee_adjusted_goal_cents(event["deposit_cents"], len(pledges))
     shares = money.compute_shares_cents(goal_cents, max_list(pledges))
-    db.run(conn, "UPDATE events SET goal_cents = %s WHERE id = %s", (goal_cents, event["id"]))
-    for position in range(len(pledges)):
-        db.run(conn, "UPDATE pledges SET share_cents = %s WHERE id = %s",
-               (shares[position], pledges[position]["id"]))
+    with conn.transaction():
+        db.run(conn, "UPDATE events SET goal_cents = %s WHERE id = %s", (goal_cents, event["id"]))
+        for position in range(len(pledges)):
+            db.run(conn, "UPDATE pledges SET share_cents = %s WHERE id = %s",
+                   (shares[position], pledges[position]["id"]))
     return shares
 
 
-# Charge one pledge its share. Called only by lock_and_charge, after it won LAST_CALL -> LOCKING
-# (rule 6): this is the app's one capture call. The capture row and its PayPal-Request-Id are saved
-# before the call (rule 3), and PayPal's capture ID the moment it comes back. Only HTTP 201 with status
-# COMPLETED counts as charged. Anything else, including no answer, is a failure, with no retry in M1
-# (D39). Returns True if the pledge was charged.
+# Charge one pledge its share. Called by lock_and_charge after it won LAST_CALL -> LOCKING, and by the
+# resume (resume_one_pledge) after it won its compare-and-set (rule 6, D81). The capture row and its
+# PayPal-Request-Id are saved before the call (rule 3). Returns True if the pledge was charged.
 def charge_one_pledge(conn, pledge, share_cents, paypal):
     request_id = new_request_id()
     capture = db.fetch_one(conn, "INSERT INTO captures (hold_id, request_id, attempt, amount_cents) "
                                  "VALUES (%s, %s, 1, %s) RETURNING id",
                            (pledge["hold_id"], request_id, share_cents))
+    return send_capture(conn, pledge, capture["id"], request_id, share_cents, paypal)
+
+
+# The app's ONE capture call (rule 6, D81). The capture row with its request_id is already saved. A
+# resume sends a PENDING row again with the SAME request_id and amount, so PayPal returns the earlier
+# capture instead of making a second one (rule 4, A3). PayPal's capture ID is saved the moment it comes
+# back. Only HTTP 201 with status COMPLETED counts as charged (rule 5). Anything else, including no
+# answer, is a failure, with no retry here (D39). Returns True if the pledge was charged.
+def send_capture(conn, pledge, capture_row_id, request_id, share_cents, paypal):
     answer = paypal.capture_authorization(pledge["auth_id"], share_cents, request_id)
     capture_id = answer["data"].get("id")
     if capture_id is not None:
-        db.run(conn, "UPDATE captures SET capture_id = %s WHERE id = %s", (capture_id, capture["id"]))
+        db.run(conn, "UPDATE captures SET capture_id = %s WHERE id = %s", (capture_id, capture_row_id))
     if answer["http_status"] == 201 and answer["data"].get("status") == "COMPLETED":
-        record_charge(conn, pledge, capture["id"], capture_id, paypal)
+        record_charge(conn, pledge, capture_row_id, capture_id, paypal)
         return True
-    record_failed_charge(conn, pledge, capture["id"], answer, paypal)
+    record_failed_charge(conn, pledge, capture_row_id, answer, paypal)
     return False
 
 
@@ -694,6 +712,158 @@ def drop_pledges_without_a_hold(conn, event_id):
                         "AND NOT EXISTS (SELECT 1 FROM holds "
                         "WHERE holds.pledge_id = pledges.id AND holds.status = 'CREATED')",
                   (event_id,))
+
+
+# ---------- M2: resume a lock that died halfway (D27, D50, D81) ----------
+
+# Finish a lock stuck in LOCKING or CHARGING for longer than STUCK_LOCK_AFTER. It works out nothing new:
+# only a pledge with a saved share_cents is charged, and who is counted is never worked out again (D78).
+# The one exception is an event that died before its shares were saved (restart_lock). Every capture goes
+# through send_capture (rule 6), and only after win_resume's compare-and-set. Returns NOT_RESUMED, CHARGING
+# (something is still waiting), SETTLED, NEEDS_ATTENTION, or what lock_and_charge returns after a restart.
+def resume_stuck_lock(conn, event_id, now, paypal):
+    if not win_resume(conn, event_id, now):
+        return "NOT_RESUMED"
+    event = find_event(conn, event_id)
+    if event["status"] not in ("LOCKING", "CHARGING"):
+        return "NOT_RESUMED"
+    if event["status"] == "LOCKING" and event["goal_cents"] is None:
+        return restart_lock(conn, event_id, now, paypal)
+    if event["status"] == "LOCKING":
+        finish_locking_from_saved_shares(conn, event_id, paypal)
+    return resume_charging(conn, event_id, paypal)
+
+
+# The compare-and-set: save "resumed at `now`" only while the event is still LOCKING or CHARGING and the
+# saved lock_started_at is older than STUCK_LOCK_AFTER. Only the request whose UPDATE changed 1 row goes on,
+# and saving the new time means a resume that dies is not picked up again for another STUCK_LOCK_AFTER.
+def win_resume(conn, event_id, now):
+    changed = db.run(conn, "UPDATE events SET lock_started_at = %s "
+                           "WHERE id = %s AND status IN ('LOCKING', 'CHARGING') AND lock_started_at < %s",
+                     (now, event_id, now - config.STUCK_LOCK_AFTER))
+    return changed == 1
+
+
+# LOCKING with no goal_cents: the lock died before the shares were saved (save_shares is all or nothing).
+# Nothing was voided and nothing charged, and no first result exists for a second count to disagree with,
+# so D78 has nothing to protect here: put the event back to LAST_CALL and run the normal lock again.
+def restart_lock(conn, event_id, now, paypal):
+    changed = db.run(conn, "UPDATE events SET status = 'LAST_CALL' "
+                           "WHERE id = %s AND status = 'LOCKING' AND goal_cents IS NULL", (event_id,))
+    if changed == 0:
+        return "NOT_RESUMED"
+    logger.info("event %d died in LOCKING before its shares were saved, so the lock starts again", event_id)
+    return lock_and_charge(conn, event_id, now, paypal)
+
+
+# LOCKING with the shares saved: the lock died while voiding the uncounted holds. The pledges with no
+# saved share are the ones that were not counted, so their holds are voided now (void_hold reuses any
+# void request ID already saved), the pledges with no hold left are dropped, and the event moves on to
+# CHARGING in a compare-and-set.
+def finish_locking_from_saved_shares(conn, event_id, paypal):
+    unshared = db.fetch_all(conn, "SELECT id, name, max_cents FROM pledges "
+                                  "WHERE event_id = %s AND status = 'HELD' AND share_cents IS NULL "
+                                  "ORDER BY created_at, id", (event_id,))
+    void_uncounted_holds(conn, unshared, [], paypal)
+    drop_pledges_without_a_hold(conn, event_id)
+    db.run(conn, "UPDATE events SET status = 'CHARGING' WHERE id = %s AND status = 'LOCKING'", (event_id,))
+
+
+# Go through every pledge with a saved share, in join order, then decide how the event ends. A pledge
+# without a share is never touched here: it was not counted, so it can never be charged.
+def resume_charging(conn, event_id, paypal):
+    pledges = db.fetch_all(conn, "SELECT id, share_cents, status FROM pledges "
+                                 "WHERE event_id = %s AND share_cents IS NOT NULL ORDER BY created_at, id",
+                           (event_id,))
+    for pledge in pledges:
+        resume_one_pledge(conn, pledge, paypal)
+    return finish_charging(conn, event_id)
+
+
+# What one pledge needs, from its newest capture row. Only a HELD pledge needs anything: CHARGED and
+# FAILED are finished.
+# - no row yet: charge it the normal way (new row, new request ID, saved first);
+# - row COMPLETED: the lock died inside record_charge, so finish recording it. No capture call;
+# - row FAILED: the lock died inside record_failed_charge, so the pledge is FAILED. No capture call;
+# - row PENDING: resend_pending_capture.
+def resume_one_pledge(conn, pledge, paypal):
+    if pledge["status"] != "HELD":
+        return
+    row = db.fetch_one(conn, "SELECT captures.id, captures.request_id, captures.amount_cents, "
+                             "captures.capture_id, captures.status, holds.id AS hold_id, holds.auth_id "
+                             "FROM captures JOIN holds ON holds.id = captures.hold_id "
+                             "WHERE holds.pledge_id = %s ORDER BY captures.id DESC LIMIT 1", (pledge["id"],))
+    if row is None:
+        charge_pledge_without_a_row(conn, pledge, paypal)
+    elif row["status"] == "COMPLETED":
+        record_charge(conn, {"id": pledge["id"], "hold_id": row["hold_id"]}, row["id"], row["capture_id"], paypal)
+    elif row["status"] == "FAILED":
+        fail_held_pledge(conn, pledge["id"], "its capture row is FAILED")
+    else:
+        resend_pending_capture(conn, pledge, row, paypal)
+
+
+# A pledge with a share but no capture row: the lock died before it reached this pledge. Its hold must
+# still be CREATED; if not, there is nothing to charge and the pledge is FAILED.
+def charge_pledge_without_a_row(conn, pledge, paypal):
+    hold = db.fetch_one(conn, "SELECT id, auth_id FROM holds WHERE pledge_id = %s AND status = 'CREATED' "
+                              "AND auth_id IS NOT NULL ORDER BY id LIMIT 1", (pledge["id"],))
+    if hold is None:
+        fail_held_pledge(conn, pledge["id"], "it has no open hold")
+        return
+    charge_one_pledge(conn, {"id": pledge["id"], "hold_id": hold["id"], "auth_id": hold["auth_id"]},
+                      pledge["share_cents"], paypal)
+
+
+def fail_held_pledge(conn, pledge_id, reason):
+    db.run(conn, "UPDATE pledges SET status = 'FAILED' WHERE id = %s AND status = 'HELD'", (pledge_id,))
+    logger.warning("pledge %d is FAILED: %s", pledge_id, reason)
+
+
+# A PENDING capture row: PayPal may or may not have heard of it, so the hold is read first (PAYPAL_INTEGRATION
+# section 5, rule 5) and its real status is saved.
+# - CREATED: nothing was captured, so send the capture again with the row's SAVED request_id and amount;
+# - CAPTURED (or partly): the money moved but we don't look for the capture (D47, D49). The row stays
+#   PENDING, the pledge is FAILED, and an error is logged. No capture call;
+# - any other status: the hold can't be charged any more. The row and the pledge are FAILED;
+# - no answer: change nothing. The event stays CHARGING and the next resume looks again.
+def resend_pending_capture(conn, pledge, row, paypal):
+    check = paypal.get_authorization(row["auth_id"])
+    hold_status = check["data"].get("status")
+    if check["http_status"] != 200 or hold_status is None:
+        logger.warning("pledge %d: hold %d could not be read (HTTP %s); the next resume looks again",
+                       pledge["id"], row["hold_id"], check["http_status"])
+        return
+    db.run(conn, "UPDATE holds SET status = %s WHERE id = %s", (hold_status, row["hold_id"]))
+    if hold_status == "CREATED":
+        send_capture(conn, {"id": pledge["id"], "hold_id": row["hold_id"], "auth_id": row["auth_id"]},
+                     row["id"], row["request_id"], row["amount_cents"], paypal)
+    elif hold_status in MONEY_MOVED_HOLD_STATUSES:
+        fail_held_pledge(conn, pledge["id"], "PayPal says its hold is " + hold_status)
+        logger.error("pledge %d: capture row %d is PENDING but PayPal says hold %d is %s, so money moved. "
+                     "Marked FAILED (D47): find the capture by hand", pledge["id"], row["id"], row["hold_id"], hold_status)
+    else:
+        db.run(conn, "UPDATE captures SET status = 'FAILED', error_code = %s WHERE id = %s",
+               ("HOLD_" + hold_status, row["id"]))
+        fail_held_pledge(conn, pledge["id"], "PayPal says its hold is " + hold_status)
+
+
+# How the event ends, read from the database so a failure from before the crash still counts. A pledge
+# still HELD (a hold that could not be read) keeps the event CHARGING for the next resume. Otherwise any
+# FAILED pledge means NEEDS_ATTENTION, and none means SETTLED, in a compare-and-set on CHARGING.
+def finish_charging(conn, event_id):
+    counts = db.fetch_one(conn, "SELECT COUNT(*) FILTER (WHERE status = 'HELD') AS waiting, "
+                                "COUNT(*) FILTER (WHERE status = 'FAILED') AS failed "
+                                "FROM pledges WHERE event_id = %s AND share_cents IS NOT NULL", (event_id,))
+    if counts["waiting"] > 0:
+        logger.warning("event %d: %d charges are still waiting, so it stays CHARGING", event_id, counts["waiting"])
+        return "CHARGING"
+    final_status = "SETTLED"
+    if counts["failed"] > 0:
+        final_status = "NEEDS_ATTENTION"
+    db.run(conn, "UPDATE events SET status = %s WHERE id = %s AND status = 'CHARGING'", (final_status, event_id))
+    logger.info("event %d is %s after the resume", event_id, final_status)
+    return final_status
 
 
 # ---------- M2: the cleanup sweep (D80) ----------
