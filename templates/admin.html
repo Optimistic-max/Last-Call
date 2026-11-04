@@ -21,3 +21,7 @@
 
 {% include "board_panel.html" %}
 {% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/board.js') }}" defer></script>
+{% endblock %}
