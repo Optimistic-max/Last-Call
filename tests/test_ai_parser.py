@@ -60,6 +60,32 @@ def test_g1_bad_json_and_wrong_types():
     assert ai_parser.validate_pledge(answer(follow_up_question="x" * 201), message) == RETYPE
 
 
+# D73 (3): NaN, Infinity and -Infinity aren't real JSON, but Python's json module reads them.
+# Wherever the model puts one, the answer is "please retype".
+def test_d73_nan_and_infinity_refused():
+    message = "im in, max 40"
+    for bad in ("NaN", "Infinity", "-Infinity"):
+        max_answer = answer().replace('"max_dollars": 40', '"max_dollars": ' + bad)
+        min_answer = answer().replace('"min_dollars": null', '"min_dollars": ' + bad)
+        assert ai_parser.validate_pledge(max_answer, message) == RETYPE, bad
+        assert ai_parser.validate_pledge(min_answer, message) == RETYPE, bad
+
+
+# D73 (3) and rule 1: NaN and Infinity are refused while the JSON is read, so they never become a
+# float. The stand-in amount_to_cents records every value it gets; none may be a float.
+def test_d73_nan_never_becomes_a_float(monkeypatch):
+    seen = []
+
+    def recording_amount_to_cents(value):
+        seen.append(value)
+        return None
+
+    monkeypatch.setattr(ai_parser, "amount_to_cents", recording_amount_to_cents)
+    ai_parser.read_answer(answer().replace('"max_dollars": 40', '"max_dollars": NaN'))
+    for value in seen:
+        assert not isinstance(value, float)
+
+
 # G1: fields the model shouldn't send are dropped, not passed on.
 def test_g1_unknown_fields_dropped():
     result = ai_parser.validate_pledge(answer(share_cents=999), "im in, max 40")

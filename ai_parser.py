@@ -128,11 +128,12 @@ def validate_pledge(raw, message_text):
 
 
 # Turn the raw text into a dict with exactly the five fields, or None if it is malformed.
-# parse_float=str keeps a number like 40.5 as the text "40.5", so no float is ever made (rule 1, D63).
+# parse_float=str keeps a number like 40.5 as the text "40.5", and parse_constant refuses NaN and
+# Infinity, so no float is ever made (rule 1, D63, D73).
 # Fields the model shouldn't send are simply never read, which is how unknown fields are dropped.
 def read_answer(raw):
     try:
-        data = json.loads(raw, parse_float=str)
+        data = json.loads(raw, parse_float=str, parse_constant=refuse_constant)
         if not isinstance(data, dict):
             return None
         answer = {
@@ -147,6 +148,12 @@ def read_answer(raw):
     if answer["status"] not in ("in", "out", "unclear"):
         return None
     return answer
+
+
+# json.loads calls this for NaN, Infinity and -Infinity. They aren't real JSON, but Python's json module
+# accepts them and would turn them into floats. Raising ValueError makes read_answer give "please retype".
+def refuse_constant(name):
+    raise ValueError("not a number: " + name)
 
 
 # An amount from the model -> whole cents, or None for null. Whole numbers arrive as int, and numbers
