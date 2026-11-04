@@ -89,7 +89,16 @@ Typing a pledge sends that text to a third-party AI service. The pledge page mus
 
 ## 7. The 50-message accuracy test
 
-- **Written and frozen by Grok Bot before Malama tunes the prompt**, so the person tuning isn't writing the exam. Saved as `tests/ai_test_messages.json` and never edited after it's frozen (record the freeze date in `docs/DECISIONS.md`).
+- **Written and frozen before anyone tunes the prompt**, so the exam isn't written to fit the prompt. Grok Bot was to write it; it didn't deliver by Nov 3, so Malama writes it by hand, without the AI agent that helps tune the prompt (D74). Saved as `tests/ai_test_messages.json` and never edited after it's frozen (record the freeze date, commit and SHA-256 in D74).
+- **File format.** One object: `"written_by"` (who wrote the messages) and `"messages"`, a list of 50 like this one (a format example, not one of the 50):
+
+  ```json
+  {"id": 1, "category": "plain", "text": "count me in, 25 max",
+   "expected": {"status": "in", "max_cents": 2500, "min_cents": null, "conditions": []}}
+  ```
+
+  `category` is one of `plain`, `slang`, `conditions`, `range`, `pull_out`, `unclear`, `chatter`, with the counts in the table below. Amounts are whole cents (rule 1). An `out` or `unclear` answer has null amounts and no conditions. Each `text` is at most 280 characters, the parse route's limit. `pytest tests/test_ai_accuracy.py` checks all of this.
+- **Running it.** `.venv\Scripts\python -m tests.ai_accuracy` makes one real AI call per message, 3 s apart, and prints each message as RIGHT or WRONG, a score per category, the total and the file's SHA-256. pytest never runs it. If any answer was "please retype", check the log for an HTTP 429 or a timeout before trusting the score.
 - All messages are made up. The README says so.
 - Under D31 each test message is read as one friend's own-words pledge. The categories and scoring stay the same; non-pledge chatter is expected back as `unclear` with a follow-up.
 
@@ -104,7 +113,7 @@ Typing a pledge sends that text to a third-party AI service. The pledge page mus
 | Non-pledge chatter | 6 |
 | **Total** | **50** |
 
-**Scoring:** a message is right only if `status`, max, min and conditions all match exactly. For an unclear message, asking a follow-up counts as right. Report the score as **"X/50 on 50 made-up test messages"**.
+**Scoring:** a message is right only if `status`, max, min and conditions all match exactly. Conditions are compared ignoring order and capital letters (`conditions.name_key`). For an `out` message, the status is enough. For an unclear message, asking a follow-up counts as right. "Please retype" never counts as right: it means the AI call or its answer failed. Report the score as **"X/50 on 50 made-up test messages"**.
 
 **Honesty rule:** if the prompt changes after the first scored run, report **both** scores (before and after).
 

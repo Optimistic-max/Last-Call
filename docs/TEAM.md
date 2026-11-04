@@ -7,7 +7,7 @@
 | **Emmanuel** (head) | The money flow: holds, charges, cancels, last call, 48-hour cutoff, settle-on-wake, cleanup sweep, failure policy. Final merges | `paypal_client.py`, `lifecycle.py`, `app.py` (routes), `config.py`, `static/js/pledge_paypal.js` (the PayPal card-field wiring, inside Samuel's `static/`) |
 | **Samuel** | Everything people see: screens, wording, motion, the demo video edit | `templates/`, `static/`, `docs/UI_DESIGN.md` |
 | **Malama** | The pure math, the circle rule, the AI reader and its test, the database and deploy | `money.py`, `conditions.py`, `ai_parser.py`, `db.py`, `schema.sql`, `tests/test_money.py`, `tests/test_conditions.py`, `tests/test_ai_parser.py` |
-| Grok Bot (assistant) | Writes and freezes the 50 AI test messages before any tuning | `tests/ai_test_messages.json` |
+| Grok Bot (assistant) | Was to write and freeze the 50 AI test messages before any tuning. Didn't deliver by Nov 3, so Malama writes them (D74) | `tests/ai_test_messages.json` (now Malama's) |
 
 If you need to change a file someone else owns, ask in the group first, or say so clearly in your pull request.
 
@@ -27,6 +27,7 @@ Agents check this list before editing a file and mention any open to-do on it (`
 |---|---|---|
 | Samuel | `static/js/pledge_paypal.js` | The billing ZIP `95131` is PayPal's sample value (kept from the B1 spike) and needs a decision before real users. The file is Emmanuel's, so decide together (Oct 28). |
 | Malama | `schema.sql`, `docs/DATA_MODEL.md` | D80 (Nov 3): `holds.void_tried_at` is added and `NOT_PLACED` is a new hold status. Emmanuel applied the `ALTER` to the test branch only. Run `ALTER TABLE holds ADD COLUMN IF NOT EXISTS void_tried_at TIMESTAMPTZ;` on `dev` and `main` before `emmanuel/m2-f2-sweep` is merged (the sweep reads the column), and review the pull request (it adds to `settle_due_events`, next to `lock_and_charge`) |
+| Malama | `tests/ai_test_messages.json`, `docs/DECISIONS.md` | G3 (Nov 4, D74): write the 50 made-up messages by hand, in the format of `AI_PARSER.md` §7, without the AI agent that helps tune the prompt. `pytest tests/test_ai_accuracy.py` checks the file. Then freeze it (commit, and record the date, commit and SHA-256 in D74), run `.venv\Scripts\python -m tests.ai_accuracy` once, and record the score in `TEST_PLAN.md` and `CLAIMS.md` before changing the prompt. The README must say Malama wrote them. |
 | Emmanuel | `app.py`, `lifecycle.py` | D81 (Nov 3): the leave route (M2, Sun Nov 8) must refuse while an event is `LOCKING` or `CHARGING`, not only during last call. The resume's case 1 (an event stuck in `LOCKING` before its shares were saved goes back to `LAST_CALL`) is safe only if nobody can leave in between. Add a test for each status (TEST_PLAN E3 and E6). |
 | Malama | `lifecycle.py` | Review the pull request for `emmanuel/m2-e11-resume` (D81): it touches capture (`send_capture`, `resume_stuck_lock`) and changes `save_shares` and `AGENTS.md` rule 6. |
 | Emmanuel | `config.py` | `FLASK_SECRET_KEY` is empty in Emmanuel's `.env` (config.py reads it). Nothing else uses it yet (Oct 28). |
