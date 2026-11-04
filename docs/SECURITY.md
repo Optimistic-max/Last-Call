@@ -50,3 +50,7 @@ The app refuses to start unless `PAYPAL_BASE_URL` is exactly `https://api-m.sand
 The pledge a friend types is sent to a third-party AI model, the AI provider set in `AI_BASE_URL` (Azure OpenAI or Groq, D75), and the pledge page says so, naming that provider (D31). The demo uses only a fictional chat and made-up pledges. No real names or phone numbers go in the repo, the test messages or the video.
 
 **Email is optional; name is required (D31).** If a friend gives an email, it is never logged and never goes in the repo, the tests or the video. It never appears on the public board or in `board.json`.
+
+## Known limits
+
+- After refund-all, the treasurer's account is short by the original processing fees, because PayPal keeps them on refunds (read in docs: PayPal US fees page, Nov 4 2026). Sandbox behavior is `NOT RUN`.

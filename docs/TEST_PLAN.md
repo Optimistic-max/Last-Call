@@ -91,7 +91,7 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 | F4 | A refused capture is retried once, then the event goes `NEEDS_ATTENTION` and the other charges stay | NOT RUN |
 | F5 | A timeout on capture: `GET` first, no double charge. Moved to `docs/LATER.md` (D49) | NOT RUN |
 | F6 | `AUTHORIZATION_ALREADY_CAPTURED` is recorded as charged, not as failure. Moved to `docs/LATER.md` (D49) | NOT RUN |
-| F7 | Refund-all screen states that PayPal keeps fees, and refunds only on click | NOT RUN |
+| F7 | Refund-all screen states that PayPal keeps fees, and refunds only on click. Refund-all follows D28 as approved Nov 4 (`REFUNDING` until every refund succeeds, one refund at a time, saved request IDs, a per-person status list with "try again"). Also: **one sandbox refund to confirm the fee breakdown: NOT RUN** | NOT RUN |
 | F8 | "New pay link" goes only to the failed person. Moved to `docs/LATER.md` (D49) | NOT RUN |
 | F9 | Kim fails after Ana ("if Kim's in") was charged: flagged on the treasurer view, no automatic refund | VERIFIED for the flag and for no automatic refund (Nov 3, fake PayPal + Neon test branch, `tests/test_lifecycle.py`): Ana `CHARGED` and her hold `CAPTURED`, Kim `FAILED`, the event `NEEDS_ATTENTION`, the board says "Needs the treasurer's attention" and "Charge failed", and no refund function is called. The "[Refund everyone]" button is M2 (F7): NOT RUN. With real PayPal: NOT RUN |
 | F10 | Mock headers can never be sent outside tests | NOT RUN |

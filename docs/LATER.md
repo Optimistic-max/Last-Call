@@ -62,7 +62,7 @@ Not built before the freeze. D47's safe ending stands instead: hold `CAPTURED`, 
 |---|---|---|
 | F5 | A timeout on capture: `GET` first, then find and save the capture, no double charge | `NOT RUN` |
 | F6 | `AUTHORIZATION_ALREADY_CAPTURED` is recorded as charged, not as failure | `NOT RUN` |
-| F8 | "New pay link" goes only to the failed person (was waiting on D28 (b)) | `NOT RUN` |
+| F8 | "New pay link" goes only to the failed person (was waiting on D28 (b); D28 (b), Nov 4: not built before the freeze) | `NOT RUN` |
 
 ## Not built before the freeze (Oct 31, D60)
 
