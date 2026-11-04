@@ -54,7 +54,7 @@ Three first-year college students: Emmanuel (head, owns all money code), Samuel 
 3. **Save before you send.** Generate a `PayPal-Request-Id`, save it in the database, *then* call PayPal. Save every order ID and authorization ID the moment PayPal returns it, before doing anything else.
 4. **Every PayPal write sends the saved `PayPal-Request-Id`.** A retry of the *same* request reuses the same ID.
 5. **Check the status field, not just the HTTP code.** A card decline comes back as HTTP 201 with authorization status `DENIED`.
-6. **Only one function captures money:** `lifecycle.lock_and_charge()`. It may run only after it wins the database status change `LAST_CALL → LOCKING`, or wins the resume compare-and-set for a lock that died halfway (D27) (see "compare-and-set" in `docs/SYSTEM_DESIGN.md`). Nothing else ever calls capture.
+6. **Only `send_capture()` calls PayPal capture, and only after winning a compare-and-set in `lock_and_charge` or `resume_stuck_lock`** (the status change `LAST_CALL → LOCKING`, or the resume of a lock that died halfway, D27, D81; see "compare-and-set" in `docs/SYSTEM_DESIGN.md`). Nothing else ever calls capture.
 7. **No automatic refunds.** A refund happens only when the treasurer clicks "refund everyone".
 8. **The AI never decides money.** Its output is a suggestion. Plain code validates it and the treasurer confirms it.
 9. **The PayPal dashboard is not the record.** Our database plus PayPal API `GET` calls are the source of truth.
