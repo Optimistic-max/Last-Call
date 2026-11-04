@@ -14,8 +14,8 @@ Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
 
 ## Try it
 
-**Live demo:** _link goes here_
-_First load may take up to a minute (free hosting wakes up)._
+**Live demo:** https://last-call-cr7n.onrender.com
+_Free hosting, the first load can take about a minute._
 
 **Sandbox test logins for judges:** _filled in before submission. Sandbox buyer accounts only. The app's secret keys are never in this repo._
 
@@ -53,6 +53,25 @@ pytest
 ```
 
 You need a free PayPal developer account with a sandbox app (Advanced Credit and Debit Card Payments enabled), a free Neon Postgres database, and an API key for the AI model.
+
+### Environment variables
+
+Put these in `.env` on your laptop or in Render's settings. The names are all there is in this repo: never commit a value, and `.env.example` lists the same names with empty values.
+
+| Name | What it is |
+|---|---|
+| `PAYPAL_CLIENT_ID` | The sandbox app's client ID. |
+| `PAYPAL_CLIENT_SECRET` | The sandbox app's secret. Stays on the server. |
+| `PAYPAL_BASE_URL` | PayPal's address. The app refuses to start unless it is the sandbox address. |
+| `DATABASE_URL` | The Postgres database the app runs on. |
+| `TEST_DATABASE_URL` | The database the tests run on (see the warning below). |
+| `FLASK_SECRET_KEY` | Read into `config.py` but not used by any code yet (reserved for sessions). |
+| `APP_BASE_URL` | The site's own address, used to build the link the treasurer shares. |
+| `AI_BASE_URL` | The AI provider's address. Empty means Groq's. |
+| `AI_API_KEY` | The AI provider's key. |
+| `AI_MODEL` | The AI model's name. |
+
+**Tests wipe their database.** `TEST_DATABASE_URL` must point to a separate database (we use a `test` branch on Neon), never the one in `DATABASE_URL`. The tests delete rows from it, and a test refuses to run if the two are the same. Without `TEST_DATABASE_URL`, the database tests are skipped.
 
 ## Team
 
