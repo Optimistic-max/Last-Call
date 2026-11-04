@@ -54,3 +54,4 @@ The pledge a friend types is sent to a third-party AI model, the AI provider set
 ## Known limits
 
 - After refund-all, the treasurer's account is short by the original processing fees, because PayPal keeps them on refunds (read in docs: PayPal US fees page, Nov 4 2026). Sandbox behavior is `NOT RUN`.
+- `money.py` uses the sandbox fee rate (2.59% + $0.49, checked against real sandbox captures Nov 4 2026). PayPal's live US Advanced card rate on Nov 4 2026 was 2.89% + $0.29, so a live launch must re-check the rate.
