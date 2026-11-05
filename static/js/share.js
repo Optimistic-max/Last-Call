@@ -2,6 +2,9 @@
 // Each .share-button shares the link in its data-share-url. That is share_link on S2 and the public
 // pledge path on S3. This file never reads the page's own address, because on S2 that address holds
 // the treasurer's private admin_token (D18, D59).
+//
+// A click never fails silently. It ends in the phone's share menu, in "Copied ✓", or, if the browser
+// won't copy at all, in a small field showing the link, to press and hold.
 
 const COPIED_SHOW_MS = 2000;   // how long a button says "Copied ✓"
 
@@ -39,19 +42,74 @@ function showCopied(button) {
 }
 
 
-// Copy the link. navigator.clipboard is missing on a plain http page, so if the copy fails on S2,
-// select the link in its box, and the treasurer can copy it by hand.
-async function copyLink(button) {
-  try {
-    await navigator.clipboard.writeText(linkFor(button));
-  } catch (error) {
-    const box = document.getElementById("share-link");
-    if (box !== null) {
-      box.select();
-    }
-    return;
+// The modern way to copy. navigator.clipboard only exists on https and localhost, so a phone on
+// http://<computer's address> doesn't have it. Answers true if the link was copied.
+async function copyWithClipboard(link) {
+  if (navigator.clipboard === undefined) {
+    return false;
   }
-  showCopied(button);
+  try {
+    await navigator.clipboard.writeText(link);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+
+// The older way, which also works on plain http: put the link in a hidden box, select it, and ask the
+// browser to copy the selection. Answers true if the link was copied.
+function copyWithHiddenBox(link) {
+  const box = document.createElement("textarea");
+  box.className = "copy-helper";
+  box.value = link;
+  box.readOnly = true;
+  document.body.appendChild(box);
+  box.select();
+  box.setSelectionRange(0, link.length);
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch (error) {
+    copied = false;
+  }
+  box.remove();
+  return copied;
+}
+
+
+// The last resort: show the link in a small field under the button, already selected, with the words
+// from the template. A second click reuses the same field.
+function showLinkToCopy(button, link) {
+  const holder = button.parentElement;
+  let area = holder.querySelector(".manual-copy");
+  if (area === null) {
+    area = document.createElement("div");
+    area.className = "manual-copy";
+    const words = document.createElement("p");
+    words.textContent = button.dataset.manualLabel;
+    const box = document.createElement("input");
+    box.readOnly = true;
+    box.setAttribute("aria-label", button.dataset.manualLabel);
+    area.appendChild(words);
+    area.appendChild(box);
+    holder.appendChild(area);
+  }
+  const box = area.querySelector("input");
+  box.value = link;
+  box.focus();
+  box.select();
+}
+
+
+// Try each way of copying in turn, and always end with something the person can see.
+async function copyLink(button) {
+  const link = linkFor(button);
+  if (await copyWithClipboard(link) || copyWithHiddenBox(link)) {
+    showCopied(button);
+  } else {
+    showLinkToCopy(button, link);
+  }
 }
 
 

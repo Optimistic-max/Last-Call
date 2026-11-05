@@ -76,6 +76,7 @@
     <div class="card-head">
       <h2 class="card-title">Who's in</h2>
       {{ share_button(invite_url, "Invite", class_name="button-secondary button-small board-invite", icon_name="plus", hidden=not board.pledging_open) }}
+      <p class="invite-hint"{% if board.status != "DRAFT" %} hidden{% endif %}>Invite opens when pledging starts</p>
     </div>
     <ul class="board-rows" data-max-label="{{ max_label }}" data-summary-max-label="{{ summary_max_label }}"
       data-share-label="{{ share_label }}" data-counted-label="{{ counted_label }}"

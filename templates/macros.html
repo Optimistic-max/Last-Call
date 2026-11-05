@@ -34,6 +34,7 @@
    phone_label is what the button says on a phone, when that differs from label. #}
 {% macro share_button(url, label, class_name="button-secondary", phone_label="", button_id="", hidden=false, icon_name="") -%}
 <button class="share-button {{ class_name }}" type="button" data-share-url="{{ url }}" data-copied-label="Copied ✓"
+  data-manual-label="Press and hold to copy"
   {%- if phone_label %} data-phone-label="{{ phone_label }}"{% endif %}
   {%- if button_id %} id="{{ button_id }}"{% endif %}
   {%- if hidden %} hidden{% endif %}>{% if icon_name %}{{ icon(icon_name) }}{% endif %}<span class="button-label">{{ label }}</span></button>

@@ -329,6 +329,7 @@ function makeRow(row, labels) {
 
 // Show every Pledge link and Invite button only while pledging is open. A closed link also loses
 // its address. The labels come from the template, and during last call the buttons say "Join last call".
+// Before pledging starts, a short line says Invite is coming. After it ends, that would be untrue.
 function showPledgeLinks(isOpen, status) {
   for (const link of document.querySelectorAll(".board-pledge")) {
     link.hidden = !isOpen;
@@ -344,6 +345,7 @@ function showPledgeLinks(isOpen, status) {
   for (const invite of document.querySelectorAll(".board-invite")) {
     invite.hidden = !isOpen;
   }
+  board.querySelector(".invite-hint").hidden = status !== "DRAFT";
 }
 
 

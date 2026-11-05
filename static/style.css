@@ -306,6 +306,7 @@ a {
   left: 0;
   z-index: 15;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid rgba(0, 0, 0, 0.06);
@@ -728,6 +729,33 @@ input.ai-filled {
   margin: 4px 0;
 }
 
+/* The last resort when a browser won't copy: the link, ready to press and hold. It takes a whole
+   line under whichever button asked for it. */
+.manual-copy {
+  flex: 1 0 100%;
+  margin-top: 8px;
+}
+
+.manual-copy p {
+  margin: 0 0 4px;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+}
+
+.manual-copy input {
+  min-height: 44px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* The hidden box the older way of copying needs. It has to exist on the page, so it sits off
+   screen. Its 16px text stops an iPhone zooming in for a moment. */
+.copy-helper {
+  position: fixed;
+  top: 0;
+  left: -9999px;
+}
+
 .private-note {
   display: flex;
   align-items: center;
@@ -755,6 +783,7 @@ input.ai-filled {
 
 .card-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -763,6 +792,12 @@ input.ai-filled {
 
 .card-head .card-title {
   margin-bottom: 0;
+}
+
+.invite-hint {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
 }
 
 /* The status card */
