@@ -1,28 +1,166 @@
 {% extends "base.html" %}
-{# S1, create an event (docs/UI_DESIGN.md sections 3 and 10). A bare page from Emmanuel's step 5b, for
-   Samuel to restyle. app.py reads the field names title, deposit and demo_mode, so keep them.
-   The labels are placeholders until Samuel approves them (D57).
-   Demo mode starts ticked. app.py sends demo_mode_checked=False for a fresh page, so error_text tells
-   the two cases apart: after a refusal the box keeps what the treasurer chose. #}
+{% from "macros.html" import icon %}
+{# S1: the landing page, then the create form further down the same page (#create).
+   app.py reads the field names title, deposit and demo_mode, so keep them. Demo mode starts ticked:
+   app.py sends demo_mode_checked=False for a fresh page, so error_text tells the two cases apart, and
+   after a refusal the box keeps what the treasurer chose. A refused form shows its message under the
+   field it belongs to (a blank title first, anything else under the amount), and static/js/landing.js
+   brings it into view.
+   The floating pieces are drawings made of our own components, so they are aria-hidden and every name
+   and amount in them is made up. "Everyone" in the headline is Samuel's wording, for review at
+   Checkpoint C. #}
 
-{% block content %}
-<h1>Last Call</h1>
-<p class="front-headline">Get your group to actually chip in.</p>
-<p>Friends pledge with their card. Nobody is charged unless the group reaches the goal; if it doesn't, every hold is cancelled.</p>
-<p class="text-soft">PayPal holds each friend's max. AI turns 'I'm in for $40 if Jay's in' into a pledge, and they confirm it.</p>
+{% block title %}Last Call: nobody pays unless the goal is reached{% endblock %}
 
-{% if error_text %}
-<p class="form-error" role="alert">{{ error_text }}</p>
-{% endif %}
+{% block shell %}
+<header class="landing-header">
+  <a class="landing-brand" href="#top">
+    <img class="landing-logo" src="{{ url_for('static', filename='img/logo.svg') }}" alt="" width="45" height="28">
+    <span class="landing-name">Last Call</span>
+  </a>
+  <nav class="landing-nav" aria-label="Menu">
+    <a class="text-link" href="#how">How it works</a>
+    <a class="text-link" href="#create">Try the demo</a>
+  </nav>
+  <a class="button-link landing-start" href="#create">Start a pledge</a>
+</header>
 
-<form method="post" action="{{ url_for('submit_event') }}">
-  <p><label for="title">Title</label>
-    <input id="title" name="title" value="{{ title_value }}" placeholder="Ridgeline cabin weekend"></p>
-  <p><label for="deposit">How much does the group need? ($)</label>
-    <input id="deposit" name="deposit" inputmode="decimal" value="{{ deposit_value }}" aria-describedby="deposit-hint">
-    <span id="deposit-hint" class="field-hint">$20 to $2,000</span></p>
-  <p><label class="checkbox-row"><input type="checkbox" name="demo_mode" value="yes"{% if demo_mode_checked or not error_text %} checked{% endif %}>
-    Demo mode: timers in minutes, not hours</label></p>
-  <button type="submit">Create</button>
-</form>
+<main id="top" class="landing">
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="hero-canvas">
+
+      <div class="piece piece-pledge" aria-hidden="true">
+        <div class="piece-body glass">
+          <div class="piece-line">
+            <span class="avatar avatar-counted">AN</span>
+            <span class="piece-name">Ana</span>
+            <span class="status piece-chip-black">Counted</span>
+          </div>
+          <p class="piece-caption">Max $40.00</p>
+        </div>
+      </div>
+
+      <div class="hero-tile">
+        <div class="hero-tile-face">
+          <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Last Call logo" width="195" height="120">
+        </div>
+      </div>
+
+      <div class="hero-copy">
+        <h1 id="hero-title" class="hero-title">
+          <span class="hero-line">Nobody pays</span>
+          <span class="hero-line hero-line-soft">unless everyone's in.</span>
+        </h1>
+        <p class="hero-lead">Friends pledge the most they'd pay. PayPal holds it. If the group reaches the goal, everyone pays their share once. If not, every hold is cancelled.</p>
+        <a class="button-link" href="#create">Start a pledge</a>
+        <p class="hero-note">Sandbox demo. Fake money, no real charges.</p>
+      </div>
+
+      <div class="piece piece-countdown" aria-hidden="true">
+        <div class="piece-body piece-black">
+          <p class="piece-caption">Last call</p>
+          <p class="piece-time">4:59</p>
+        </div>
+      </div>
+
+      <div class="piece piece-ring" aria-hidden="true">
+        <div class="piece-body glass">
+          <p class="piece-caption">Progress</p>
+          <svg class="mini-ring" viewBox="0 0 160 92">
+            <defs>
+              <pattern id="piece-stripes" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2="6" stroke="#BDBDBD" stroke-width="2"></line>
+              </pattern>
+            </defs>
+            <path class="mini-ring-track" d="M 12 80 A 68 68 0 0 1 148 80" pathLength="100"></path>
+            <path class="mini-ring-arc" d="M 12 80 A 68 68 0 0 1 148 80" pathLength="100"></path>
+          </svg>
+        </div>
+      </div>
+
+      <div class="piece piece-waiting" aria-hidden="true">
+        <div class="piece-body glass">
+          <div class="piece-avatars">
+            <span class="avatar">JA</span>
+            <span class="avatar">AN</span>
+          </div>
+          <span class="status piece-chip-outline">Waiting on Jay</span>
+        </div>
+      </div>
+
+      <div class="piece piece-note" aria-hidden="true">
+        <div class="piece-body piece-paper">
+          <span class="piece-pin"></span>
+          <p>Nobody pays unless the goal is reached.</p>
+        </div>
+      </div>
+
+      <div class="piece piece-hold" aria-hidden="true">
+        <div class="piece-body glass">
+          <p class="piece-title">{{ icon("lock") }}<span>Hold</span></p>
+          <p class="piece-caption">PayPal holds up to $40.00</p>
+          <p class="piece-caption">Charged only your share</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" class="landing-section" aria-labelledby="how-title">
+    <h2 id="how-title" class="landing-title">How it works</h2>
+    <div class="how-cards">
+      <div class="card how-step">
+        {{ icon("hand-coins") }}
+        <h3 class="card-title">Pledge your max</h3>
+        <p>You say the most you'd pay, even 'only if Jay's in'.</p>
+      </div>
+      <div class="card how-step">
+        {{ icon("lock") }}
+        <h3 class="card-title">PayPal holds it</h3>
+        <p>Nothing is charged while the group fills up.</p>
+      </div>
+      <div class="card how-step">
+        {{ icon("shield-check") }}
+        <h3 class="card-title">Pay your share, once</h3>
+        <p>If the goal is reached, you pay your part. If not, every hold is cancelled.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="create" class="landing-section" aria-labelledby="create-title">
+    <div class="card form-card form-page">
+      <h2 id="create-title" class="landing-title">Start a pledge</h2>
+      <p class="front-headline">Get your group to actually chip in.</p>
+      <p>Friends pledge with their card. Nobody is charged unless the group reaches the goal; if it doesn't, every hold is cancelled.</p>
+      <p class="text-soft">PayPal holds each friend's max. AI turns 'I'm in for $40 if Jay's in' into a pledge, and they confirm it.</p>
+
+      {% set error_on_title = error_text and not title_value|trim %}
+      {% set error_on_deposit = error_text and not error_on_title %}
+      <form method="post" action="{{ url_for('submit_event') }}">
+        <p class="field"><label for="title">Title</label>
+          <input id="title" name="title" value="{{ title_value }}" placeholder="Ridgeline cabin weekend"
+            {%- if error_on_title %} aria-invalid="true" aria-describedby="form-error"{% endif %}>
+          {% if error_on_title %}<span id="form-error" class="form-error" role="alert">{{ error_text }}</span>{% endif %}</p>
+        <p class="field"><label for="deposit">How much does the group need? ($)</label>
+          <input id="deposit" name="deposit" inputmode="decimal" value="{{ deposit_value }}"
+            aria-describedby="deposit-hint{% if error_on_deposit %} form-error{% endif %}"
+            {%- if error_on_deposit %} aria-invalid="true"{% endif %}>
+          <span id="deposit-hint" class="field-hint">$20 to $2,000</span>
+          {% if error_on_deposit %}<span id="form-error" class="form-error" role="alert">{{ error_text }}</span>{% endif %}</p>
+        <p class="field"><label class="checkbox-row"><input type="checkbox" name="demo_mode" value="yes"{% if demo_mode_checked or not error_text %} checked{% endif %}>
+          Demo mode: timers in minutes, not hours</label></p>
+        <button class="button-full" type="submit">Create</button>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer class="landing-footer">
+  <p class="landing-footer-name">Last Call</p>
+  <p>Built for the PayPal AI Hackathon. Sandbox only.</p>
+  <p><a class="text-link" href="https://github.com/Optimistic-max/Last-Call">Source code on GitHub</a></p>
+</footer>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/landing.js') }}" defer></script>
 {% endblock %}

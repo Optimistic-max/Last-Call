@@ -1,7 +1,8 @@
 <!doctype html>
 {# The shared frame for every page: the sandbox banner, the sidebar (laptop) or top bar and tabs (phone),
    and the page itself (docs/UI_DESIGN.md section 8). A page fills it in with {% extends "base.html" %}
-   and its own title, nav, content and scripts blocks. Pages with no menu leave nav empty.
+   and its own title, nav, content and scripts blocks. Pages with no menu leave nav empty. The landing
+   page replaces the whole shell block, and keeps the banner.
    Never put the admin page's address in a block a public page uses (D18, D59). #}
 <html lang="en">
 <head>
@@ -18,6 +19,7 @@
 <body>
   {% include "icons.html" %}
   <p class="sandbox-banner">SANDBOX DEMO: fake money, no real charges</p>
+  {% block shell %}
   <div class="shell">
     <aside class="shell-side">
       <p class="wordmark">LAST CALL</p>
@@ -33,6 +35,7 @@
       </div>
     </div>
   </div>
+  {% endblock %}
   {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -39,6 +39,14 @@
      with a floor so the box never turns square on a laptop. */
   --radius-inner: max(calc(var(--radius-card) - var(--card-padding)), 8px);
 
+  /* Soft black shadows in layers, never a colored glow. */
+  --shadow-rest: 0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08), 0 24px 48px rgba(0, 0, 0, 0.06);
+  --shadow-floating: 0 2px 4px rgba(0, 0, 0, 0.05), 0 12px 32px rgba(0, 0, 0, 0.10);
+  --shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.06), 0 16px 40px rgba(0, 0, 0, 0.12);
+
+  --landing-header-height: 64px;
+
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
@@ -1232,6 +1240,618 @@ input.ai-filled {
 .label-copied,
 .label-back {
   animation: fade-in 150ms ease;
+}
+
+
+/* ---------- Landing page (top of S1) ---------- */
+
+/* Anchored sections stop clear of the sticky banner and header. */
+.landing section[id] {
+  scroll-margin-top: calc(var(--banner-height) + var(--landing-header-height) + 16px);
+}
+
+/* Glass: the bar stays readable because 72% white sits behind its text. Where a browser
+   has no backdrop-filter, the @supports rule further down makes it solid white. */
+.landing-header {
+  position: sticky;
+  top: var(--banner-height);
+  z-index: 18;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: var(--landing-header-height);
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+}
+
+.landing-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.landing-logo {
+  width: auto;
+  height: 28px;
+}
+
+.landing-name {
+  display: inline-block;
+}
+
+.landing-nav {
+  display: none;
+  gap: 24px;
+}
+
+.landing-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 500;
+}
+
+.landing-start {
+  min-height: 44px;
+  padding: 0 16px;
+}
+
+/* The canvas: a big rounded panel with a faint dot grid. overflow keeps the pieces inside it. */
+.hero {
+  padding: 16px 16px 0;
+}
+
+.hero-canvas {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100dvh - var(--banner-height) - var(--landing-header-height) - 16px);
+  padding: 24px 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 32px;
+  background-color: var(--page);
+  background-image: radial-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+  background-size: 20px 20px;
+  text-align: center;
+}
+
+/* The logo as a raised app tile. Scrolling moves .hero-tile; hover wiggles the face inside it. */
+.hero-tile {
+  flex: none;
+  width: 96px;
+  height: 96px;
+  margin-bottom: 24px;
+}
+
+.hero-tile-face {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  place-items: center;
+}
+
+.hero-tile-face img {
+  width: 64%;
+  height: auto;
+}
+
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Two lines at every width: below 580px the size follows the screen, because 44px
+   "unless everyone's in." would need a third line on a phone. */
+.hero-title {
+  font-size: min(2.75rem, 7.6vw);
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.hero-line {
+  display: block;
+  white-space: nowrap;
+}
+
+/* Your #9A9A9A is 2.5:1 on this page. --ink-3 looks the same and passes for text this large. */
+.hero-line-soft {
+  color: var(--ink-3);
+}
+
+.hero-lead {
+  max-width: 46ch;
+  margin: 16px 0 20px;
+  color: var(--ink-2);
+  font-size: 1rem;
+}
+
+.hero-note {
+  margin: 8px 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+}
+
+/* The floating pieces. .piece is where it sits and what scrolling moves. .piece-body tilts
+   and floats, so the two movements never fight over one transform. */
+.piece {
+  flex: none;
+  display: none;
+}
+
+.piece-body {
+  width: max-content;
+  max-width: 240px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: var(--shadow-floating), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  text-align: left;
+  transform: rotate(var(--tilt, 0deg)) scale(var(--piece-scale, 1));
+}
+
+.piece-body p {
+  margin: 0;
+}
+
+.piece-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.piece-name {
+  font-weight: 500;
+}
+
+.piece-caption {
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+}
+
+.piece-pledge .piece-caption {
+  margin-top: 6px;
+  padding-left: 48px;
+}
+
+.piece-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px !important;
+  font-weight: 500;
+}
+
+.piece-chip-black {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+.piece-chip-outline {
+  display: inline-block;
+  border-color: var(--ink);
+}
+
+.piece-avatars {
+  display: flex;
+  margin-bottom: 8px;
+}
+
+.piece-avatars .avatar + .avatar {
+  margin-left: -8px;
+  box-shadow: 0 0 0 2px var(--card);
+}
+
+.piece-black {
+  min-width: 140px;
+  background: var(--ink);
+  box-shadow: var(--shadow-floating), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: var(--on-ink);
+}
+
+.piece-black .piece-caption {
+  color: var(--on-ink-2);
+}
+
+.piece-time {
+  font-size: var(--text-display);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.mini-ring {
+  display: block;
+  width: 136px;
+  margin-top: 4px;
+}
+
+.mini-ring path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 18;
+}
+
+.mini-ring-track {
+  stroke: url(#piece-stripes);
+}
+
+.mini-ring-arc {
+  stroke: var(--ink);
+  stroke-dasharray: 70 100;
+}
+
+.piece-paper {
+  position: relative;
+  max-width: 200px;
+  padding-top: 20px;
+  background: #FFFDF5;
+  font-size: 1.0625rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.piece-pin {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+/* Phones get two pieces, in the flow of the page, so they can never cover text. */
+.piece-pledge,
+.piece-countdown {
+  display: block;
+  --piece-scale: 0.8;
+}
+
+.piece-pledge {
+  align-self: flex-start;
+  margin: -8px 0 -4px -16px;
+  --tilt: -4deg;
+  --drift-x: -40px;
+  --drift-y: -30px;
+}
+
+.piece-countdown {
+  align-self: flex-end;
+  margin: -4px -8px -12px 0;
+  --tilt: 4deg;
+  --drift-x: 40px;
+  --drift-y: 30px;
+}
+
+.piece-ring { --tilt: -5deg; --drift-x: -120px; --drift-y: 0px; }
+.piece-waiting { --tilt: 3deg; --drift-x: 120px; --drift-y: 0px; }
+.piece-note { --tilt: -3deg; --drift-x: -80px; --drift-y: 60px; }
+.piece-hold { --tilt: 5deg; --drift-x: 80px; --drift-y: 60px; }
+
+/* The sections under the hero */
+.landing-section {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 48px var(--gutter) 0;
+}
+
+.landing-title {
+  margin: 0 0 20px;
+  font-size: var(--text-title);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.how-cards {
+  display: grid;
+  gap: var(--card-gap);
+}
+
+.how-step .icon {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 12px;
+}
+
+.how-step .card-title {
+  margin-bottom: 4px;
+}
+
+.how-step p {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+/* Cards that rise in when they reach the screen. landing.js adds these classes, so with no
+   JavaScript, or with reduced motion, the cards just stay in place. */
+.will-rise {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.will-rise.risen {
+  opacity: 1;
+  transform: none;
+  transition: opacity 300ms var(--ease-out), transform 300ms var(--ease-out);
+  transition-delay: calc(var(--rise-order, 0) * 60ms);
+}
+
+.front-headline {
+  font-size: var(--text-card);
+  font-weight: 500;
+}
+
+.landing-footer {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 48px var(--gutter);
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+}
+
+.landing-footer p {
+  margin: 0 0 4px;
+}
+
+.landing-footer-name {
+  color: var(--ink);
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+/* A link whose line slides in from the left under a mouse. Touch screens keep the plain underline. */
+.text-link {
+  position: relative;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .text-link {
+    text-decoration: none;
+  }
+
+  .text-link::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 8px;
+    left: 0;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 200ms var(--ease-out);
+  }
+
+  .landing-footer .text-link::after {
+    bottom: 0;
+  }
+
+  .text-link:hover::after {
+    transform: scaleX(1);
+  }
+}
+
+/* The pieces are glass on a bigger screen only. Blur behind something that moves is heavy on
+   a phone, and there it would only blur the dots. */
+@media (min-width: 768px) {
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass {
+      background: rgba(255, 255, 255, 0.8);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+    }
+  }
+
+  /* Four pieces, in the corners. The canvas keeps enough height for them to clear the words. */
+  .hero-canvas {
+    min-height: max(calc(100dvh - var(--banner-height) - var(--landing-header-height) - 24px), 860px);
+  }
+
+  .hero-title {
+    font-size: 2.75rem;
+  }
+
+  .piece-pledge,
+  .piece-countdown,
+  .piece-note,
+  .piece-hold {
+    position: absolute;
+    display: block;
+    margin: 0;
+    --piece-scale: 1;
+  }
+
+  .piece-pledge { top: 6%; left: 5%; }
+  .piece-countdown { top: 5%; right: 5%; --drift-x: 100px; --drift-y: -60px; }
+  .piece-note { bottom: 6%; left: 6%; }
+  .piece-hold { bottom: 7%; right: 5%; }
+  .piece-pledge { --drift-x: -100px; --drift-y: -60px; }
+
+  .how-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Solid white where glass isn't possible. Text on it passes either way. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .landing-header,
+  .page-actions {
+    background: var(--card);
+  }
+}
+
+/* All six pieces. Below 1200px the headline steps down so they clear it. */
+@media (min-width: 1024px) {
+  .hero {
+    padding: 24px 24px 0;
+  }
+
+  .hero-tile {
+    width: 120px;
+    height: 120px;
+    margin-bottom: 32px;
+  }
+
+  .hero-canvas {
+    min-height: max(calc(100dvh - var(--banner-height) - var(--landing-header-height) - 24px), 720px);
+  }
+
+  .hero-tile-face {
+    border-radius: 28px;
+  }
+
+  .hero-title {
+    font-size: 3.75rem;
+  }
+
+  .hero-lead {
+    font-size: 1.125rem;
+  }
+
+  .landing-nav {
+    display: flex;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .piece-ring,
+  .piece-waiting {
+    position: absolute;
+    display: block;
+  }
+
+  .piece-ring { top: 40%; left: 2.5%; }
+  .piece-waiting { top: 44%; right: 3%; }
+}
+
+@media (min-width: 1200px) {
+  .hero-title {
+    font-size: 4.5rem;
+  }
+
+  .piece-ring { left: 5%; }
+  .piece-waiting { right: 6%; }
+}
+
+/* Idle float, and the scroll zoom. .piece-body floats; .piece, .hero-tile and .hero-copy follow
+   the scroll, and scrolling back up plays it in reverse by itself. */
+@media (prefers-reduced-motion: no-preference) {
+  .piece-body {
+    animation: piece-float 3s ease-in-out infinite alternate;
+  }
+
+  .piece-countdown .piece-body { animation-duration: 3.5s; animation-delay: -1s; }
+  .piece-ring .piece-body { animation-duration: 2.8s; animation-delay: -2s; }
+  .piece-waiting .piece-body { animation-duration: 3.2s; animation-delay: -0.6s; }
+  .piece-note .piece-body { animation-duration: 2.6s; animation-delay: -1.6s; }
+  .piece-hold .piece-body { animation-duration: 3.4s; animation-delay: -2.4s; }
+
+  @supports (animation-timeline: scroll()) {
+    .hero-tile,
+    .hero-copy,
+    .piece,
+    .landing-logo,
+    .landing-name {
+      animation-duration: 1ms;   /* the timeline sets the real length */
+      animation-fill-mode: both;
+      animation-timeline: scroll(root);
+      animation-timing-function: linear;
+    }
+
+    /* The tile only needs 280px: by then the page has carried it up to the header. */
+    .hero-tile {
+      animation-name: tile-to-header;
+      animation-range: 0 280px;
+    }
+
+    .hero-copy {
+      animation-name: copy-recede;
+      animation-range: 0 600px;
+    }
+
+    .piece {
+      animation-name: piece-drift;
+      animation-range: 0 600px;
+    }
+
+    /* The header logo arrives as the tile fades, and the name slides over to make room. */
+    .landing-logo {
+      animation-name: fade-in;
+      animation-range: 200px 300px;
+    }
+
+    .landing-name {
+      animation-name: name-slide;
+      animation-range: 200px 300px;
+    }
+  }
+}
+
+/* The fallback does the same thing with one number, --progress, from 0 to 1. */
+.scroll-fallback .piece {
+  opacity: calc(1 - var(--progress, 0));
+  transform: translate(calc(var(--drift-x, 0px) * var(--progress, 0)), calc(var(--drift-y, 0px) * var(--progress, 0)))
+    scale(calc(1 + 0.08 * var(--progress, 0)));
+}
+
+.scroll-fallback .hero-tile {
+  --tile-progress: min(1, calc(var(--progress, 0) * 2.14));   /* done at 280px of the 600px */
+  opacity: calc(1 - var(--tile-progress));
+  transform: translateX(calc(var(--tile-x) * var(--tile-progress))) scale(calc(1 - 0.4 * var(--tile-progress)));
+}
+
+.scroll-fallback .landing-logo {
+  opacity: calc((var(--progress, 0) - 0.33) * 6);
+}
+
+.scroll-fallback .hero-copy {
+  opacity: calc(1 - 0.4 * var(--progress, 0));
+  transform: scale(calc(1 - 0.08 * var(--progress, 0)));
+}
+
+/* The tile slides toward the header's logo while the page carries it upward. It stays level with
+   the words below it, so it never crosses them. */
+.hero-tile {
+  --tile-x: calc(-50vw + 40px);
+}
+
+@keyframes piece-float {
+  from { transform: rotate(var(--tilt, 0deg)) scale(var(--piece-scale, 1)) translateY(0); }
+  to { transform: rotate(var(--tilt, 0deg)) scale(var(--piece-scale, 1)) translateY(-6px); }
+}
+
+@keyframes tile-to-header {
+  to { opacity: 0; transform: translateX(var(--tile-x)) scale(0.6); }
+}
+
+@keyframes name-slide {
+  from { transform: translateX(-53px); }
+}
+
+@keyframes copy-recede {
+  to { opacity: 0.6; transform: scale(0.92); }
+}
+
+@keyframes piece-drift {
+  to { opacity: 0; transform: translate(var(--drift-x, 0px), var(--drift-y, 0px)) scale(1.08); }
 }
 
 
