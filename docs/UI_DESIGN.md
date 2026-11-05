@@ -11,16 +11,16 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 ## 2. Visual direction
 
 - **Mood:** a friendly "last call" at a bar or campfire: warm, confident, a little playful. Not a bank.
-- Pick **one** strong accent color for "counted / goal reached" and one warning color for "declined / needs attention". Everything else is neutral.
-- One font, Geist Serif, for everything (D53, replaces "one display font plus one text font"). It has one weight, so headings and money amounts stand out by size. Money amounts should be big and easy to read.
-- Avoid the default look of a template: no generic hero gradient, no stock illustrations.
+- Black means "counted / goal reached", and one warning color means "declined / needs attention". Everything else is neutral (D84).
+- One font, Inter, for everything (D84, replaces D53's Geist Serif). Money amounts should be big and easy to read.
+- Avoid the default look of a template: no generic hero gradient, no stock illustrations. The ribbed picture behind the black cards is the one texture on the app pages.
 - Record the final palette and fonts at the bottom of this file so the video and README match.
 
 ## 3. Screens
 
 | # | Screen | Route | Milestone | Must show |
 |---|---|---|---|---|
-| S1 | Create event | `/` | M1 | the three lines of intro text, title, how much the group needs ($), demo-mode checkbox (ticked by default), "Create" |
+| S1 | Landing page and create event | `/` | M1 | the landing hero, "How it works", then the form at `#create`: the three lines of intro text, title, how much the group needs ($), demo-mode checkbox (ticked by default), "Create" (D85) |
 | S2 | Treasurer view | `/admin/<token>` | M1 | the share link (copy button), "Open pledging", the board, needs-attention actions (M2). D31: a Share button, see §9 |
 | S3 | Board (public) | `/e/<id>` | M1 | goal, progress bar, who's in, time left, status banner |
 | S4 | Pledge | `/e/<id>/pledge` | M1 | name, max, the promise text, PayPal card fields, "Hold my max". D31 (M4): name (required) and email (optional), a box to type the pledge in your own words, quick-amount buttons, the privacy note, and an editable confirm step before the card fields: amount (the minimum, shown only, D12), cap (the maximum held) and condition. Nothing is saved until the friend confirms: the AI's result stays only in the page. The card fields part stays the B1 flow |
@@ -50,15 +50,27 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | Declined card, on the friend's own link (D31) | **Your card was declined, so nothing is held and you're not counted yet. Try another card.** |
 | S3 goal line | **Goal $[goal] so the club gets a full $[deposit] after fees** |
 | S3 last call banner | **Last call! Goal reached. Join in the next [mm:ss] and everyone's share drops.** |
-| Board held total (S2, S3) | **Held on cards: $[held]** (final, Samuel Nov 5, D57) |
-| Board row, on screen (S2, S3) | **[Name]**, a status chip (**Counted**, or "Waiting on [name]", or the status word), **up to $[max]**, plus **would pay $[share]** during last call (final, Samuel Nov 5, D57, D76) |
-| Board row, for screen readers | **[Name]: [status word], max $[max]**, plus **, would pay $[share]**, the waiting text and **, Counted** when they apply |
-| Board, under the progress bar | **The bar shows counted pledges only. A hold with a condition counts once that condition is met.** (Samuel Nov 5) |
-| Board, no pledges yet | **No pledges yet.** (not shown once the event has ended: a missed goal drops its pledges from the list) |
-| Board, a new name in a refresh | **[Name] just pledged** |
-| Board button to S4 | **Pledge** (final, Samuel Nov 5, D57) |
+| Board held card (S2, S3) | **Held so far**, then $[held], then **PayPal is holding this. Nobody is charged yet.** After SETTLED: **Charged once.** No caption in the other ended states, because it would no longer be true (D84) |
+| Board stat cards (S2, S3) | **Counted** · **Counts toward the goal**. **People in** · **[n] waiting on someone**. **Goal** · **So the club gets the full amount after PayPal's fees** |
+| Board row, on screen (S2, S3) | **[Name]**, then **Max $[max]**, plus **share now $[share]** during last call and the waiting text, and a status chip: **Counted**, "Waiting on [name]", or the status word (D84) |
+| Board row, for screen readers | **[Name]: [status word], max $[max]**, plus **, share now $[share]**, the waiting text and **, Counted** when they apply |
+| Board status card | **Right now**, then the banner text |
+| Board countdown card | **Time left**, or **Last call** during last call, and **Closed** when there's nothing to count down |
+| Board progress card | **Progress**, **of the goal counted**, and the legend **Counted**, **Held, waiting on someone** and **Still needed** |
+| Board, under the half ring | **Held money counts once everyone it depends on is in.** (meanwhile wording, Samuel to pick) |
+| Board, nobody yet | **Nobody has pledged yet. Share the link to start.** (not shown after a missed goal, which drops its pledges from the list) |
+| Board, a new name in a refresh | **Just pledged** |
+| Board and header buttons | **Pledge**, or **Join last call** during last call, and **Invite** |
+| How it works card (S2, S3) | **Pledge the most you'd pay** · **PayPal holds it, nothing is charged** · **If the goal is reached, you pay only your share. If not, every hold is cancelled.** |
 | S4 link to the board | **← Back to board** |
-| S1 intro | **Get your group to actually chip in.** then **Friends pledge with their card. Nobody is charged unless the group reaches the goal; if it doesn't, every hold is cancelled.** then **PayPal holds each friend's max. AI turns 'I'm in for $40 if Jay's in' into a pledge, and they confirm it.** |
+| S4 steps | **Say it your way**, **Check it**, **Hold it** |
+| S4 box the AI filled | **Filled by AI, edit if wrong** |
+| Landing headline | **Nobody pays** / **unless the goal is met.** (D85) |
+| Landing supporting line | **Friends pledge the most they'd pay. PayPal holds it. If the group reaches the goal, everyone pays their share once. If not, every hold is cancelled.** |
+| Landing button and note | **Start a pledge**, then **Sandbox demo. Fake money, no real charges.** |
+| Landing "How it works" | **Pledge your max** · **You say the most you'd pay, even 'only if Jay's in'.** **PayPal holds it** · **Nothing is charged while the group fills up.** **Pay your share, once** · **If the goal is reached, you pay your part. If not, every hold is cancelled.** |
+| Landing footer | **Built for the PayPal AI Hackathon. Sandbox only.** |
+| S1 intro | **Start a pledge**, then **Get your group to actually chip in.** then **Friends pledge with their card. Nobody is charged unless the group reaches the goal; if it doesn't, every hold is cancelled.** then **PayPal holds each friend's max. AI turns 'I'm in for $40 if Jay's in' into a pledge, and they confirm it.** |
 | S1 amount field | **How much does the group need? ($)** with the hint **$20 to $2,000** |
 | S1 title example | **Ridgeline cabin weekend** |
 | S1 demo-mode checkbox | **Demo mode: timers in minutes, not hours** |
@@ -73,7 +85,7 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | Refund-all confirm | **Refunding returns everyone's money, but PayPal keeps its fees ($[fees]). This can't be undone.** |
 | Slow first load | **Waking up the app… (free hosting can take up to a minute)** |
 | Demo mode badge | **Demo mode: timers are minutes, not hours** |
-| S4 own-words box (D31) | **AI reads. You confirm. Plain code handles the money.** and **What you type here is sent to [provider] to read it. Don't type anything private.** |
+| S4 own-words box (D31) | **AI reads. You confirm. Plain code handles the money.** and **What you type here is sent to Groq to read it. Don't type anything private.** (D75) |
 
 The [Send [Name] a new pay link] button moved to `docs/LATER.md` (D49), so [Refund everyone] is the only button in the "Needs attention" wording.
 
@@ -84,13 +96,13 @@ Never write "released instantly", "sent to the cabin", or "no signup needed" (th
 | Event status | Banner | Progress bar |
 |---|---|---|
 | `OPEN` | "Pledging open: [time] left" | sum of counted maxes / goal |
-| `LAST_CALL` | the last call banner + countdown | full, accent color |
+| `LAST_CALL` | the last call banner + countdown | full, black |
 | `LOCKING` / `CHARGING` | "Locking shares…" | full |
 | `SETTLED` | "Done! Club receives $[real net]" | full |
-| `NEEDS_ATTENTION` | "Needs the treasurer's attention" | full, warning color |
+| `NEEDS_ATTENTION` | "Needs the treasurer's attention" | full, warning color, with the word |
 | `EXPIRED` | the missed-goal message | grey |
 
-Each pledger row shows (never the email, which never appears on the public board or in `board.json`, D31): name · status chip (Pledged / Hold pending / Held / Counted / Waiting on [name] / Declined / Charged $[share] / Charge failed; Pledged and Hold pending from M4, D31) · max · during last call, what they would pay. A hold the circle rule counts shows **Counted**. A hold still waiting shows its `waiting_on_text`. **Hold pending** needs a server value that doesn't exist yet, so it can't appear yet. Conditions show as "if Jay's in".
+Each pledger row shows (never the email, which never appears on the public board or in `board.json`, D31): name · status chip (Pledged / Hold pending / Held / Counted / Waiting on [name] / Declined / Charged $[share] / Charge failed; Pledged and Hold pending from M4, D31) · max · during last call, the share now. A hold the circle rule counts shows **Counted**. A hold still waiting shows its `waiting_on_text`. **Hold pending** needs a server value that doesn't exist yet, so it can't appear yet. Conditions show as "if Jay's in".
 
 **D31:** three visible states, each a word, not only a color: **Pledged** (confirmed, no card yet), **Hold pending** (card sent, PayPal's answer not back yet), **Held**. Board totals count only held money: pledged and hold-pending rows add $0.
 
@@ -100,11 +112,13 @@ Each pledger row shows (never the email, which never appears on the public board
 
 ## 6. The three moments the video needs (simple CSS only)
 
-1. **Circle turns green together:** when Ana ("if Jay's in") and Jay ("if Ana's in") both become counted, their two rows flash to the accent color at the same time.
-2. **Share drops:** during last call, when someone joins, the old share shows struck through next to the new one, which flashes (700ms). Both are the server's text, so JavaScript does no money math (D83).
-3. **Goal reached:** the progress bar fills and the last call banner slides in.
+1. **The circle turns black together:** when Ana ("if Jay's in") and Jay ("if Ana's in") both become counted, their chips and avatars turn black at the same moment, 200ms, no stagger (D84).
+2. **Share drops:** during last call, when someone joins, the old share slides up and fades as the new one slides in from below, 300ms. Both are the server's text, so JavaScript does no money math (D83, D84).
+3. **Goal reached:** the half ring fills, the status card turns black, the countdown card starts its gentle pulse, and the main button becomes "Join last call".
 
-Keep animations under about 0.8 seconds and respect `prefers-reduced-motion`.
+Keep one-time animations under about 0.8 seconds and respect `prefers-reduced-motion`. The countdown's 2-second pulse is a loop, and it stops under reduced motion.
+
+The hero's idle float and scroll zoom are extra to these three moments, and they are off under reduced motion too (D85).
 
 ## 7. Basics
 
@@ -116,45 +130,70 @@ Keep animations under about 0.8 seconds and respect `prefers-reduced-motion`.
 
 ## 8. Final palette and fonts
 
-Direction: **"Bar sign"**, a dark room with a lit sign: warm off-white text, one green for "counted", one coral for "needs attention", and a yellow banner that is used only for the sandbox notice. The variables live on `:root` in `static/style.css`.
+**Look (D84, D85):** a clean light dashboard in black and white. A calm grey page, white cards, black for anything important. The copy stays warm and plain, so it never feels like a bank. The variables live on `:root` in `static/style.css`.
 
-| Variable | Hex | Job |
+| Variable | Value | Job |
 |---|---|---|
-| `--bg` | `#17161E` | Page background |
-| `--surface` | `#212130` | Cards |
-| `--line` | `#2C2A36` | Borders, empty progress bar track, disabled buttons (decorative only: 1.27:1 on `--bg`, so never the only edge of an input) |
-| `--ink` | `#F4EFE6` | Main text |
-| `--ink-soft` | `#B3ADA3` | Secondary text, input borders |
-| `--accent` | `#5FD69C` | Counted / goal reached, main button |
-| `--accent-soft` | `#1E3D2D` | Background behind `--accent-ink` text |
-| `--accent-ink` | `#9BF0C3` | Text on `--accent-soft`, links, focus outline, button hover |
-| `--warn` | `#FF7A66` | Declined / needs attention |
-| `--warn-soft` | `#45201B` | Background behind `--warn-ink` text |
-| `--warn-ink` | `#FFB3A7` | Text on `--warn-soft` |
-| `--banner` | `#FFD76A` | Sandbox banner background, nothing else |
-| `--banner-ink` | `#2A2100` | Sandbox banner text, nothing else |
+| `--page` | `#F3F3F1` | Page background, with a faint dot grid |
+| `--card` | `#FFFFFF` | Cards |
+| `--ink` | `#0B0B0B` | Main text, primary buttons, counted |
+| `--ink-2` | `#5C5C5C` | Secondary text, captions, placeholders |
+| `--ink-3` | `#8A8A8A` | The hero's second headline line only. 3.45:1 on white is too faint for smaller text |
+| `--line` | `#E5E5E2` | Borders and dividers |
+| `--held` | `#9A9A9A` | Held but not counted in the gauge, and the EXPIRED ring |
+| `--on-ink` | `#FFFFFF` | Text on black |
+| `--on-ink-2` | `#BDBDBD` on plain black, `#E5E5E5` on a photo card | Quieter text on black |
+| `--danger` / `--danger-bg` | `#B42318` / `#FDECEA` | Only Declined, Charge failed and Needs attention, always with a word |
 
-**Font (D53):** **Geist Serif** (Vercel, OFL-1.1), weight 400 only, for all text. Fallbacks: Georgia, Times New Roman, serif. It isn't on Google Fonts yet, so `style.css` loads it with `@font-face` from jsDelivr, pinned to commit `d33068f` of [vercel/geist-font](https://github.com/vercel/geist-font) (`fonts/GeistSerif/webfonts/GeistSerif-Regular.woff2`, checked Oct 31: HTTP 200, `font/woff2`). Headings use size, not weight. Money amounts use the `.money` class (40px on a phone, 48px on a laptop).
+**Font:** Inter from Google Fonts, weights 400, 500 and 600, with system-ui as the fallback. `tabular-nums` is on for the whole page, so money and times never jump.
 
-**Contrast** (WCAG 2 formula, worked out Oct 31; AA needs 4.5:1 for text, 3:1 for a field's edge or a focus ring):
+| Style | Phone / laptop | Used for |
+|---|---|---|
+| Display | 40 / 56px, 600, -0.03em | Big numbers. In stat cards they shrink with the card (`cqi` units), so `$50,000.00` always fits |
+| Title | 28 / 36px, 600, -0.02em | `h1` |
+| Card title | 16 / 18px, 500 | Card headings |
+| Body | 15 / 16px, 400, line height 1.5 | Text |
+| Caption | 13px, 500 | Captions and chips |
+
+Two sizes sit outside that scale on purpose: form labels (14px) and the status card's banner (24px, 600).
+
+**Spacing and shape:** a 4px scale (4, 8, 12, 16, 20, 24, 32, 48, 64). Gutter 16 / 32px, card padding 20 / 24px, card gap 12 / 20px, content max-width 1280px. Cards are 24px round. Fields are 48px tall, 14px round, with 16px text so iPhones don't zoom. Buttons and chips are pills: 48px tall on phones, 44px on laptops. The 40px icon buttons have an invisible ring that makes the tap target 46px. Layout breakpoints are 768, 1024 and 1200px.
+
+**Icons:** Lucide (ISC license, copyright notice in `templates/icons.html`), inline SVG, 20px, 1.5px line. **Logo:** `static/img/logo.svg` and `logo-white.svg`, Samuel's files, used as they are. **Picture:** `static/images/ribbed-dark.jpg`, Samuel's, behind the black cards under a 60% dark layer, so text passes AA over its brightest pixel.
+
+**Shadows (D85):** layered, soft and black only, never a colored glow.
+
+| Variable | Used on |
+|---|---|
+| `--shadow-rest` | Every card |
+| `--shadow-raised` | The featured "Held so far" card, the countdown card, the logo tile |
+| `--shadow-floating` | The hero's floating pieces |
+| `--shadow-hover` | Hovered cards. It sits on a layer that only fades, because animating `box-shadow` would repaint every frame |
+
+Raised surfaces also get a 1px highlight along the top edge. Primary buttons get a small shadow so they look pressable. Inputs stay flat.
+
+**Glass (D85), used sparingly:** the landing header, the phone's bottom action bar and the hero's floating pieces on screens from 768px, and nowhere else. Phones skip it on the pieces, because blur behind moving cards is heavy there. Without `backdrop-filter`, the header and bar are solid white.
+
+**Hover, press and wiggle (D85):** hover effects apply only under `@media (hover: hover) and (pointer: fine)`. Cards lift 2px, buttons lift 1px, "Who's in" rows fill with `--page` and the avatar grows slightly, arrows lean 2px the way they point, and `.text-link` underlines slide in from the left. A press is `scale(0.97)` over 120ms. The wiggle (rotate -3, 3, -2, 1, 0 degrees over 450ms) is for the logo on hover, "Copied ✓", "Just pledged", and Invite once, 8 seconds after an empty board loads. A refused field shakes instead. Money, the countdown and status chips never wiggle.
+
+**Landing page (D85):** it sits at the top of S1, on `GET /`. A sticky glass header, then a dotted hero canvas with the logo tile, the headline, the supporting line, one button, and six floating pieces (four on tablets, two on phones). Then `#how`, `#create` (the form) and the footer. The pieces are aria-hidden drawings of our own components, and every name and amount in them is made up. Scrolling the first 600px zooms past them. The tile reaches the header at 280px, because any later and the headline would scroll through it.
+
+**Contrast** (WCAG 2 formula, worked out Nov 5; AA needs 4.5:1 for text and 3:1 for large text):
 
 | Foreground on background | Ratio | Used for |
 |---|---|---|
-| `--ink` on `--bg` / `--surface` | 15.67 / 13.84 | Main text |
-| `--ink-soft` on `--bg` / `--surface` | 8.05 / 7.11 | Secondary text, input borders |
-| `--accent` on `--bg` / `--surface` | 9.90 / 8.74 | Accent text |
-| `--accent-ink` on `--accent-soft` | 8.89 | "Counted" status word |
-| `--accent-ink` on `--bg` / `--surface` | 13.37 / 11.81 | Links, focus outline |
-| `--warn` on `--bg` / `--surface` | 7.03 / 6.21 | Warning text |
-| `--warn-ink` on `--warn-soft` | 8.31 | "Declined" status word |
-| `--banner-ink` on `--banner` | 11.54 | Sandbox banner |
-| `--bg` on `--accent` / `--accent-ink` | 9.90 / 13.37 | Main button text, normal / hover |
-| `--ink` on `--line` | 12.29 | Plain status word |
-| `--ink-soft` on `--line` | 6.32 | Disabled button text |
-| `--accent` on `--line` | 7.77 | Filled progress bar against the empty track |
-| `--line` on `--bg` / `--surface` | 1.27 / 1.13 | Decorative borders only |
+| `--ink` on `--card` / `--page` | 19.68 / 17.72 | Main text |
+| `--ink-2` on `--card` / `--page` | 6.69 / 6.02 | Secondary text, captions, placeholders |
+| `--ink-3` on `--page` | 3.11 | The hero's second line: large text only |
+| White on `--ink` | 19.68 | Buttons, black chips |
+| White on a photo card's brightest pixel | 6.0 | Numbers and titles |
+| `#E5E5E5` on a photo card's brightest pixel | 4.7 | Captions on photo cards |
+| `#BDBDBD` on `--ink` | 10.48 | Quieter text on plain black |
+| `--danger` on `--danger-bg` / `--card` | 5.75 / 6.57 | Declined, Charge failed, Needs attention |
+| `--ink` on `--line` | 15.59 | Held chip |
+| `--ink-2` on `--line` | 5.30 | Disabled button |
 
-Every text pair passes AA, and every one except `--warn` on `--surface` (6.21) also passes AAA (7:1).
+Not text, but worth knowing: `--line` on white is 1.26:1, below the 3:1 WCAG asks for a field's edge, and `--held` on white is 2.81:1, below 3:1 for a graphic. A field's label and the ring's legend words carry the meaning. `--ink-3` (3.45:1) would clear the bar for field borders if the team wants that.
 
 ## 9. Sharing the link (D31)
 
@@ -169,7 +208,7 @@ Added by Emmanuel on Oct 31 for step 5b (D54–D58). `app.py` passes exactly the
 - Money and times arrive as finished text, so templates and JavaScript never format or add up money (§7, rule 2). The `dollars` filter (`{{ 4000|dollars }}` shows `$40.00`) is for a template that is given cents. No 5b page needs it.
 - No page and no JSON ever gets an email or a `pledger_token`, except the friend's own S6 page and the link on their own pledge page (D82), which carry their own token. Only S2 gets anything that contains the `admin_token`.
 - Later milestones may add keys. They never rename one.
-- Files: `create_event.html` (S1), `admin.html` (S2), `board.html` (S3) and `board_panel.html` (the board). `board_panel.html` is included by S2 and S3; the others extend `base.html` (D76). The bare versions are Emmanuel's, for Samuel to restyle.
+- Files: `create_event.html` (S1), `admin.html` (S2), `board.html` (S3) and `board_panel.html` (the board). `board_panel.html` is included by S2 and S3; the others extend `base.html` (D76). `macros.html` holds shared pieces and `icons.html` the icons. `create_event.html` replaces `base.html`'s whole `shell` block and keeps the banner (D85).
 - *Placeholder* marks D57's texts, used until Samuel approves or replaces them in §4.
 
 ### S1 `create_event.html` (`GET /`, and `POST /events` when it refuses)
