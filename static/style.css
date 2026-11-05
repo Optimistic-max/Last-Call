@@ -1,45 +1,46 @@
-/* Last Call styles, "Bar sign" direction (docs/UI_DESIGN.md section 8).
-   Phone first: the normal rules are for a 375px-wide phone.
-   The one media query near the bottom adjusts things for laptops. */
+/* Last Call styles: a clean light dashboard in black and white (docs/UI_DESIGN.md section 8).
+   Phone first: the normal rules are for a phone. The one media query near the bottom
+   adjusts things for laptops, from 1024px wide. */
 
 
-/* ---------- The font ---------- */
+/* ---------- Colors, type and spacing, in one place ---------- */
 
-/* Geist Serif (Vercel, OFL-1.1 license) has one weight, 400. It isn't on
-   Google Fonts yet, so we load it from jsDelivr, pinned to one commit of
-   Vercel's geist-font repo so the file can never change under us.
-   font-display: swap shows the fallback font at once and swaps in Geist
-   Serif when it arrives, so text is never invisible on a slow phone. */
-@font-face {
-  font-family: "Geist Serif";
-  src: url("https://cdn.jsdelivr.net/gh/vercel/geist-font@d33068f8680340092804b3a97ea668a443af63a6/fonts/GeistSerif/webfonts/GeistSerif-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-
-/* ---------- Colors and font, in one place ---------- */
-
-/* Every color on the site comes from these variables, so changing one
-   line here changes it everywhere. Contrast ratios are in UI_DESIGN.md §8. */
+/* Every value on the site comes from these variables, so changing one line here
+   changes it everywhere. Contrast ratios are in UI_DESIGN.md section 8. */
 :root {
-  --bg: #17161E;           /* page background */
-  --surface: #212130;      /* cards */
-  --line: #2C2A36;         /* borders, empty progress bar track */
-  --ink: #F4EFE6;          /* main text */
-  --ink-soft: #B3ADA3;     /* secondary text, input borders */
-  --accent: #5FD69C;       /* counted / goal reached */
-  --accent-soft: #1E3D2D;  /* background behind accent-ink text */
-  --accent-ink: #9BF0C3;   /* accent text on accent-soft, focus outline */
-  --warn: #FF7A66;         /* declined / needs attention */
-  --warn-soft: #45201B;    /* background behind warn-ink text */
-  --warn-ink: #FFB3A7;     /* warning text on warn-soft */
-  --banner: #FFD76A;       /* sandbox banner only */
-  --banner-ink: #2A2100;   /* sandbox banner text only */
+  --page: #F3F3F1;         /* page background */
+  --card: #FFFFFF;         /* cards */
+  --ink: #0B0B0B;          /* main text, primary buttons, featured cards, counted */
+  --ink-2: #5C5C5C;        /* secondary text */
+  --ink-3: #8A8A8A;        /* 3.45:1 on white: too faint for text, so no text uses it */
+  --line: #E5E5E2;         /* borders and dividers */
+  --held: #9A9A9A;         /* held but not counted, in the gauge */
+  --on-ink: #FFFFFF;       /* text on black */
+  --on-ink-2: #BDBDBD;     /* quieter text on black */
+  --danger: #B42318;       /* only Declined, Charge failed, Needs attention, always with a word */
+  --danger-bg: #FDECEA;
 
-  /* If Geist Serif hasn't loaded (or fails), the browser uses the next one. */
-  --font: "Geist Serif", Georgia, "Times New Roman", serif;
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --text-display: 2.5rem;  /* 40px: the big numbers */
+  --text-title: 1.75rem;   /* 28px: the page title */
+  --text-card: 1rem;       /* 16px: card titles */
+  --text-body: 0.9375rem;  /* 15px */
+  --text-caption: 0.8125rem;  /* 13px: captions and chips */
+
+  --gutter: 16px;
+  --card-padding: 20px;
+  --card-gap: 12px;
+  --banner-height: 32px;
+  --button-height: 48px;
+
+  --radius-card: 24px;
+  --radius-field: 14px;
+  /* The nested radius rule: an inner box's corner follows the card's corner around it,
+     with a floor so the box never turns square on a laptop. */
+  --radius-inner: max(calc(var(--radius-card) - var(--card-padding)), 8px);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 
@@ -53,71 +54,64 @@
   box-sizing: border-box;
 }
 
+/* No gray flash when a phone user taps something. Each control has its own
+   pressed look instead. text-size-adjust stops phones inflating text sideways. */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* tabular-nums gives every digit the same width, so money and times never jump. */
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--page);
   color: var(--ink);
   font-family: var(--font);
-  font-size: 1.0625rem;  /* 17px: comfortable to read on a phone */
+  font-size: var(--text-body);
+  font-variant-numeric: tabular-nums;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Geist Serif has no bold, so headings stand out by size, not weight.
-   Weight 400 stops the browser from faking a bold version. */
-h1,
-h2,
-h3 {
-  font-weight: 400;
+/* Some rules below set display, which would beat the browser's own [hidden] rule. */
+[hidden] {
+  display: none !important;
+}
+
+h1 {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: 600;
+  letter-spacing: -0.02em;
   line-height: 1.15;
-  margin: 0 0 1rem;
+  overflow-wrap: anywhere;
 }
-
-h1 { font-size: 2rem; }
-h2 { font-size: 1.5rem; }
-h3 { font-size: 1.25rem; }
 
 p {
-  margin: 0 0 1rem;
+  margin: 0 0 12px;
 }
 
 a {
-  color: var(--accent-ink);
+  color: inherit;
   text-underline-offset: 0.15em;
 }
 
-
-/* ---------- Sandbox banner (top of every page) ---------- */
-
-.sandbox-banner {
-  margin: 0;
-  padding: 0.5rem 1rem;
-  background: var(--banner);
-  color: var(--banner-ink);
-  font-size: 0.875rem;
-  letter-spacing: 0.04em;
-  text-align: center;
-}
-
-
-/* ---------- Layout ---------- */
-
-/* On a phone, the page uses the full width with a little room at the sides. */
-.page {
-  padding: 1.25rem 1rem 3rem;
-}
-
-/* A box on a slightly lighter background, for grouping things. */
-.card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 1rem;
-  margin-bottom: 1rem;
-}
-
-/* Less important text, like hints and "time left". */
 .text-soft {
-  color: var(--ink-soft);
+  color: var(--ink-2);
+}
+
+.caption {
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+
+/* The big numbers on the board. */
+.display-number {
+  font-size: var(--text-display);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
 }
 
 /* Text for screen readers only: it takes up no space on the page. */
@@ -131,15 +125,305 @@ a {
 }
 
 
-/* ---------- Money ---------- */
+/* ---------- Icons ---------- */
 
-/* Big money amounts, like the board total. tabular-nums gives every digit
-   the same width, so a changing number doesn't wobble sideways. */
-.money {
-  display: block;
-  font-size: 2.5rem;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
+/* The sheet of drawings stays hidden. Each icon on a page borrows one with <use>.
+   The drawings are 24 units wide and shown at 20px, so 1.8 units is a 1.5px line. */
+.icon-sprite {
+  display: none;
+}
+
+.icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+
+/* ---------- Sandbox banner (top of every page) ---------- */
+
+/* It stays on screen while the page scrolls, so the video always shows it. */
+.sandbox-banner {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--banner-height);
+  margin: 0;
+  padding: env(safe-area-inset-top, 0px) var(--gutter) 0;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-size: var(--text-caption);
+  text-align: center;
+}
+
+
+/* ---------- The app shell: top bar and tabs on a phone, sidebar on a laptop ---------- */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - var(--banner-height));
+}
+
+.shell-side {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  margin: 0;
+  padding-left: var(--gutter);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.shell-top-action {
+  padding-right: var(--gutter);
+}
+
+/* A row of pills that scrolls sideways if it doesn't fit. */
+.shell-nav {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  padding: 0 var(--gutter) 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.shell-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.nav-item {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink-2);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 120ms var(--ease-out), color 200ms ease;
+}
+
+.nav-item:active {
+  transform: scale(0.97);
+}
+
+/* The pills stay short on a phone, so all three fit without scrolling. */
+.nav-item .icon {
+  display: none;
+}
+
+.nav-item[aria-current="page"] {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+/* The sidebar's black card is for laptops. Phones have the banner. */
+.sandbox-card {
+  display: none;
+}
+
+.sandbox-card-title {
+  margin: 0 0 4px;
+  font-size: var(--text-card);
+  font-weight: 500;
+}
+
+.sandbox-card-text {
+  margin: 0;
+  color: var(--on-ink-2);
+  font-size: var(--text-caption);
+}
+
+.shell-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 16px var(--gutter) 48px;
+}
+
+
+/* ---------- Cards ---------- */
+
+/* White on the grey page, with no shadow: the color change is the edge. */
+.card {
+  padding: var(--card-padding);
+  border-radius: var(--radius-card);
+  background: var(--card);
+}
+
+.card-title {
+  margin: 0 0 12px;
+  font-size: var(--text-card);
+  font-weight: 500;
+}
+
+/* A black card with the ribbed picture behind it. The 70% dark layer on top keeps
+   text readable: the picture's brightest pixel becomes dark enough for AA. */
+.photo-card {
+  background-color: var(--ink);
+  background-image: linear-gradient(rgba(11, 11, 11, 0.7), rgba(11, 11, 11, 0.7)),
+    url("images/ribbed-dark.jpg");
+  background-position: center;
+  background-size: cover;
+  color: var(--on-ink);
+}
+
+/* An inner box follows the nested radius rule. */
+.inset-box {
+  padding: 12px;
+  border-radius: var(--radius-inner);
+  background: var(--page);
+}
+
+
+/* ---------- Avatars ---------- */
+
+.avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--ink);
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+
+.avatar-counted {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+
+/* ---------- Buttons ---------- */
+
+/* The primary button: a black pill. .button-link is a real link that goes to another
+   page and looks the same. It presses in as soon as a finger lands. */
+button,
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--button-height);
+  padding: 0 20px;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font: inherit;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 120ms var(--ease-out), background-color 200ms ease;
+}
+
+button:active,
+.button-link:active {
+  transform: scale(0.97);
+}
+
+/* A button that can't be pressed yet looks clearly switched off. */
+button:disabled {
+  border-color: var(--line);
+  background: var(--line);
+  color: var(--ink-2);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.button-secondary {
+  background: var(--card);
+  color: var(--ink);
+}
+
+.button-full {
+  width: 100%;
+}
+
+/* A 40px circle. The invisible ::after ring makes the tap target 44px. */
+.icon-button {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  min-height: 0;
+  padding: 0;
+  border-color: var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+}
+
+.icon-button::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+}
+
+.photo-card .icon-button {
+  border-color: var(--on-ink-2);
+  color: var(--on-ink);
+}
+
+/* Only a real mouse gets hover looks, because a tap would leave them stuck on a phone. */
+@media (hover: hover) and (pointer: fine) {
+  button:hover,
+  .button-link:hover {
+    background: #2A2A2A;
+  }
+
+  .button-secondary:hover {
+    background: var(--page);
+  }
+
+  .icon-button:hover {
+    background: var(--page);
+  }
+
+  .nav-item:hover {
+    color: var(--ink);
+  }
+
+  .nav-item[aria-current="page"]:hover {
+    color: var(--on-ink);
+  }
 }
 
 
@@ -147,131 +431,102 @@ a {
 
 label {
   display: block;
-  margin-bottom: 0.25rem;
+  margin-bottom: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
-/* Inputs are at least 44px tall, easy to tap. Their text is 16px or more,
-   because iPhones zoom the whole page in when you tap a smaller input.
-   The border is ink-soft, not line: a field's edge must reach 3:1 contrast
-   to be seen (WCAG 1.4.11), and line is only 1.27:1 on the page. */
+.field {
+  margin: 0 0 20px;
+}
+
+/* Fields are 48px tall. Their text is always 16px, because iPhones zoom the
+   whole page in when you tap anything smaller. */
 input,
 select,
 textarea {
+  display: block;
   width: 100%;
-  min-height: 44px;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--ink-soft);
-  border-radius: 8px;
-  background: var(--bg);
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-field);
+  background: var(--card);
   color: var(--ink);
   font: inherit;
+  font-size: 1rem;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+textarea {
+  padding: 12px 16px;
+  resize: vertical;
+}
+
+/* The black 2px edge on focus: the border turns black and the shadow adds the
+   second pixel, so the field doesn't change size. */
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+  outline: none;
+}
+
+input:disabled,
+textarea:disabled {
+  background: var(--page);
+  color: var(--ink-2);
 }
 
 ::placeholder {
-  color: var(--ink-soft);
+  color: var(--ink-2);
   opacity: 1;
 }
 
-/* A short hint under a field. */
 .field-hint {
   display: block;
-  margin-top: 0.25rem;
-  color: var(--ink-soft);
-  font-size: 0.875rem;
+  margin-top: 4px;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
 }
 
-/* A checkbox stays its normal size, on one line with its words. The row, not the
-   tiny box, is the 44px tap target, because the label is part of the checkbox. */
+.form-error {
+  margin-top: 4px;
+  color: var(--danger);
+  font-size: var(--text-caption);
+}
+
+/* A checkbox keeps its real size, on one line with its words. The whole row is the
+   tap target, because the label belongs to the checkbox. */
 .checkbox-row {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
+  gap: 8px;
   min-height: 44px;
   margin-bottom: 0;
+  font-size: var(--text-body);
+  font-weight: 400;
+  cursor: pointer;
 }
 
 input[type="checkbox"] {
   flex: none;
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 20px;
+  height: 20px;
   min-height: 0;
   margin: 0;
-  accent-color: var(--accent);
-}
-
-.form-error {
-  color: var(--warn);
+  padding: 0;
+  accent-color: var(--ink);
 }
 
 
-/* ---------- Buttons ---------- */
+/* ---------- Pledge page ---------- */
 
-/* The main button: dark text on the accent color, full width on a phone
-   so it's easy to hit with a thumb, and at least 44px tall.
-   .button-link is a real link that goes to another page but looks the same. */
-button,
-.button-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+/* PayPal's v6 card fields need boxes with a set height and width (from the B1 spike). */
+.card-field {
   width: 100%;
-  min-height: 44px;
-  padding: 0.625rem 1.25rem;
-  border: 0;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--bg);
-  font: inherit;
-  cursor: pointer;
-  text-decoration: none;
-  transition: background-color 150ms ease;
-}
-
-button:hover,
-.button-link:hover {
-  background: var(--accent-ink);
-}
-
-/* A button that can't be pressed yet looks clearly switched off. */
-button:disabled {
-  background: var(--line);
-  color: var(--ink-soft);
-  cursor: not-allowed;
-}
-
-/* A quieter button, for secondary actions like "Copy link". */
-.button-secondary {
-  background: transparent;
-  border: 1px solid var(--ink-soft);
-  color: var(--ink);
-}
-
-.button-secondary:hover {
-  background: var(--surface);
-}
-
-
-/* ---------- Status words ---------- */
-
-/* A small pill around a status word. Color only adds to the word,
-   it never replaces it (UI_DESIGN.md section 7). */
-.status {
-  display: inline-block;
-  padding: 0.125rem 0.625rem;
-  border-radius: 999px;
-  background: var(--line);
-  color: var(--ink);
-  font-size: 0.875rem;
-}
-
-.status-good {
-  background: var(--accent-soft);
-  color: var(--accent-ink);
-}
-
-.status-warn {
-  background: var(--warn-soft);
-  color: var(--warn-ink);
+  height: 56px;
 }
 
 
@@ -311,15 +566,15 @@ button:disabled {
 .private-warning {
   padding: 0.625rem 0.75rem;
   border-radius: 8px;
-  background: var(--warn-soft);
-  color: var(--warn-ink);
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 
 /* ---------- The board (S2, S3) ---------- */
 
 .board-promise {
-  color: var(--ink-soft);
+  color: var(--ink-2);
 }
 
 /* The banner says where the event stands, and its color changes with the status below. */
@@ -327,7 +582,7 @@ button:disabled {
   padding: 0.75rem;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--card);
 }
 
 .board-held {
@@ -337,7 +592,7 @@ button:disabled {
   justify-content: space-between;
   gap: 0 0.75rem;
   margin-bottom: 0.5rem;
-  color: var(--ink-soft);
+  color: var(--ink-2);
 }
 
 .board-held-total {
@@ -359,12 +614,12 @@ button:disabled {
 .board-bar-fill {
   height: 100%;
   border-radius: 999px;
-  background: var(--accent);
+  background: var(--ink);
   transition: width 600ms ease-out;
 }
 
 .board-note {
-  color: var(--ink-soft);
+  color: var(--ink-2);
   font-size: 0.875rem;
 }
 
@@ -375,7 +630,7 @@ button:disabled {
 
 .board-empty {
   padding: 1rem 0;
-  color: var(--ink-soft);
+  color: var(--ink-2);
 }
 
 /* The rows are lines between people, not boxes. overflow-wrap breaks a long name
@@ -418,7 +673,7 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 0 1rem;
-  color: var(--ink-soft);
+  color: var(--ink-2);
   font-size: 0.9375rem;
   font-variant-numeric: tabular-nums;
 }
@@ -428,12 +683,12 @@ button:disabled {
 }
 
 .row-old-share {
-  color: var(--ink-soft);
+  color: var(--ink-2);
 }
 
 .row-note {
   display: block;
-  color: var(--accent-ink);
+  color: var(--ink);
   font-size: 0.875rem;
 }
 
@@ -441,27 +696,27 @@ button:disabled {
    color is never the only signal. FAILED comes last because a failed charge also
    has data-counted="true". */
 .board-rows li[data-counted="true"] .row-chip {
-  background: var(--accent-soft);
-  color: var(--accent-ink);
+  background: var(--line);
+  color: var(--ink);
 }
 
 .board-rows li[data-waiting="true"] .row-chip {
-  border: 1px solid var(--ink-soft);
+  border: 1px solid var(--ink-2);
   background: transparent;
   color: var(--ink);
 }
 
 .board-rows li[data-status="DECLINED"] .row-chip,
 .board-rows li[data-status="FAILED"] .row-chip {
-  background: var(--warn-soft);
-  color: var(--warn-ink);
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 /* Last call: the banner turns the accent color and the bar is full (UI_DESIGN.md section 5). */
 .board[data-status="LAST_CALL"] .board-banner {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--bg);
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--on-ink);
   animation: banner-slide-in 500ms ease-out;
 }
 
@@ -473,27 +728,27 @@ button:disabled {
 }
 
 .board[data-status="SETTLED"] .board-banner {
-  border-color: var(--accent-soft);
-  background: var(--accent-soft);
-  color: var(--accent-ink);
+  border-color: var(--line);
+  background: var(--line);
+  color: var(--ink);
 }
 
 .board[data-status="NEEDS_ATTENTION"] .board-banner {
-  border-color: var(--warn-soft);
-  background: var(--warn-soft);
-  color: var(--warn-ink);
+  border-color: var(--danger-bg);
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .board[data-status="NEEDS_ATTENTION"] .board-bar-fill {
-  background: var(--warn);
+  background: var(--danger);
 }
 
 .board[data-status="EXPIRED"] .board-banner {
-  color: var(--ink-soft);
+  color: var(--ink-2);
 }
 
 .board[data-status="EXPIRED"] .board-bar-fill {
-  background: var(--ink-soft);
+  background: var(--ink-2);
 }
 
 /* After the lock, holds have become charges, so the held total would read $0.00.
@@ -527,17 +782,17 @@ button:disabled {
 }
 
 @keyframes row-flash {
-  from { background: var(--accent); }
+  from { background: var(--ink); }
   to { background: transparent; }
 }
 
 @keyframes row-new-flash {
-  from { background: var(--accent-soft); }
+  from { background: var(--line); }
   to { background: transparent; }
 }
 
 @keyframes share-flash {
-  from { background: var(--accent-soft); color: var(--accent-ink); }
+  from { background: var(--line); color: var(--ink); }
   to { background: transparent; }
 }
 
@@ -554,31 +809,109 @@ button:disabled {
 
 /* ---------- Keyboard focus ---------- */
 
-/* A thick, bright ring around whatever the keyboard is on.
-   :focus-visible shows it for keyboard users, not after every mouse click. */
+/* A black ring around whatever the keyboard is on. :focus-visible shows it
+   for keyboard users, not after every mouse click. Fields use their black edge. */
 :focus-visible {
-  outline: 3px solid var(--accent-ink);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
+}
+
+.photo-card :focus-visible {
+  outline-color: var(--on-ink);
 }
 
 
 /* ---------- Laptops ---------- */
 
-/* From 768px wide and up: keep the page to a readable width in the middle
-   of the screen, make the big text bigger, and let buttons size to their words. */
-@media (min-width: 768px) {
-  .page {
-    max-width: 40rem;
-    margin: 0 auto;
-    padding: 2rem 1.5rem 4rem;
+@media (min-width: 1024px) {
+  :root {
+    --text-display: 3.5rem;   /* 56px */
+    --text-title: 2.25rem;    /* 36px */
+    --text-card: 1.125rem;    /* 18px */
+    --text-body: 1rem;        /* 16px */
+    --gutter: 32px;
+    --card-padding: 24px;
+    --card-gap: 20px;
+    --button-height: 44px;
   }
 
-  h1 { font-size: 2.5rem; }
+  /* The sidebar stays put while the page scrolls. */
+  .shell {
+    flex-direction: row;
+  }
 
-  .money { font-size: 3rem; }
+  .shell-side {
+    position: sticky;
+    top: var(--banner-height);
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: stretch;
+    width: 248px;
+    height: calc(100dvh - var(--banner-height));
+    padding-bottom: 24px;
+  }
 
-  button,
-  .button-link { width: auto; }
+  .shell-top-action {
+    display: none;
+  }
+
+  .wordmark {
+    min-height: 0;
+    padding: 32px 0 32px var(--gutter);
+  }
+
+  .shell-nav {
+    flex-direction: column;
+    gap: 4px;
+    padding: 0;
+    overflow-x: visible;
+  }
+
+  /* Menu items become plain lines. A 4px black bar on the left edge marks the page you're on. */
+  .nav-item .icon {
+    display: block;
+  }
+
+  .nav-item {
+    display: flex;
+    gap: 12px;
+    padding: 0 16px 0 var(--gutter);
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .nav-item[aria-current="page"] {
+    background: transparent;
+    color: var(--ink);
+  }
+
+  .nav-item[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    left: 0;
+    width: 4px;
+    border-radius: 0 4px 4px 0;
+    background: var(--ink);
+  }
+
+  .nav-item[aria-current="page"]:hover {
+    color: var(--ink);
+  }
+
+  .sandbox-card {
+    display: block;
+    margin: auto 16px 0;
+    padding: 20px;
+    border-radius: var(--radius-card);
+  }
+
+  .page {
+    padding-top: 32px;
+    padding-bottom: 64px;
+  }
 }
 
 

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import nav_item %}
 {# S2, the treasurer view (docs/UI_DESIGN.md sections 3 and 10). A bare page from Emmanuel's step 5b,
    for Samuel to restyle. This page's address holds the treasurer's private token (D18), and so does
    open_url: never put either on another page. The board below is the same one S3 shows
@@ -10,10 +11,19 @@
 
 {% block title %}{{ title }}{% endblock %}
 
-{% block content %}
-<h1>{{ title }}</h1>
+{# Overview is an anchor on this page, so the page's own address is never printed. #}
+{% block nav %}
+<nav class="shell-nav" aria-label="Menu">
+  {{ nav_item("#overview", "Overview", "layout-dashboard", current=true) }}
+  {{ nav_item(url_for('board_page', event_id=board.event_id), "Public board", "external-link", new_tab=true) }}
+  {{ nav_item("#share-link-card", "Share link", "link") }}
+</nav>
+{% endblock %}
 
-<p class="share-label"><label for="share-link">Share link</label></p>
+{% block content %}
+<h1 id="overview">{{ title }}</h1>
+
+<p id="share-link-card" class="share-label"><label for="share-link">Share link</label></p>
 <div class="share-row">
   <input id="share-link" value="{{ share_link }}" readonly>
   <button id="copy-link-button" class="button-secondary" type="button"

@@ -1,20 +1,38 @@
 <!doctype html>
-{# The shared frame for every page (docs/UI_DESIGN.md). A page fills it in with
-   {% extends "base.html" %} and its own title, content and scripts blocks.
-   The font and colors live in static/style.css. #}
+{# The shared frame for every page: the sandbox banner, the sidebar (laptop) or top bar and tabs (phone),
+   and the page itself (docs/UI_DESIGN.md section 8). A page fills it in with {% extends "base.html" %}
+   and its own title, nav, top_action, content and scripts blocks. Pages with no menu leave nav empty.
+   Never put the admin page's address in a block a public page uses (D18, D59). #}
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#0B0B0B">
   <title>{% block title %}Last Call{% endblock %}</title>
-  {# Start connecting to the font server early, so Geist Serif arrives sooner. #}
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  {# Start connecting to Google Fonts early, so Inter arrives sooner. #}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+  {% include "icons.html" %}
   <p class="sandbox-banner">SANDBOX DEMO: fake money, no real charges</p>
-  <div class="page">
-    {% block content %}{% endblock %}
+  <div class="shell">
+    <aside class="shell-side">
+      <p class="wordmark">LAST CALL</p>
+      <div class="shell-top-action">{% block top_action %}{% endblock %}</div>
+      {% block nav %}{% endblock %}
+      <div class="sandbox-card photo-card">
+        <p class="sandbox-card-title">Sandbox demo</p>
+        <p class="sandbox-card-text">Fake money, no real charges.</p>
+      </div>
+    </aside>
+    <div class="shell-content">
+      <div class="page">
+        {% block content %}{% endblock %}
+      </div>
+    </div>
   </div>
   {% block scripts %}{% endblock %}
 </body>

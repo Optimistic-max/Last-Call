@@ -1,0 +1,12 @@
+{# Small pieces of HTML used on several pages. A page brings one in with
+   {% from "macros.html" import icon %} and calls it like a function: {{ icon("copy") }}. #}
+
+{# One icon from the sheet in icons.html. aria-hidden because the words next to it say the same thing. #}
+{% macro icon(name) %}<svg class="icon" aria-hidden="true"><use href="#i-{{ name }}"></use></svg>{% endmacro %}
+
+{# One menu item. current marks the page you are on, new_tab opens the link in a new tab. #}
+{% macro nav_item(href, label, icon_name, current=false, new_tab=false) -%}
+<a class="nav-item" href="{{ href }}"
+  {%- if current %} aria-current="page"{% endif %}
+  {%- if new_tab %} target="_blank" rel="noopener"{% endif %}>{{ icon(icon_name) }}<span>{{ label }}</span></a>
+{%- endmacro %}

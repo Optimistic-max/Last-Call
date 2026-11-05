@@ -1,21 +1,20 @@
-<!doctype html>
-{# S4 and S5, the pledge page (docs/UI_DESIGN.md section 3). A bare page from Emmanuel's step 2.4,
-   adapted from the B1 spike: Samuel restyles it. The PayPal part is static/js/pledge_paypal.js (Emmanuel's).
-   Jinja escapes every value it fills in, so a title like "<script>" shows as text and never runs.
-   This is a Jinja comment, so it stays on the server and never reaches the browser. #}
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pledge: {{ event.title }}</title>
-  <style>
-    /* v6 card fields need boxes with a set height and width (from the B1 spike) */
-    .card-field { height: 56px; width: 100%; }
-    button { min-height: 44px; }
-  </style>
-</head>
-<body>
-  <p><strong>SANDBOX DEMO: fake money, no real charges</strong></p>
+{% extends "base.html" %}
+{% from "macros.html" import nav_item %}
+{# S4 and S5, the pledge page (docs/UI_DESIGN.md section 3). Samuel owns this page; the PayPal part is
+   static/js/pledge_paypal.js (Emmanuel's), so keep every id.
+   Jinja escapes every value it fills in, so a title like "<script>" shows as text and never runs. #}
+
+{% block title %}Pledge: {{ event.title }}{% endblock %}
+
+{% block nav %}
+<nav class="shell-nav" aria-label="Menu">
+  {{ nav_item(url_for('board_page', event_id=event.id), "Board", "layout-dashboard") }}
+  {{ nav_item(url_for('pledge_page', event_id=event.id), "Pledge", "hand-coins", current=true) }}
+  {{ nav_item(url_for('board_page', event_id=event.id) ~ "#how-it-works", "How it works", "circle-help") }}
+</nav>
+{% endblock %}
+
+{% block content %}
   <p><a href="{{ url_for('board_page', event_id=event.id) }}">← Back to board</a></p>
   <h1>{{ event.title }}</h1>
   <p><strong>Nobody pays unless the goal is reached.</strong></p>
@@ -52,9 +51,13 @@
     <p id="leave-link-line" hidden>Keep this link to cancel before last call. <a id="leave-link" href="#"></a></p>
   </main>
 
+  {% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if pledging_open %}
   {# Our script first, so onPayPalWebSdkLoaded exists before PayPal's script finishes loading. #}
   <script src="{{ url_for('static', filename='js/pledge_paypal.js') }}"></script>
   <script async src="https://www.sandbox.paypal.com/web-sdk/v6/core" onload="onPayPalWebSdkLoaded()"></script>
-  {% endif %}
-</body>
-</html>
+{% endif %}
+{% endblock %}
