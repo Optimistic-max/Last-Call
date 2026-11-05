@@ -25,7 +25,7 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | S3 | Board (public) | `/e/<id>` | M1 | goal, progress bar, who's in, time left, status banner |
 | S4 | Pledge | `/e/<id>/pledge` | M1 | name, max, the promise text, PayPal card fields, "Hold my max". D31 (M4): name (required) and email (optional), a box to type the pledge in your own words, quick-amount buttons, the privacy note, and an editable confirm step before the card fields: amount (the minimum, shown only, D12), cap (the maximum held) and condition. Nothing is saved until the friend confirms: the AI's result stays only in the page. The card fields part stays the B1 flow |
 | S5 | Pledge result | same page | M1 | "Held", "Card declined", "Pledging closed", or an error |
-| S6 | I'm out | `/p/<token>` | M2 | "Cancel my pledge" or the "can't leave during last call" message |
+| S6 | I'm out | `/p/<token>` | M2 | "Cancel my pledge" or the "can't leave during last call" message (the leave itself is `POST /p/<token>/leave`, D82) |
 | S7 | Paste chat + confirm cards | `/admin/<token>/setup` | — | Deferred to `docs/LATER.md` (D31). Was: paste box, privacy note, editable cards, follow-up questions |
 
 ## 4. Exact wording (use these strings; they were checked for honesty)
@@ -155,7 +155,7 @@ Every text pair passes AA, and every one except `--warn` on `--surface` (6.21) a
 Added by Emmanuel on Oct 31 for step 5b (D54–D58). `app.py` passes exactly these values, and tests check that `board.json` has exactly these keys.
 
 - Money and times arrive as finished text, so templates and JavaScript never format or add up money (§7, rule 2). The `dollars` filter (`{{ 4000|dollars }}` shows `$40.00`) is for a template that is given cents. No 5b page needs it.
-- No page and no JSON ever gets an email or a `pledger_token`. Only S2 gets anything that contains the `admin_token`.
+- No page and no JSON ever gets an email or a `pledger_token`, except the friend's own S6 page and the link on their own pledge page (D82), which carry their own token. Only S2 gets anything that contains the `admin_token`.
 - Later milestones may add keys. They never rename one.
 - Files: `create_event.html` (S1), `admin.html` (S2), `board.html` (S3) and `board_panel.html` (the board). `board_panel.html` is included by S2 and S3; the others extend `base.html` (D76). The bare versions are Emmanuel's, for Samuel to restyle.
 - *Placeholder* marks D57's texts, used until Samuel approves or replaces them in §4.
@@ -263,3 +263,19 @@ How it behaves (for the design, not for restyling away):
 - **A Check that fails** (a 400, 409 or 503 answer, a network error, or no answer in 20 seconds) shows the server's message, or the general error text, and leaves every box editable.
 - **Two placeholder texts are in `static/js/pledge_paypal.js`**, not in the page: `REVIEW_TEXT` = "Check the boxes below. Nothing is saved until you press Continue." and `OUT_TEXT` = "That sounds like a no, so nothing was filled in." Samuel may move them into `pledge.html`; ask Emmanuel to read them from `data-` attributes like `data-error-text`.
 - **Still Samuel's:** the line "AI reads. You confirm. Plain code handles the money." and the privacy note (§4, `AI_PARSER.md` §6), which must name the AI provider that is really used.
+
+### S6 `leave.html` (`GET /p/<pledger_token>`, `POST /p/<pledger_token>/leave`, D82)
+
+A bare page from Emmanuel (Nov 4), for Samuel to restyle. It extends `base.html`. The page receives `title` (the event's title), `message` (one line of text), `can_leave` (true only when the button shows), `button_text` and `leave_url`. The texts are placeholders until Samuel approves them (D57), except the counted line, which is copied from §4.
+
+| State | `message` | Button |
+|---|---|---|
+| can leave | "Cancel your pledge? Your hold will be cancelled and nothing will be charged." | `leave-button`, "Cancel my pledge" |
+| counted, in last call | "You're counted, so you can't leave during last call." | none |
+| left, hold cancelled (or none) | "You're out. Your hold is cancelled, and nothing will be charged." | none |
+| left, hold still being cancelled | "You're out. Cancelling your hold…" | none |
+| too late (locking, charged, settled, expired, time up) | "It's too late to cancel here: pledging has ended for this event." | none |
+
+Ids to keep: `leave-message` and `leave-button`. An unknown token (including the `admin_token`) is a 404 with the general error text. The POST always redirects (303) to the page.
+
+**On the pledge page (S4/S5):** after "Held", a hidden line `leave-link-line` is shown with the friend's own S6 address in `leave-link`, and the placeholder text "Keep this link to cancel before last call." (D57). The script sets the address with `textContent`.

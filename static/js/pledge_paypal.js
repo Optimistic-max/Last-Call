@@ -317,6 +317,17 @@ async function placeHold() {
 }
 
 
+// After "Held", show the friend's own "I'm out" link (S6, D82): their private page, with the token in the
+// address. The address goes on the page with textContent, never innerHTML.
+function showLeaveLink() {
+  const address = window.location.origin + "/p/" + pledgerToken;
+  const link = document.getElementById("leave-link");
+  link.href = address;
+  link.textContent = address;
+  document.getElementById("leave-link-line").hidden = false;
+}
+
+
 // Ask our server to authorize the approved order, and show its answer: Held, Card declined, or
 // Pledging closed. After a decline the token is dropped, so the next try saves the pledge again.
 async function authorizeHold(orderId) {
@@ -325,6 +336,9 @@ async function authorizeHold(orderId) {
   showMessage(messageFrom(answer));
   if (answer.data.status === "HELD" || answer.data.status === "CLOSED") {
     finished = true;
+  }
+  if (answer.data.status === "HELD") {
+    showLeaveLink();
   }
   if (answer.data.status === "DECLINED") {
     pledgerToken = null;
