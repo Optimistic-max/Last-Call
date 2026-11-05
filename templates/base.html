@@ -8,8 +8,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-  <meta name="theme-color" content="#0B0B0B">
-  <title>{% block title %}Last Call{% endblock %}</title>
+  <meta name="theme-color" content="#0A0B0C" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#0A0B0C" media="(prefers-color-scheme: light)">
+  <title>{% block title %}Start a pledge{% endblock %} · Last Call</title>
+  <link rel="icon" href="{{ url_for('static', filename='img/favicon.svg') }}" type="image/svg+xml">
+  <link rel="icon" sizes="32x32" href="{{ url_for('static', filename='img/favicon-32.png') }}" type="image/png">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
   {# Start connecting to Google Fonts early, so Inter arrives sooner. #}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,7 +28,8 @@
     <aside class="shell-side">
       <p class="wordmark">LAST CALL</p>
       {% block nav %}{% endblock %}
-      <div class="sandbox-card photo-card">
+      <div class="sandbox-card light-card">
+        <span class="card-bloom" aria-hidden="true"></span>
         <p class="sandbox-card-title">Sandbox demo</p>
         <p class="sandbox-card-text">Fake money, no real charges.</p>
       </div>

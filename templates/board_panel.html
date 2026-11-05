@@ -25,19 +25,21 @@
   {%- if board.seconds_left is not none %} data-seconds-left="{{ board.seconds_left }}"{% endif %}>
 
   <div class="card status-card">
+    <span class="card-bloom" aria-hidden="true"></span>
     <h2 class="card-title">Right now</h2>
     <p class="board-banner" role="status">{{ board.banner_text }}</p>
     {{ pledge_link(board, "button-link status-button", new_tab=pledge_new_tab) }}
   </div>
 
-  <div class="card photo-card countdown-card" data-open-title="Time left" data-last-call-title="Last call" data-closed-text="Closed">
+  <div class="card light-card countdown-card" data-open-title="Time left" data-last-call-title="Last call" data-closed-text="Closed">
+    <span class="card-bloom" aria-hidden="true"></span>
     <h2 class="card-title board-time-title">{% if board.status == "LAST_CALL" %}Last call{% else %}Time left{% endif %}</h2>
     <p class="display-number board-time" role="timer">{% if board.seconds_left is none %}Closed{% endif %}</p>
   </div>
 
   <div class="board-stats" tabindex="0" role="group" aria-label="The totals">
-    {% set held_caption %}{% if board.status in ["DRAFT", "OPEN", "LAST_CALL"] %}PayPal is holding this. Nobody is charged yet.{% elif board.status == "SETTLED" %}Charged once.{% endif %}{% endset %}
-    {{ stat_card("Held so far", "board-held-total", board.held_total_text, "board-held-caption", held_caption, "progress", "Go to Progress", "photo-card") }}
+    {% set held_caption %}{% if board.status in ["OPEN", "LAST_CALL"] %}PayPal is holding this. Nobody is charged yet.{% elif board.status == "SETTLED" %}Charged once.{% endif %}{% endset %}
+    {{ stat_card("Held so far", "board-held-total", board.held_total_text, "board-held-caption", held_caption, "progress", "Go to Progress", "light-card") }}
     {% set counted_text %}{% if board.counted_total_text %}{{ board.counted_total_text }}{% elif counted_count == 1 %}1 person{% else %}{{ counted_count }} people{% endif %}{% endset %}
     {{ stat_card("Counted", "board-counted-total", counted_text, "", "Counts toward the goal", "whos-in", "Go to Who's in") }}
     {{ stat_card("People in", "board-people", board.rows|length, "board-waiting-count", waiting_count ~ " waiting on someone", "whos-in", "Go to Who's in") }}
@@ -52,8 +54,12 @@
       <svg class="ring-svg" viewBox="0 0 320 182" aria-hidden="true">
         <defs>
           <pattern id="ring-stripes" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <line x1="0" y1="0" x2="0" y2="8" stroke="#BDBDBD" stroke-width="3"></line>
+            <line x1="0" y1="0" x2="0" y2="8" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="3"></line>
           </pattern>
+          <linearGradient id="ring-fill" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#3F6461"></stop>
+            <stop offset="1" stop-color="#9DB8AE"></stop>
+          </linearGradient>
         </defs>
         <path class="ring-track" d="M 16 164 A 144 144 0 0 1 304 164" pathLength="100"></path>
         <path class="ring-counted{% if board.progress_percent == 0 %} ring-empty{% endif %}" d="M 16 164 A 144 144 0 0 1 304 164" pathLength="100"
@@ -66,8 +72,8 @@
     </div>
     <progress class="board-progress visually-hidden" aria-hidden="true" max="100" value="{{ board.progress_percent }}">{{ board.progress_percent }}%</progress>
     <ul class="ring-legend">
-      <li><svg class="legend-dot" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="6" fill="#0B0B0B"></circle></svg>Counted</li>
-      <li><svg class="legend-dot" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.5" fill="url(#ring-stripes)" stroke="#BDBDBD"></circle></svg>Still needed</li>
+      <li><svg class="legend-dot" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="6" fill="#9DB8AE"></circle></svg>Counted</li>
+      <li><svg class="legend-dot" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.5" fill="url(#ring-stripes)" stroke="#FFFFFF" stroke-opacity="0.25"></circle></svg>Still needed</li>
     </ul>
     <p class="board-note">Held money counts once everyone it depends on is in.</p>
   </div>

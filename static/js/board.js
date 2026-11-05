@@ -126,10 +126,10 @@ function swapText(element, oldText, newText) {
 }
 
 
-// The caption under the held total. It is empty once it would no longer be true, for example
-// after a missed goal, when "Cancelling holds…" may still be running (D45).
+// The caption under the held total. It is empty when it wouldn't be true: before pledging opens,
+// and after a missed goal, when "Cancelling holds…" may still be running (D45).
 function heldCaptionText(status) {
-  if (status === "DRAFT" || status === "OPEN" || status === "LAST_CALL") {
+  if (status === "OPEN" || status === "LAST_CALL") {
     return "PayPal is holding this. Nobody is charged yet.";
   }
   if (status === "SETTLED") {

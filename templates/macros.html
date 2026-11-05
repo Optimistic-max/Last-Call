@@ -44,6 +44,7 @@
    the id of the card the arrow scrolls to. #}
 {% macro stat_card(title, number_class, number, caption_class, caption, target, target_label, extra_class="") -%}
 <div class="card stat-card {{ extra_class }}">
+  {%- if extra_class %}<span class="card-bloom" aria-hidden="true"></span>{% endif %}
   <div class="stat-top">
     <h2 class="card-title">{{ title }}</h2>
     <a class="icon-button" href="#{{ target }}" aria-label="{{ target_label }}">{{ icon("arrow-up-right") }}</a>
