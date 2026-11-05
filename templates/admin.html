@@ -1,27 +1,58 @@
 {% extends "base.html" %}
+{% from "macros.html" import icon, nav_item, share_button %}
 {# S2, the treasurer view (docs/UI_DESIGN.md sections 3 and 10). A bare page from Emmanuel's step 5b,
    for Samuel to restyle. This page's address holds the treasurer's private token (D18), and so does
    open_url: never put either on another page. The board below is the same one S3 shows
    (board_panel.html, D76); it never holds the token.
-   "Share link" is a placeholder label until Samuel approves it (D57). #}
+   "Share link" is a placeholder label until Samuel approves it (D57).
+   The Copy button and "Open in new tab" use share_link only (static/js/share.js), never this page's
+   own address. pledge_new_tab makes the board's Pledge link open in a new tab, so the treasurer
+   keeps this page open. #}
 
 {% block title %}{{ title }}{% endblock %}
 
+{# Overview is an anchor on this page, so the page's own address is never printed. #}
+{% block nav %}
+<nav class="shell-nav" aria-label="Menu">
+  {{ nav_item("#overview", "Overview", "layout-dashboard", current=true) }}
+  {{ nav_item(url_for('board_page', event_id=board.event_id), "Public board", "external-link", new_tab=true) }}
+  {{ nav_item("#share-link-card", "Share link", "link") }}
+</nav>
+{% endblock %}
+
 {% block content %}
-<h1>{{ title }}</h1>
+<main>
+<header class="page-header">
+  <div class="page-heading">
+    <h1 id="overview">{{ title }}</h1>
+    <p class="page-goal board-goal">{{ board.goal_text }}</p>
+  </div>
+  <div class="page-actions">
+    {% if can_open %}
+    <form method="post" action="{{ open_url }}">
+      <button type="submit">Open pledging</button>
+    </form>
+    {% endif %}
+    {{ share_button(share_link, "Copy link", phone_label="Share") }}
+  </div>
+</header>
 
-<p><label for="share-link">Share link</label>
-  <input id="share-link" value="{{ share_link }}" readonly></p>
+<div class="card share-card" id="share-link-card">
+  <h2 class="card-title" id="share-link-title">Share link</h2>
+  <div class="share-row">
+    <input id="share-link" value="{{ share_link }}" aria-labelledby="share-link-title" readonly>
+    {{ share_button(share_link, "Copy link", phone_label="Share", button_id="copy-link-button", icon_name="copy") }}
+  </div>
+  <p class="share-open"><a class="text-link" href="{{ share_link }}" target="_blank" rel="noopener">Open in new tab</a></p>
+  <p class="private-note">{{ icon("lock") }}<span>This page's address is private. Share only the link above.</span></p>
+</div>
 
-{% if can_open %}
-<form method="post" action="{{ open_url }}">
-  <button type="submit">Open pledging</button>
-</form>
-{% endif %}
-
+{% set pledge_new_tab = true %}
 {% include "board_panel.html" %}
+</main>
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/board.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/share.js') }}" defer></script>
 {% endblock %}
