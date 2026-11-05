@@ -336,14 +336,6 @@ a {
   color: var(--on-ink);
 }
 
-/* An inner box follows the nested radius rule. */
-.inset-box {
-  padding: 12px;
-  border-radius: var(--radius-inner);
-  background: var(--page);
-}
-
-
 /* ---------- Avatars ---------- */
 
 .avatar {
@@ -413,6 +405,12 @@ button:disabled {
 
 .button-full {
   width: 100%;
+}
+
+/* Leaving is the only red button, and its word says what it does. */
+.button-danger {
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 /* A 40px circle. The invisible ::after ring makes the tap target 44px. */
@@ -573,53 +571,148 @@ input[type="checkbox"] {
 }
 
 
-/* ---------- Pledge page ---------- */
+/* ---------- Form pages: create, pledge, leave ---------- */
 
-/* PayPal's v6 card fields need boxes with a set height and width (from the B1 spike). */
+/* One centered white card. */
+.form-page {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.form-card {
+  padding: 24px;
+}
+
+.form-card h1 {
+  margin-bottom: 12px;
+}
+
+.form-card form {
+  margin: 0;
+}
+
+.form-promise {
+  margin: 8px 0 20px;
+  color: var(--ink-2);
+}
+
+.back-link {
+  margin-bottom: 12px;
+}
+
+/* A neutral box for a message, like "You're counted, so you can't leave during last call." */
+.info-box {
+  margin: 0 0 20px;
+  padding: 12px 16px;
+  border-radius: var(--radius-inner);
+  background: var(--page);
+}
+
+/* The pledge page's three steps are sections of one card, split by a line. */
+.form-step + .form-step,
+.form-step + .result-line + .form-step {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.ai-line {
+  margin: 0 0 4px;
+  font-weight: 500;
+}
+
+.privacy-note {
+  margin: 0 0 12px;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+}
+
+.check-message {
+  margin: 12px 0 0;
+}
+
+.check-message:empty,
+.result-line:empty,
+.hold-text:empty {
+  display: none;
+}
+
+/* A box the AI filled has a black edge until the friend edits it. */
+input.ai-filled {
+  border-color: var(--ink);
+}
+
+.hold-text {
+  font-weight: 500;
+}
+
+/* The card fields are PayPal's own frames: only the space around them is ours. */
+.card-field-label {
+  margin: 0 0 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
 .card-field {
   width: 100%;
   height: 56px;
+  margin-bottom: 12px;
 }
 
+/* One result card, in place of the step (S5). */
+.result-line {
+  margin: 24px 0 0;
+  padding: 16px;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-inner);
+  font-weight: 500;
+}
 
-/* ---------- Front page (S1) ---------- */
-
-.front-headline {
-  font-size: 1.5rem;
-  line-height: 1.2;
+.leave-line {
+  margin: 12px 0 0;
+  overflow-wrap: anywhere;
 }
 
 
 /* ---------- Treasurer page (S2) ---------- */
 
-.share-label {
-  margin-bottom: 0.25rem;
+.share-card {
+  margin-bottom: var(--card-gap);
 }
 
-/* The link and its Copy button share a line, and wrap on a very narrow phone. */
+/* The link and its Copy button share a line, and wrap on a very narrow phone.
+   text-overflow cuts a long link with dots, and it scrolls normally when focused. */
 .share-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  gap: 8px;
 }
 
 .share-row input {
   flex: 1 1 12rem;
   width: auto;
   min-width: 0;
+  text-overflow: ellipsis;
 }
 
 .share-row button {
   flex: none;
-  width: auto;
 }
 
-.private-warning {
-  padding: 0.625rem 0.75rem;
-  border-radius: 8px;
-  background: var(--danger-bg);
-  color: var(--danger);
+.share-open {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 4px 0;
+}
+
+.private-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
 }
 
 
