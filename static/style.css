@@ -619,7 +619,7 @@ input[type="checkbox"] {
 }
 
 .back-link {
-  margin-bottom: 12px;
+  margin-bottom: 4px;
 }
 
 /* A neutral box for a message, like "You're counted, so you can't leave during last call." */
@@ -838,10 +838,10 @@ input.ai-filled {
   padding-top: 8px;
 }
 
-/* 19cqi keeps "$2,000.00" inside the card at every width. */
+/* 17cqi keeps even "$50,000.00" inside the card at every width. */
 .stat-number {
   margin: 0 0 12px;
-  font-size: min(var(--text-display), 19cqi);
+  font-size: min(var(--text-display), 17cqi);
 }
 
 .stat-caption {
@@ -1626,9 +1626,13 @@ input.ai-filled {
   font-weight: 600;
 }
 
-/* A link whose line slides in from the left under a mouse. Touch screens keep the plain underline. */
+/* A link whose line slides in from the left under a mouse. Touch screens keep the plain underline.
+   inline-flex and the minimum height give a short link a 44px tap target. */
 .text-link {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -1640,17 +1644,13 @@ input.ai-filled {
     content: "";
     position: absolute;
     right: 0;
-    bottom: -1px;
+    bottom: 10px;
     left: 0;
     height: 1px;
     background: currentColor;
     transform: scaleX(0);
     transform-origin: left;
     transition: transform 200ms var(--ease-out);
-  }
-
-  .landing-nav .text-link::after {
-    bottom: 10px;
   }
 
   .text-link:hover::after {
@@ -1704,6 +1704,16 @@ input.ai-filled {
   .landing-header,
   .page-actions {
     background: var(--card);
+  }
+}
+
+/* Solid white too for anyone who asked their device for less transparency. */
+@media (prefers-reduced-transparency: reduce) {
+  .landing-header,
+  .page-actions {
+    background: var(--card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }
 
