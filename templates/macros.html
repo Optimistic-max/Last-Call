@@ -10,3 +10,31 @@
   {%- if current %} aria-current="page"{% endif %}
   {%- if new_tab %} target="_blank" rel="noopener"{% endif %}>{{ icon(icon_name) }}<span>{{ label }}</span></a>
 {%- endmacro %}
+
+{# A link to the pledge page. While pledging is closed it has no address and stays hidden, so the page
+   holds no live link to a closed pledge form. board.js gives it the address, or takes it away, at each
+   refresh, and swaps the label during last call. #}
+{% macro pledge_link(board, class_name, new_tab=false) -%}
+{%- set url = url_for('pledge_page', event_id=board.event_id) -%}
+<a class="board-pledge {{ class_name }}" data-pledge-url="{{ url }}" data-pledge-label="Pledge" data-last-call-label="Join last call"
+  {%- if board.pledging_open %} href="{{ url }}"{% else %} hidden{% endif %}
+  {%- if new_tab %} target="_blank" rel="noopener"{% endif %}>
+  {%- if board.status == "LAST_CALL" %}Join last call{% else %}Pledge{% endif %}</a>
+{%- endmacro %}
+
+{# The same link as a menu item. It has no label swap, because the menu always says Pledge. #}
+{% macro pledge_nav_item(board) -%}
+{%- set url = url_for('pledge_page', event_id=board.event_id) -%}
+<a class="board-pledge nav-item" data-pledge-url="{{ url }}"
+  {%- if board.pledging_open %} href="{{ url }}"{% else %} hidden{% endif %}>{{ icon("hand-coins") }}<span>Pledge</span></a>
+{%- endmacro %}
+
+{# A button that shares a link: the phone's share menu, or a plain copy on a laptop (static/js/share.js).
+   url is share_link on S2 and the public pledge path on S3. It is never this page's own address.
+   phone_label is what the button says on a phone, when that differs from label. #}
+{% macro share_button(url, label, class_name="button-secondary", phone_label="", button_id="", hidden=false) -%}
+<button class="share-button {{ class_name }}" type="button" data-share-url="{{ url }}" data-copied-label="Copied ✓"
+  {%- if phone_label %} data-phone-label="{{ phone_label }}"{% endif %}
+  {%- if button_id %} id="{{ button_id }}"{% endif %}
+  {%- if hidden %} hidden{% endif %}>{{ label }}</button>
+{%- endmacro %}

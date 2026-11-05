@@ -73,11 +73,11 @@ async function refreshBoard() {
 // Copy one board.json answer into the page, key by key.
 function showBoard(answer) {
   board.dataset.status = answer.status;
-  board.querySelector(".board-goal").textContent = answer.goal_text;
+  document.querySelector(".board-goal").textContent = answer.goal_text;
   board.querySelector(".board-held-total").textContent = answer.held_total_text;
   showProgress(answer.progress_percent);
   showRows(answer.rows);
-  showPledgeLink(answer.pledging_open);
+  showPledgeLinks(answer.pledging_open, answer.status);
   setCountdown(answer.status, answer.banner_text, answer.seconds_left);
 }
 
@@ -249,25 +249,33 @@ function makeRow(row, labels) {
 }
 
 
-// Show the Pledge link only while pledging is open. The link's address and label come from the
-// template's data- attributes.
-function showPledgeLink(isOpen) {
-  const holder = board.querySelector(".board-pledge");
-  const link = holder.querySelector("a");
-  if (isOpen && link === null) {
-    const newLink = document.createElement("a");
-    newLink.className = "button-link";
-    newLink.href = holder.dataset.pledgeUrl;
-    newLink.textContent = holder.dataset.pledgeLabel;
-    if (holder.dataset.pledgeNewTab === "true") {   // on S2, so the treasurer keeps that page open
-      newLink.target = "_blank";
-      newLink.rel = "noopener";
+// Show every Pledge link and the Invite button only while pledging is open. A closed link also loses
+// its address. The labels come from the template, and during last call the buttons say "Join last call".
+function showPledgeLinks(isOpen, status) {
+  for (const link of document.querySelectorAll(".board-pledge")) {
+    link.hidden = !isOpen;
+    if (isOpen) {
+      link.href = link.dataset.pledgeUrl;
+    } else {
+      link.removeAttribute("href");
     }
-    holder.appendChild(newLink);
+    if (link.dataset.pledgeLabel !== undefined) {
+      link.textContent = pledgeLinkText(link, status);
+    }
   }
-  if (!isOpen && link !== null) {
-    link.remove();
+  const invite = document.querySelector(".board-invite");
+  if (invite !== null) {
+    invite.hidden = !isOpen;
   }
+}
+
+
+// The words on a Pledge button for this status.
+function pledgeLinkText(link, status) {
+  if (status === "LAST_CALL") {
+    return link.dataset.lastCallLabel;
+  }
+  return link.dataset.pledgeLabel;
 }
 
 

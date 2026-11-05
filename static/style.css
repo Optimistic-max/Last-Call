@@ -174,9 +174,8 @@ a {
 }
 
 .shell-side {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
 }
 
 .wordmark {
@@ -189,13 +188,8 @@ a {
   letter-spacing: 0.04em;
 }
 
-.shell-top-action {
-  padding-right: var(--gutter);
-}
-
 /* A row of pills that scrolls sideways if it doesn't fit. */
 .shell-nav {
-  grid-column: 1 / -1;
   display: flex;
   gap: 8px;
   padding: 0 var(--gutter) 8px;
@@ -264,10 +258,53 @@ a {
   min-width: 0;
 }
 
+/* The bottom padding keeps the last card clear of the sticky action bar on a phone. */
 .page {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 16px var(--gutter) 48px;
+  padding: 16px var(--gutter) 96px;
+}
+
+
+/* ---------- Page header ---------- */
+
+.page-header {
+  margin-bottom: 20px;
+}
+
+.page-goal {
+  margin: 4px 0 0;
+  color: var(--ink-2);
+}
+
+/* On a phone the main actions sit in a bar at the bottom, in reach of a thumb.
+   The bar pads itself away from the home indicator. */
+.page-actions {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 15;
+  display: flex;
+  gap: 8px;
+  padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line);
+  background: var(--page);
+}
+
+.page-actions > *,
+.page-actions form button {
+  flex: 1;
+  width: 100%;
+}
+
+.page-actions form {
+  display: flex;
+}
+
+/* With nothing left to do (pledging closed), the bar goes away. */
+.page-actions:not(:has(> :not([hidden]))) {
+  display: none;
 }
 
 
@@ -286,11 +323,13 @@ a {
   font-weight: 500;
 }
 
-/* A black card with the ribbed picture behind it. The 70% dark layer on top keeps
-   text readable: the picture's brightest pixel becomes dark enough for AA. */
+/* A black card with the ribbed picture behind it. The 60% dark layer on top keeps text
+   readable: over the picture's brightest pixel, white is 6:1 and the quieter text below
+   is 4.7:1, so quiet text is a lighter grey here than on plain black. */
 .photo-card {
+  --on-ink-2: #E5E5E5;
   background-color: var(--ink);
-  background-image: linear-gradient(rgba(11, 11, 11, 0.7), rgba(11, 11, 11, 0.7)),
+  background-image: linear-gradient(rgba(11, 11, 11, 0.6), rgba(11, 11, 11, 0.6)),
     url("images/ribbed-dark.jpg");
   background-position: center;
   background-size: cover;
@@ -843,17 +882,10 @@ input[type="checkbox"] {
   .shell-side {
     position: sticky;
     top: var(--banner-height);
-    display: flex;
     flex: none;
-    flex-direction: column;
-    align-items: stretch;
     width: 248px;
     height: calc(100dvh - var(--banner-height));
     padding-bottom: 24px;
-  }
-
-  .shell-top-action {
-    display: none;
   }
 
   .wordmark {
@@ -911,6 +943,32 @@ input[type="checkbox"] {
   .page {
     padding-top: 32px;
     padding-bottom: 64px;
+  }
+
+  .page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+
+  .page-heading {
+    min-width: 0;
+  }
+
+  .page-actions {
+    position: static;
+    flex: none;
+    padding: 0;
+    border-top: 0;
+    background: none;
+  }
+
+  .page-actions > *,
+  .page-actions form button {
+    flex: none;
+    width: auto;
   }
 }
 

@@ -11,17 +11,16 @@
    together).
    Each row has one plain sentence for screen readers (row-summary) and a layout for the eyes, marked
    aria-hidden so nothing is read twice. pledge_new_tab is set by admin.html. #}
+{% from "macros.html" import pledge_link %}
 {% set held_label = "Held on cards" %}
 {% set max_label = "up to" %}
 {% set summary_max_label = "max" %}
 {% set share_label = "would pay" %}
 {% set counted_label = "Counted" %}
-{% set pledge_label = "Pledge" %}
 {% set just_pledged_label = "just pledged" %}
 <section class="board" data-event-id="{{ board.event_id }}" data-status="{{ board.status }}"
   {%- if board.seconds_left is not none %} data-seconds-left="{{ board.seconds_left }}"{% endif %}>
   <p class="board-banner" role="status">{{ board.banner_text }}</p>
-  <p class="board-goal">{{ board.goal_text }}</p>
   <p class="board-held">{{ held_label }}: <span class="board-held-total">{{ board.held_total_text }}</span></p>
   {# The div is the bar people see, because a div's width can animate in every browser. The progress
      element stays for screen readers. #}
@@ -29,13 +28,7 @@
   <div class="board-bar" aria-hidden="true"><div class="board-bar-fill" style="width: {{ board.progress_percent }}%"></div></div>
   <p class="board-note">The bar shows counted pledges only. A hold with a condition counts once that condition is met.</p>
 
-  {# Always here, so board.js can add the link if pledging opens or remove it when pledging closes.
-     The link itself is drawn only while pledging is open. It sits above the rows so a long list
-     never pushes it down the page. #}
-  <p class="board-pledge" data-pledge-url="{{ url_for('pledge_page', event_id=board.event_id) }}"
-    data-pledge-label="{{ pledge_label }}"{% if pledge_new_tab %} data-pledge-new-tab="true"{% endif %}>
-    {%- if board.pledging_open %}<a class="button-link" href="{{ url_for('pledge_page', event_id=board.event_id) }}"{% if pledge_new_tab %} target="_blank" rel="noopener"{% endif %}>{{ pledge_label }}</a>{% endif -%}
-  </p>
+  {{ pledge_link(board, "button-link", new_tab=pledge_new_tab) }}
 
   <ul class="board-rows" data-max-label="{{ max_label }}" data-summary-max-label="{{ summary_max_label }}"
     data-share-label="{{ share_label }}" data-counted-label="{{ counted_label }}"
