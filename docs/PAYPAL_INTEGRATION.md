@@ -74,7 +74,7 @@ Owner: **Emmanuel**. All of this lives in `paypal_client.py`. That file only mak
 | capture: 201 `COMPLETED` | charged | `GET` the capture, save fee + net, pledge `CHARGED` |
 | capture: 422 `AUTHORIZATION_ALREADY_CAPTURED` | already charged earlier | `GET` the authorization and save its status. If `CAPTURED`, follow D47: pledge `FAILED`, event `NEEDS_ATTENTION`, logged as an error, and the treasurer finds the charge by hand. Finding and saving the capture (F6) is in `docs/LATER.md` (D49) |
 | capture: 422 `AUTHORIZATION_VOIDED` | hold was cancelled | pledge `FAILED`, event `NEEDS_ATTENTION` |
-| capture: 422 `TRANSACTION_REFUSED` | refused (we've only seen it via the mock) | retry once with a new saved request ID |
+| capture: 422 `TRANSACTION_REFUSED` | refused (we've only seen it via the mock) | `GET` the hold; if it answers `CREATED` and the refusal carried no capture ID, retry once with a new saved request ID (attempt 2, D83); otherwise pledge `FAILED` |
 | capture: anything else (another status or error code, a 5xx, a timeout) | result unknown | follow §5 |
 | void: 204 | cancelled | `GET` to confirm `VOIDED` |
 | void: anything other than 204 | not confirmed | `GET` the authorization and save PayPal's status. If it is still `CREATED`, the cleanup sweep tries again, at least 5 minutes later, with the same saved request ID (D80). Whether PayPal replays a failed void for the same request ID, or runs it again, is `unverified` (F12 is `NOT RUN` with real PayPal) |
@@ -86,7 +86,7 @@ Owner: **Emmanuel**. All of this lives in `paypal_client.py`. That file only mak
 If a capture call times out (or returns anything not in the table above), **don't guess**:
 1. `GET` the authorization.
 2. If `CAPTURED`: the money moved, but we don't look for the capture (D47, D49). Save the hold as `CAPTURED`, keep the capture row `PENDING`, mark the pledge `FAILED` and the event `NEEDS_ATTENTION`, and log it as an error. **Never retry it** (F14). Finding and saving the capture (F5) is in `docs/LATER.md`.
-3. If still `CREATED`: retry once with a new saved request ID (attempt 2, M2). This is the only case that retries (F14). PayPal itself rejects a second capture on a fully captured hold, so this can't double-charge.
+3. If the `GET` answers `CREATED` and the failed answer carried no capture ID: retry once with a new saved request ID (attempt 2, D83). This is the only case that retries (F14); attempt 2 is final. A `GET` that gets no answer is not a `CREATED`: no retry, pledge `FAILED`. PayPal itself rejects a second capture on a fully captured hold, so this can't double-charge.
 4. Anything else: pledge `FAILED`, event `NEEDS_ATTENTION`.
 
 The D27 resume (`resume_stuck_lock`, D81) does the same for a capture row left `PENDING` by a lock that died: it `GET`s the authorization first, and only if the hold is still `CREATED` does it send the capture again, with the row's saved `PayPal-Request-Id` and amount (rule 4). `CAPTURED` follows step 2 (D47). A `GET` that gets no answer changes nothing and the event stays `CHARGING` until the next resume. `unverified`: the HTTP status PayPal gives when a capture is replayed with the same request ID (A3 showed only that the same capture comes back), and how long PayPal remembers a request ID.

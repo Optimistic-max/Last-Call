@@ -635,6 +635,13 @@ def only_capture_of(conn, pledge_id):
     return rows[0]
 
 
+# Every capture row of one pledge, oldest first, with its hold's real status (a retry makes a second row, D83).
+def captures_of(conn, pledge_id):
+    return db.fetch_all(conn, "SELECT captures.*, holds.status AS hold_status FROM captures "
+                              "JOIN holds ON holds.id = captures.hold_id WHERE holds.pledge_id = %s "
+                              "ORDER BY captures.id", (pledge_id,))
+
+
 # The fake PayPal calls to one function that name one of these authorization IDs. Filtering by ID keeps
 # a test's counts right even if the test branch still holds some other due event.
 def calls_for(function_name, auth_ids):
@@ -977,10 +984,10 @@ def test_f13_goal_not_reached_at_lock_charges_nobody(test_db):
         delete_event(test_db, event_id)
 
 
-# D39: the second of three captures is refused. That pledge is FAILED, its capture row says why, and
-# its hold's real status is read back and saved. The other two are still charged, the event ends
-# NEEDS_ATTENTION, and there is no retry in M1 (one capture call per pledge).
-def test_d39_refused_capture_fails_that_pledge_only(test_db):
+# D39 + D83: the second of three captures is refused twice (the retry is refused too). That pledge is
+# FAILED, its capture rows say why, and its hold's real status is read back and saved. The other two are
+# still charged, no refund is called, the event ends NEEDS_ATTENTION, and the pledge got exactly 2 attempts.
+def test_d39_refused_capture_fails_that_pledge_only_after_the_retry(test_db):
     fake_paypal.reset()
     event_id = make_open_event(test_db, 3000)
     try:
@@ -988,42 +995,52 @@ def test_d39_refused_capture_fails_that_pledge_only(test_db):
         ana, bo, cy = pledges_of(test_db, event_id)
         fake_paypal.next_answers["capture_authorization"] = [
             fake_paypal.captured(fake_paypal.new_id("CAPTURE"), "COMPLETED"),
+            fake_paypal.capture_refused("TRANSACTION_REFUSED"),
             fake_paypal.capture_refused("TRANSACTION_REFUSED")]
-        fake_paypal.next_answers["get_authorization"] = [
-            fake_paypal.hold_read_back("CREATED", auth_id_of(test_db, bo["id"]))]
+        bo_hold_created = fake_paypal.hold_read_back("CREATED", auth_id_of(test_db, bo["id"]))
+        fake_paypal.next_answers["get_authorization"] = [bo_hold_created, bo_hold_created]
         assert lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal) == "NEEDS_ATTENTION"
         ana, bo, cy = pledges_of(test_db, event_id)
-        bo_capture = only_capture_of(test_db, bo["id"])
+        bo_captures = captures_of(test_db, bo["id"])
         assert ana["status"] == "CHARGED"
         assert cy["status"] == "CHARGED"
         assert bo["status"] == "FAILED"
-        assert bo_capture["status"] == "FAILED"
-        assert bo_capture["error_code"] == "TRANSACTION_REFUSED"
-        assert bo_capture["hold_status"] == "CREATED"
-        assert len(calls_to("capture_authorization")) == 3
+        assert [row["attempt"] for row in bo_captures] == [1, 2]
+        assert [row["status"] for row in bo_captures] == ["FAILED", "FAILED"]
+        assert bo_captures[1]["error_code"] == "TRANSACTION_REFUSED"
+        assert bo_captures[1]["hold_status"] == "CREATED"
+        assert len(calls_to("capture_authorization")) == 4
+        for name in fake_paypal.called_functions():
+            assert "refund" not in name
         assert lifecycle.find_event(test_db, event_id)["status"] == "NEEDS_ATTENTION"
     finally:
         delete_event(test_db, event_id)
 
 
-# D39: a capture with no answer at all (a timeout) is a failure too, with no retry in M1. The hold
-# reads back CREATED, so no money moved.
-def test_d39_capture_with_no_answer_fails_without_a_retry(test_db):
+# D39 + D83: a capture with no answer at all (a timeout) twice in a row. The hold reads back CREATED each
+# time, so no money moved and the first failure is retried once (tests/test_capture_retry.py F4c); the
+# retry times out too, so the pledge is FAILED after exactly 2 attempts, the others stay CHARGED, no refund
+# is called, and the event ends NEEDS_ATTENTION.
+def test_d39_capture_with_no_answer_twice_fails_after_the_retry(test_db):
     fake_paypal.reset()
     event_id = make_open_event(test_db, 3000)
     try:
         three_holds_that_reach_the_goal(test_db, event_id)
         ana, bo, cy = pledges_of(test_db, event_id)
-        fake_paypal.next_answers["capture_authorization"] = [fake_paypal.no_answer()]
-        fake_paypal.next_answers["get_authorization"] = [
-            fake_paypal.hold_read_back("CREATED", auth_id_of(test_db, ana["id"]))]
+        fake_paypal.next_answers["capture_authorization"] = [fake_paypal.no_answer(), fake_paypal.no_answer()]
+        ana_hold_created = fake_paypal.hold_read_back("CREATED", auth_id_of(test_db, ana["id"]))
+        fake_paypal.next_answers["get_authorization"] = [ana_hold_created, ana_hold_created]
         assert lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal) == "NEEDS_ATTENTION"
-        ana_capture = only_capture_of(test_db, ana["id"])
-        assert ana_capture["status"] == "FAILED"
-        assert ana_capture["error_code"] == "NO_ANSWER"
-        assert ana_capture["hold_status"] == "CREATED"
-        assert len(calls_for("capture_authorization", [ana_capture["auth_id"]])) == 1
-        assert pledges_of(test_db, event_id)[0]["status"] == "FAILED"
+        ana_captures = captures_of(test_db, ana["id"])
+        assert [row["attempt"] for row in ana_captures] == [1, 2]
+        assert [row["status"] for row in ana_captures] == ["FAILED", "FAILED"]
+        assert ana_captures[1]["error_code"] == "NO_ANSWER"
+        assert ana_captures[1]["hold_status"] == "CREATED"
+        assert len(calls_for("capture_authorization", [auth_id_of(test_db, ana["id"])])) == 2
+        pledge_words = [pledge["status"] for pledge in pledges_of(test_db, event_id)]
+        assert pledge_words == ["FAILED", "CHARGED", "CHARGED"]
+        for name in fake_paypal.called_functions():
+            assert "refund" not in name
     finally:
         delete_event(test_db, event_id)
 
@@ -1616,7 +1633,8 @@ def test_c8_the_board_and_the_lock_use_the_same_counted_set(test_db):
         delete_event(test_db, event_id)
 
 
-# F9: Ana joined "only if Kim's in", and Kim did join, so Ana was charged. Then Kim's capture is refused.
+# F9 + D83: Ana joined "only if Kim's in", and Kim did join, so Ana was charged. Then Kim's capture is refused,
+# and so is her one retry.
 # The money already taken from Ana stays taken: no refund is called (rule 7). Kim is FAILED, the event is
 # NEEDS_ATTENTION, and the treasurer's board says so. The "[Refund everyone]" button is M2 (F7), so
 # only the flag and the absence of an automatic refund are tested here.
@@ -1633,9 +1651,10 @@ def test_f9_kim_fails_after_ana_was_charged_and_nothing_is_refunded(test_db):
         fake_paypal.next_answers["capture_authorization"] = [
             fake_paypal.captured(fake_paypal.new_id("CAPTURE"), "COMPLETED"),
             fake_paypal.capture_refused("TRANSACTION_REFUSED"),
+            fake_paypal.capture_refused("TRANSACTION_REFUSED"),
             fake_paypal.captured(fake_paypal.new_id("CAPTURE"), "COMPLETED")]
-        fake_paypal.next_answers["get_authorization"] = [
-            fake_paypal.hold_read_back("CREATED", auth_id_of(test_db, kim["id"]))]
+        kim_hold_created = fake_paypal.hold_read_back("CREATED", auth_id_of(test_db, kim["id"]))
+        fake_paypal.next_answers["get_authorization"] = [kim_hold_created, kim_hold_created]
         assert lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal) == "NEEDS_ATTENTION"
 
         ana, kim, bo = pledges_of(test_db, event_id)
