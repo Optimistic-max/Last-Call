@@ -441,6 +441,19 @@ button:disabled {
   color: var(--on-ink);
 }
 
+a.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  transition: transform 120ms var(--ease-out), background-color 200ms ease;
+  touch-action: manipulation;
+}
+
+a.icon-button:active {
+  transform: scale(0.97);
+}
+
 /* Only a real mouse gets hover looks, because a tap would leave them stuck on a phone. */
 @media (hover: hover) and (pointer: fine) {
   button:hover,
@@ -612,237 +625,375 @@ input[type="checkbox"] {
 
 /* ---------- The board (S2, S3) ---------- */
 
-.board-promise {
-  color: var(--ink-2);
+/* On a phone the cards stack in the order of the HTML: status, countdown, totals,
+   progress, who's in, how it works. Laptops rearrange them further down. */
+.board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--card-gap);
 }
 
-/* The banner says where the event stands, and its color changes with the status below. */
-.board-banner {
-  padding: 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--card);
+/* Anchored cards stop clear of the sticky banner. */
+.board [id] {
+  scroll-margin-top: calc(var(--banner-height) + 12px);
 }
 
-.board-held {
+.card-head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 0 0.75rem;
-  margin-bottom: 0.5rem;
-  color: var(--ink-2);
+  gap: 12px;
+  margin-bottom: 8px;
 }
 
-.board-held-total {
-  color: var(--ink);
-  font-size: 2.5rem;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
+.card-head .card-title {
+  margin-bottom: 0;
 }
 
-/* The bar people see. Its fill's width is set from progress_percent and slides to each new value. */
-.board-bar {
-  height: 12px;
-  margin-bottom: 0.5rem;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--line);
+/* The status card */
+.board-banner {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
-.board-bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: var(--ink);
-  transition: width 600ms ease-out;
+/* Phones have Pledge in the bottom bar, so it isn't shown twice on one screen. */
+.status-button {
+  display: none;
+  margin-top: 20px;
 }
 
-.board-note {
-  color: var(--ink-2);
-  font-size: 0.875rem;
+.board[data-status="NEEDS_ATTENTION"] .board-banner {
+  color: var(--danger);
 }
 
-/* Empty while pledging is closed, so it leaves no gap. */
-.board-pledge:empty {
+/* The countdown card. container-type lets the number size itself to the card, because
+   "47:59:12" has to fit a narrow column on a laptop. */
+.countdown-card {
+  display: flex;
+  flex-direction: column;
+  container-type: inline-size;
+}
+
+/* The auto margins center the time in whatever height the card has. */
+.board-time {
+  margin: auto 0;
+  font-size: min(var(--text-display), 24cqi);
+}
+
+/* The totals: a swipeable row on a phone. Each card is 78% wide so the next one peeks in.
+   The negative margin lets the row run to the screen edges. */
+.board-stats {
+  display: flex;
+  gap: 12px;
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 0 var(--gutter);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-padding: 0 var(--gutter);
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.board-stats::-webkit-scrollbar {
   display: none;
 }
 
-.board-empty {
-  padding: 1rem 0;
-  color: var(--ink-2);
+.stat-card {
+  display: flex;
+  flex: 0 0 min(78%, 320px);
+  flex-direction: column;
+  min-height: 184px;
+  container-type: inline-size;
+  scroll-snap-align: start;
 }
 
-/* The rows are lines between people, not boxes. overflow-wrap breaks a long name
-   with no spaces, so it can never push the chip off the screen. */
+.stat-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.stat-top .card-title {
+  margin: 0;
+  padding-top: 8px;
+}
+
+/* 19cqi keeps "$2,000.00" inside the card at every width. */
+.stat-number {
+  margin: 0 0 12px;
+  font-size: min(var(--text-display), 19cqi);
+}
+
+.stat-caption {
+  margin: auto 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+
+.photo-card .stat-caption {
+  color: var(--on-ink-2);
+}
+
+/* The half ring */
+.ring {
+  position: relative;
+  width: 100%;
+  max-width: 280px;
+  margin: 8px auto 16px;
+}
+
+.ring-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.ring-svg path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 32;   /* 28px when the ring is drawn 280px wide */
+}
+
+.ring-track {
+  stroke: url(#ring-stripes);
+}
+
+.ring-counted {
+  stroke: var(--ink);
+  stroke-dasharray: 100 100;
+  transition: stroke-dashoffset 600ms var(--ease-out);
+}
+
+/* A zero-length arc with round caps would still draw a dot. */
+.ring-empty {
+  opacity: 0;
+}
+
+.board[data-status="NEEDS_ATTENTION"] .ring-counted {
+  stroke: var(--danger);
+}
+
+.board[data-status="EXPIRED"] .ring-counted {
+  stroke: var(--held);
+}
+
+.ring-center {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  text-align: center;
+}
+
+.ring-percent {
+  margin: 0 0 4px;
+}
+
+.ring-center .caption {
+  margin: 0;
+}
+
+.ring-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 16px;
+  margin: 0 0 12px;
+  padding: 0;
+  font-size: var(--text-caption);
+  font-weight: 500;
+  list-style: none;
+}
+
+.ring-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+.board-note {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+  text-align: center;
+  text-wrap: balance;
+}
+
+/* Who's in */
+.button-small {
+  min-height: 44px;
+  padding: 0 16px;
+}
+
 .board-rows {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* A phone row: the avatar, then the name and chip on one line, then the details across
+   the rest of the width. display: contents lets the name and details join this grid. */
 .board-rows li {
   position: relative;
-  margin: 0 -0.5rem;
-  padding: 0.75rem 0.5rem;
-  border-bottom: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 12px;
+  min-height: 64px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
 }
 
-.row-line {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
+.row-avatar {
+  grid-row: 1 / span 2;
+  align-self: start;
+}
+
+.row-text {
+  display: contents;
 }
 
 .row-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
+  grid-column: 2;
+  grid-row: 1;
 }
 
-/* A long "Waiting on ..." wraps inside its chip. */
 .row-chip {
-  flex: none;
-  max-width: 62%;
-  border-radius: 0.75rem;
-  text-align: right;
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.row-details {
+  grid-column: 2 / -1;
+  grid-row: 2;
+}
+
+.board-rows li:first-child {
+  border-top: 0;
+}
+
+.board-rows li[data-counted="true"] .row-avatar {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+/* overflow-wrap breaks a long name with no spaces, so it can't push the chip off the screen. */
+.row-name {
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.3;
   overflow-wrap: anywhere;
 }
 
 .row-details {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 1rem;
+  gap: 0 6px;
   color: var(--ink-2);
-  font-size: 0.9375rem;
-  font-variant-numeric: tabular-nums;
+  font-size: var(--text-caption);
+  overflow-wrap: anywhere;
 }
 
-.row-share {
+.row-share-part::before,
+.row-waiting::before {
+  content: "· ";
+}
+
+/* Chips stay on one line. */
+.status {
+  flex: none;
+  min-height: 28px;
+  padding: 0 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
   color: var(--ink);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  line-height: 26px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.row-old-share {
-  color: var(--ink-2);
+.board-rows li[data-status="HOLD_PENDING"] .row-chip {
+  border-style: dashed;
 }
 
-.row-note {
-  display: block;
-  color: var(--ink);
-  font-size: 0.875rem;
-}
-
-/* Chip colors follow the row's data- attributes. The word is always there too, so
-   color is never the only signal. FAILED comes last because a failed charge also
-   has data-counted="true". */
-.board-rows li[data-counted="true"] .row-chip {
+.board-rows li[data-status="HELD"] .row-chip {
+  border-color: var(--line);
   background: var(--line);
-  color: var(--ink);
 }
 
+/* Only this chip may be cut short with dots, because the line under the name shows the
+   same words in full. A "Charged $x" chip is money, so it is never cut. */
 .board-rows li[data-waiting="true"] .row-chip {
-  border: 1px solid var(--ink-2);
-  background: transparent;
-  color: var(--ink);
+  max-width: 8rem;
+  border-color: var(--ink);
+  background: var(--card);
 }
 
-.board-rows li[data-status="DECLINED"] .row-chip,
-.board-rows li[data-status="FAILED"] .row-chip {
-  background: var(--danger-bg);
-  color: var(--danger);
-}
-
-/* Last call: the banner turns the accent color and the bar is full (UI_DESIGN.md section 5). */
-.board[data-status="LAST_CALL"] .board-banner {
+.board-rows li[data-counted="true"] .row-chip {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--on-ink);
-  animation: banner-slide-in 500ms ease-out;
 }
 
-.board-countdown {
-  display: inline-block;
-  font-size: 1.25em;
-  font-variant-numeric: tabular-nums;
-  animation: countdown-pulse 600ms ease-out;
-}
-
-.board[data-status="SETTLED"] .board-banner {
-  border-color: var(--line);
-  background: var(--line);
-  color: var(--ink);
-}
-
-.board[data-status="NEEDS_ATTENTION"] .board-banner {
+/* Last, because a failed charge also has data-counted="true". */
+.board-rows li[data-status="DECLINED"] .row-chip,
+.board-rows li[data-status="FAILED"] .row-chip {
   border-color: var(--danger-bg);
   background: var(--danger-bg);
   color: var(--danger);
 }
 
-.board[data-status="NEEDS_ATTENTION"] .board-bar-fill {
-  background: var(--danger);
-}
-
-.board[data-status="EXPIRED"] .board-banner {
+.board-empty {
+  padding: 8px 0;
   color: var(--ink-2);
 }
 
-.board[data-status="EXPIRED"] .board-bar-fill {
-  background: var(--ink-2);
-}
-
-/* After the lock, holds have become charges, so the held total would read $0.00.
-   A missed goal drops its pledges from the list, so "No pledges yet." would be untrue too. */
-.board[data-status="LOCKING"] .board-held,
-.board[data-status="CHARGING"] .board-held,
-.board[data-status="SETTLED"] .board-held,
-.board[data-status="NEEDS_ATTENTION"] .board-held,
-.board[data-status="EXPIRED"] .board-held,
-.board[data-status="LOCKING"] .board-note,
-.board[data-status="CHARGING"] .board-note,
-.board[data-status="SETTLED"] .board-note,
-.board[data-status="NEEDS_ATTENTION"] .board-note,
-.board[data-status="EXPIRED"] .board-note,
+/* A missed goal drops its pledges from the list, so "Nobody has pledged yet" would be untrue. */
 .board[data-status="EXPIRED"] .board-empty {
   display: none;
 }
 
-/* The moments board.js marks. Each is under 0.8 seconds, and each element's
-   normal rule is its final look, so reduced motion loses only the movement. */
-.row-just-counted {
-  animation: row-flash 700ms ease-out;
+/* How it works */
+.how-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
 }
 
-.row-new {
-  animation: row-new-flash 700ms ease-out;
+.how-list li {
+  display: flex;
+  gap: 12px;
 }
 
+.how-promise {
+  margin: 0;
+}
+
+/* The moments board.js marks. Part 6 gives each one its motion. */
+.row-just-counted,
+.row-new,
 .row-share-changed {
-  animation: share-flash 700ms ease-out;
-}
-
-@keyframes row-flash {
-  from { background: var(--ink); }
-  to { background: transparent; }
-}
-
-@keyframes row-new-flash {
-  from { background: var(--line); }
-  to { background: transparent; }
-}
-
-@keyframes share-flash {
-  from { background: var(--line); color: var(--ink); }
-  to { background: transparent; }
-}
-
-@keyframes banner-slide-in {
-  from { opacity: 0; transform: translateY(-0.75rem); }
-  to { opacity: 1; transform: none; }
-}
-
-@keyframes countdown-pulse {
-  from { opacity: 0.7; }
-  to { opacity: 1; }
+  animation-duration: 0ms;
 }
 
 
@@ -969,6 +1120,83 @@ input[type="checkbox"] {
   .page-actions form button {
     flex: none;
     width: auto;
+  }
+
+  /* The board: two columns on a small laptop. */
+  .board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "status countdown"
+      "stats stats"
+      "progress progress"
+      "who who"
+      "how how";
+    align-items: start;
+  }
+
+  .status-card { grid-area: status; align-self: stretch; }
+  .countdown-card { grid-area: countdown; align-self: stretch; }
+  .board-stats { grid-area: stats; }
+  .progress-card { grid-area: progress; align-self: stretch; }
+  .who-card { grid-area: who; }
+  .how-card { grid-area: how; align-self: stretch; }
+
+  /* A laptop row is one line: avatar, name with details, chip on the right. */
+  .board-rows li {
+    display: flex;
+  }
+
+  .row-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  /* The totals stop scrolling and sit in a plain grid. */
+  .board-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--card-gap);
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .status-button {
+    display: inline-flex;
+  }
+
+  .ring {
+    max-width: 320px;
+  }
+
+  .ring-svg path {
+    stroke-width: 28;
+  }
+}
+
+
+/* ---------- Wide laptops: the full dashboard ---------- */
+
+@media (min-width: 1200px) {
+  .board {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-areas:
+      "stats stats stats stats"
+      "progress progress countdown how"
+      "who who status status";
+  }
+
+  .board-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  /* The status card keeps its own height and stays in view beside a long list. */
+  .status-card {
+    position: sticky;
+    top: calc(var(--banner-height) + 12px);
+    align-self: start;
   }
 }
 

@@ -25,7 +25,6 @@
       {{ share_button(url_for('pledge_page', event_id=board.event_id), "Invite", class_name="button-secondary board-invite", hidden=not board.pledging_open) }}
     </div>
   </header>
-  <p class="board-promise">Nobody pays unless the goal is reached.</p>
   {% include "board_panel.html" %}
 </main>
 {% endblock %}

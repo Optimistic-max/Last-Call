@@ -1,62 +1,127 @@
 {# The board (docs/UI_DESIGN.md section 10), included by S2 (admin.html) and S3 (board.html), D76.
    It gets one value, board, and every amount and time in it is finished text: this file never
    formats or adds up money (rule 2). board never holds a token or an email.
-   static/js/board.js refreshes it every 10 seconds from /e/<id>/board.json, ticks the last call
-   countdown and marks what changed. The classes and data- attributes below are its hooks, so keep
-   them when restyling, and keep each row's markup the same as makeRow in board.js.
-   The labels were finalised by Samuel on Nov 5 (D57). Each one is set once here and used both in the
-   rows and in the data- attributes board.js reads, so the JavaScript never has its own copy.
-   "Waiting on [name]" arrives finished in row.waiting_on_text and is a placeholder until Samuel
-   approves it (D57, D79). row.counted becomes data-counted, for styling (the circle turns green
-   together).
+   static/js/board.js refreshes it every 10 seconds from /e/<id>/board.json, ticks the countdown and
+   marks what changed. The classes and data- attributes below are its hooks, so keep them when
+   restyling, and keep each row's markup the same as makeRow in board.js.
+   Each label is set once here and used both in the rows and in the data- attributes board.js reads,
+   so the JavaScript never has its own copy.
    Each row has one plain sentence for screen readers (row-summary) and a layout for the eyes, marked
-   aria-hidden so nothing is read twice. pledge_new_tab is set by admin.html. #}
-{% from "macros.html" import pledge_link %}
-{% set held_label = "Held on cards" %}
-{% set max_label = "up to" %}
+   aria-hidden so nothing is read twice.
+   admin.html sets pledge_new_tab and passes share_link; S3 has neither.
+   counted_total_text and goal_amount_text are new keys Emmanuel may add. Until then these cards show a
+   neutral fallback: how many people are counted, and the percent. #}
+{% from "macros.html" import icon, pledge_link, share_button, stat_card %}
+{% set max_label = "Max" %}
 {% set summary_max_label = "max" %}
-{% set share_label = "would pay" %}
+{% set share_label = "share now" %}
 {% set counted_label = "Counted" %}
-{% set just_pledged_label = "just pledged" %}
+{% set just_pledged_label = "Just pledged" %}
+{% set invite_url = share_link if share_link is defined else url_for('pledge_page', event_id=board.event_id) %}
+{% set counted_count = board.rows|selectattr("counted")|list|length %}
+{% set waiting_count = board.rows|selectattr("waiting_on_text")|list|length %}
+
 <section class="board" data-event-id="{{ board.event_id }}" data-status="{{ board.status }}"
   {%- if board.seconds_left is not none %} data-seconds-left="{{ board.seconds_left }}"{% endif %}>
-  <p class="board-banner" role="status">{{ board.banner_text }}</p>
-  <p class="board-held">{{ held_label }}: <span class="board-held-total">{{ board.held_total_text }}</span></p>
-  {# The div is the bar people see, because a div's width can animate in every browser. The progress
-     element stays for screen readers. #}
-  <progress class="board-progress visually-hidden" max="100" value="{{ board.progress_percent }}">{{ board.progress_percent }}%</progress>
-  <div class="board-bar" aria-hidden="true"><div class="board-bar-fill" style="width: {{ board.progress_percent }}%"></div></div>
-  <p class="board-note">The bar shows counted pledges only. A hold with a condition counts once that condition is met.</p>
 
-  {{ pledge_link(board, "button-link", new_tab=pledge_new_tab) }}
+  <div class="card status-card">
+    <h2 class="card-title">Right now</h2>
+    <p class="board-banner" role="status">{{ board.banner_text }}</p>
+    {{ pledge_link(board, "button-link status-button", new_tab=pledge_new_tab) }}
+  </div>
 
-  <ul class="board-rows" data-max-label="{{ max_label }}" data-summary-max-label="{{ summary_max_label }}"
-    data-share-label="{{ share_label }}" data-counted-label="{{ counted_label }}"
-    data-just-pledged-label="{{ just_pledged_label }}">
-    {% for row in board.rows %}
-    {% set is_counted_hold = row.status == "HELD" and row.counted %}
-    <li data-status="{{ row.status }}" data-counted="{% if row.counted %}true{% else %}false{% endif %}"
-      {%- if row.waiting_on_text %} data-waiting="true"{% endif %}>
-      <span class="row-summary visually-hidden">
-        {{- row.name }}: {{ row.status_word }}, {{ summary_max_label }} {{ row.max_text }}
-        {%- if row.estimated_share_text %}, {{ share_label }} {{ row.estimated_share_text }}{% endif %}
-        {%- if row.waiting_on_text %}, {{ row.waiting_on_text }}{% endif %}
-        {%- if is_counted_hold %}, {{ counted_label }}{% endif %}</span>
-      <span class="row-line" aria-hidden="true">
-        <span class="row-name" dir="auto">{{ row.name }}</span>
-        <span class="status row-chip">
+  <div class="card photo-card countdown-card" data-open-title="Time left" data-last-call-title="Last call" data-closed-text="Closed">
+    <h2 class="card-title board-time-title">{% if board.status == "LAST_CALL" %}Last call{% else %}Time left{% endif %}</h2>
+    <p class="display-number board-time" role="timer">{% if board.seconds_left is none %}Closed{% endif %}</p>
+  </div>
+
+  <div class="board-stats" tabindex="0" role="group" aria-label="The totals">
+    {% set held_caption %}{% if board.status in ["DRAFT", "OPEN", "LAST_CALL"] %}PayPal is holding this. Nobody is charged yet.{% elif board.status == "SETTLED" %}Charged once.{% endif %}{% endset %}
+    {{ stat_card("Held so far", "board-held-total", board.held_total_text, "board-held-caption", held_caption, "progress", "Go to Progress", "photo-card") }}
+    {% set counted_text %}{% if board.counted_total_text %}{{ board.counted_total_text }}{% elif counted_count == 1 %}1 person{% else %}{{ counted_count }} people{% endif %}{% endset %}
+    {{ stat_card("Counted", "board-counted-total", counted_text, "", "Counts toward the goal", "whos-in", "Go to Who's in") }}
+    {{ stat_card("People in", "board-people", board.rows|length, "board-waiting-count", waiting_count ~ " waiting on someone", "whos-in", "Go to Who's in") }}
+    {{ stat_card("Goal", "board-goal-amount", board.goal_amount_text or (board.progress_percent ~ "%"), "", "So the club gets the full amount after PayPal's fees", "progress", "Go to Progress") }}
+  </div>
+
+  <div class="card progress-card" id="progress">
+    <h2 class="card-title">Progress</h2>
+    <div class="ring board-ring" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+      aria-valuenow="{{ board.progress_percent }}" aria-label="Goal progress, counted pledges only">
+      {# pathLength="100" makes the arc 100 units long, so a percent can be used as a length. #}
+      <svg class="ring-svg" viewBox="0 0 320 182" aria-hidden="true">
+        <defs>
+          <pattern id="ring-stripes" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <line x1="0" y1="0" x2="0" y2="8" stroke="#BDBDBD" stroke-width="3"></line>
+          </pattern>
+        </defs>
+        <path class="ring-track" d="M 16 164 A 144 144 0 0 1 304 164" pathLength="100"></path>
+        <path class="ring-counted{% if board.progress_percent == 0 %} ring-empty{% endif %}" d="M 16 164 A 144 144 0 0 1 304 164" pathLength="100"
+          style="stroke-dashoffset: {{ 100 - board.progress_percent }}"></path>
+      </svg>
+      <div class="ring-center">
+        <p class="display-number ring-percent">{{ board.progress_percent }}%</p>
+        <p class="caption">of the goal counted</p>
+      </div>
+    </div>
+    <progress class="board-progress visually-hidden" aria-hidden="true" max="100" value="{{ board.progress_percent }}">{{ board.progress_percent }}%</progress>
+    <ul class="ring-legend">
+      <li><svg class="legend-dot" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="6" fill="#0B0B0B"></circle></svg>Counted</li>
+      <li><svg class="legend-dot" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.5" fill="url(#ring-stripes)" stroke="#BDBDBD"></circle></svg>Still needed</li>
+    </ul>
+    <p class="board-note">Held money counts once everyone it depends on is in.</p>
+  </div>
+
+  <div class="card who-card" id="whos-in">
+    <div class="card-head">
+      <h2 class="card-title">Who's in</h2>
+      {{ share_button(invite_url, "Invite", class_name="button-secondary button-small board-invite", icon_name="plus", hidden=not board.pledging_open) }}
+    </div>
+    <ul class="board-rows" data-max-label="{{ max_label }}" data-summary-max-label="{{ summary_max_label }}"
+      data-share-label="{{ share_label }}" data-counted-label="{{ counted_label }}"
+      data-just-pledged-label="{{ just_pledged_label }}">
+      {% for row in board.rows %}
+      {% set is_counted_hold = row.status == "HELD" and row.counted %}
+      <li data-status="{{ row.status }}" data-counted="{% if row.counted %}true{% else %}false{% endif %}"
+        {%- if row.waiting_on_text %} data-waiting="true"{% endif %}>
+        <span class="row-summary visually-hidden">
+          {{- row.name }}: {{ row.status_word }}, {{ summary_max_label }} {{ row.max_text }}
+          {%- if row.estimated_share_text %}, {{ share_label }} {{ row.estimated_share_text }}{% endif %}
+          {%- if row.waiting_on_text %}, {{ row.waiting_on_text }}{% endif %}
+          {%- if is_counted_hold %}, {{ counted_label }}{% endif %}</span>
+        <span class="avatar row-avatar" aria-hidden="true">{{ row.name[:2]|upper }}</span>
+        <span class="row-text" aria-hidden="true">
+          <span class="row-name" dir="auto">{{ row.name }}</span>
+          <span class="row-details">
+            <span class="row-max">{{ max_label }} {{ row.max_text }}</span>
+            {%- if row.estimated_share_text %}
+            <span class="row-share-part">{{ share_label }} <span class="row-share">{{ row.estimated_share_text }}</span></span>
+            {%- endif %}
+            {%- if row.waiting_on_text %}
+            <span class="row-waiting">{{ row.waiting_on_text }}</span>
+            {%- endif %}
+          </span>
+        </span>
+        <span class="status row-chip" aria-hidden="true">
           {%- if row.waiting_on_text %}{{ row.waiting_on_text }}
           {%- elif is_counted_hold %}{{ counted_label }}
           {%- else %}{{ row.status_word }}{% endif %}</span>
-      </span>
-      <span class="row-details" aria-hidden="true">
-        <span class="row-max">{{ max_label }} {{ row.max_text }}</span>
-        {%- if row.estimated_share_text %}
-        <span class="row-share-part">{{ share_label }} <span class="row-share">{{ row.estimated_share_text }}</span></span>
-        {%- endif %}
-      </span>
-    </li>
-    {% endfor %}
-  </ul>
-  <p class="board-empty"{% if board.rows %} hidden{% endif %}>No pledges yet.</p>
+      </li>
+      {% endfor %}
+    </ul>
+    <div class="board-empty"{% if board.rows %} hidden{% endif %}>
+      <p>Nobody has pledged yet. Share the link to start.</p>
+      {{ share_button(invite_url, "Invite", class_name="button-secondary board-invite", hidden=not board.pledging_open) }}
+    </div>
+  </div>
+
+  <div class="card how-card" id="how-it-works">
+    <h2 class="card-title">How it works</h2>
+    <ul class="how-list">
+      <li>{{ icon("hand-coins") }}<span>Pledge the most you'd pay</span></li>
+      <li>{{ icon("lock") }}<span>PayPal holds it, nothing is charged</span></li>
+      <li>{{ icon("shield-check") }}<span>If the goal is reached, you pay only your share. If not, every hold is cancelled.</span></li>
+    </ul>
+    <p class="caption how-promise">Nobody pays unless the goal is reached.</p>
+  </div>
 </section>

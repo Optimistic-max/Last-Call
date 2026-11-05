@@ -2,13 +2,14 @@
 // Both pages include templates/board_panel.html, and this file updates that panel:
 // 1. Every 10 seconds it fetches /e/<id>/board.json and copies the new values into the page
 //    (docs/UI_DESIGN.md sections 7 and 10).
-// 2. During LAST_CALL it ticks the countdown in the banner once a second, between fetches (D76).
+// 2. While pledging is open it ticks the countdown card once a second, between fetches (D76).
+//    During LAST_CALL it also ticks the time inside the banner, so the two never disagree.
 // 3. It compares each answer with the last one and marks what changed, so the CSS can animate it:
 //    who just pledged, who just became counted, and whose share changed (UI_DESIGN.md section 6).
 //
 // Names are typed by users, so this file writes text with textContent and builds elements with
 // createElement, never innerHTML. It does no money math and no money formatting: every amount
-// arrives as finished text (UI_DESIGN.md section 7, rule 2). The only thing it formats is the
+// arrives as finished text (UI_DESIGN.md section 7, rule 2). It only counts rows and formats the
 // countdown time, with the same rules as countdown_text in app.py.
 
 const REFRESH_EVERY_MS = 10000;   // fetch board.json every 10 seconds (UI_DESIGN.md section 7)
@@ -25,9 +26,10 @@ const countdown = {
   running: false,
   secondsAtStart: 0,
   startedAtMs: 0,
+  shownSeconds: null,
+  inBanner: false,
   textBefore: "",
   textAfter: "",
-  shownSeconds: null,
 };
 
 
@@ -74,20 +76,67 @@ async function refreshBoard() {
 function showBoard(answer) {
   board.dataset.status = answer.status;
   document.querySelector(".board-goal").textContent = answer.goal_text;
-  board.querySelector(".board-held-total").textContent = answer.held_total_text;
   showProgress(answer.progress_percent);
+  showStats(answer);
   showRows(answer.rows);
   showPledgeLinks(answer.pledging_open, answer.status);
   setCountdown(answer.status, answer.banner_text, answer.seconds_left);
 }
 
 
-// The progress bar: its value, and the text a browser shows if it can't draw the bar.
+// The half ring. The arc is 100 units long, so what is left to draw is 100 minus the percent.
+// The hidden <progress> and the ring's aria-valuenow give screen readers the same number.
 function showProgress(percent) {
   const bar = board.querySelector(".board-progress");
   bar.value = percent;
   bar.textContent = percent + "%";
-  board.querySelector(".board-bar-fill").style.width = percent + "%";
+  const arc = board.querySelector(".ring-counted");
+  arc.style.strokeDashoffset = 100 - percent;
+  arc.classList.toggle("ring-empty", percent === 0);
+  board.querySelector(".board-ring").setAttribute("aria-valuenow", percent);
+  board.querySelector(".ring-percent").textContent = percent + "%";
+}
+
+
+// The caption under the held total. It is empty once it would no longer be true, for example
+// after a missed goal, when "Cancelling holds…" may still be running (D45).
+function heldCaptionText(status) {
+  if (status === "DRAFT" || status === "OPEN" || status === "LAST_CALL") {
+    return "PayPal is holding this. Nobody is charged yet.";
+  }
+  if (status === "SETTLED") {
+    return "Charged once.";
+  }
+  return "";
+}
+
+
+// "1 person" or "3 people". Only a count of rows, so this is not money.
+function peopleText(count) {
+  if (count === 1) {
+    return "1 person";
+  }
+  return count + " people";
+}
+
+
+// The four stat cards. counted_total_text and goal_amount_text are new keys Emmanuel may add: when
+// they arrive they are used as they are. Until then these two show a count and a percent.
+function showStats(answer) {
+  const countedRows = answer.rows.filter(function (row) {
+    return row.counted;
+  });
+  const waitingRows = answer.rows.filter(function (row) {
+    return row.waiting_on_text !== "";
+  });
+  board.querySelector(".board-held-total").textContent = answer.held_total_text;
+  board.querySelector(".board-held-caption").textContent = heldCaptionText(answer.status);
+  board.querySelector(".board-counted-total").textContent =
+    answer.counted_total_text || peopleText(countedRows.length);
+  board.querySelector(".board-people").textContent = answer.rows.length;
+  board.querySelector(".board-waiting-count").textContent = waitingRows.length + " waiting on someone";
+  board.querySelector(".board-goal-amount").textContent =
+    answer.goal_amount_text || answer.progress_percent + "%";
 }
 
 
@@ -121,7 +170,7 @@ function rememberRows(rows) {
 
 // Rebuild the list of people, because people can join between refreshes. Rows that changed get
 // their marks while they are built, so they all appear in one step: that is what makes two rows
-// flash together. The labels come from the template's data- attributes, so they are written once.
+// change together. The labels come from the template's data- attributes, so they are written once.
 function showRows(rows) {
   const list = board.querySelector(".board-rows");
   list.replaceChildren();
@@ -139,7 +188,6 @@ function showRows(rows) {
 function markChanges(item, row, before, labels) {
   if (before === undefined) {
     item.classList.add("row-new");
-    item.appendChild(makeSpan("row-note", row.name + " " + labels.justPledgedLabel));
     return;
   }
   if (row.counted && !before.counted) {
@@ -147,20 +195,8 @@ function markChanges(item, row, before, labels) {
   }
   const share = row.estimated_share_text;
   if (before.share !== "" && share !== "" && before.share !== share) {
-    markShareChange(item, before.share);
+    item.querySelector(".row-share").classList.add("row-share-changed");
   }
-}
-
-
-// Show the old share struck through next to the new one. Both are the server's finished text: this
-// only puts them side by side, so there is no money math here (rule 2).
-function markShareChange(item, oldShareText) {
-  const share = item.querySelector(".row-share");
-  const oldShare = document.createElement("s");
-  oldShare.className = "row-old-share";
-  oldShare.textContent = oldShareText;
-  share.classList.add("row-share-changed");
-  share.before(oldShare, " ");
 }
 
 
@@ -170,6 +206,12 @@ function makeSpan(className, text) {
   span.className = className;
   span.textContent = text;
   return span;
+}
+
+
+// The first two letters of a name, like the template. Array.from keeps an emoji in one piece.
+function avatarText(name) {
+  return Array.from(name).slice(0, 2).join("").toUpperCase();
 }
 
 
@@ -203,34 +245,36 @@ function rowSummary(row, labels) {
 }
 
 
-// The name and the chip, on one line.
-function makeRowLine(row, labels) {
-  const line = makeSpan("row-line", "");
-  line.setAttribute("aria-hidden", "true");
-  const name = makeSpan("row-name", row.name);
-  name.dir = "auto";
-  line.appendChild(name);
-  line.appendChild(makeSpan("status row-chip", chipText(row, labels)));
-  return line;
-}
-
-
-// The line under the name: the max, and what they would pay during last call.
+// The small line under the name: the max, then the share, then who they are waiting on.
 function makeRowDetails(row, labels) {
   const details = makeSpan("row-details", "");
-  details.setAttribute("aria-hidden", "true");
   details.appendChild(makeSpan("row-max", labels.maxLabel + " " + row.max_text));
   if (row.estimated_share_text !== "") {
     const sharePart = makeSpan("row-share-part", labels.shareLabel + " ");
     sharePart.appendChild(makeSpan("row-share", row.estimated_share_text));
     details.appendChild(sharePart);
   }
+  if (row.waiting_on_text !== "") {
+    details.appendChild(makeSpan("row-waiting", row.waiting_on_text));
+  }
   return details;
 }
 
 
+// The name with the small line under it.
+function makeRowText(row, labels) {
+  const text = makeSpan("row-text", "");
+  text.setAttribute("aria-hidden", "true");
+  const name = makeSpan("row-name", row.name);
+  name.dir = "auto";
+  text.appendChild(name);
+  text.appendChild(makeRowDetails(row, labels));
+  return text;
+}
+
+
 // One person's row, with the same markup board_panel.html draws. data-counted is "true" or "false",
-// for styling (the circle turns green together).
+// for styling (the circle turns black together).
 function makeRow(row, labels) {
   const item = document.createElement("li");
   item.dataset.status = row.status;
@@ -243,13 +287,18 @@ function makeRow(row, labels) {
     item.dataset.waiting = "true";
   }
   item.appendChild(makeSpan("row-summary visually-hidden", rowSummary(row, labels)));
-  item.appendChild(makeRowLine(row, labels));
-  item.appendChild(makeRowDetails(row, labels));
+  const avatar = makeSpan("avatar row-avatar", avatarText(row.name));
+  avatar.setAttribute("aria-hidden", "true");
+  item.appendChild(avatar);
+  item.appendChild(makeRowText(row, labels));
+  const chip = makeSpan("status row-chip", chipText(row, labels));
+  chip.setAttribute("aria-hidden", "true");
+  item.appendChild(chip);
   return item;
 }
 
 
-// Show every Pledge link and the Invite button only while pledging is open. A closed link also loses
+// Show every Pledge link and Invite button only while pledging is open. A closed link also loses
 // its address. The labels come from the template, and during last call the buttons say "Join last call".
 function showPledgeLinks(isOpen, status) {
   for (const link of document.querySelectorAll(".board-pledge")) {
@@ -263,8 +312,7 @@ function showPledgeLinks(isOpen, status) {
       link.textContent = pledgeLinkText(link, status);
     }
   }
-  const invite = document.querySelector(".board-invite");
-  if (invite !== null) {
+  for (const invite of document.querySelectorAll(".board-invite")) {
     invite.hidden = !isOpen;
   }
 }
@@ -279,51 +327,76 @@ function pledgeLinkText(link, status) {
 }
 
 
-// Show the server's banner, then start the countdown if this is LAST_CALL, or stop it otherwise.
-// While it ticks, aria-live="off" stops screen readers reading the time out every second; removing
-// it puts the banner back to role="status", so the next status change is read out.
+// The countdown card's title: "Last call" during last call, otherwise "Time left".
+function showTimeTitle(status) {
+  const card = board.querySelector(".countdown-card");
+  const title = board.querySelector(".board-time-title");
+  if (status === "LAST_CALL") {
+    title.textContent = card.dataset.lastCallTitle;
+  } else {
+    title.textContent = card.dataset.openTitle;
+  }
+}
+
+
+// Show the server's banner, then start the countdown from its latest seconds_left, or show "Closed".
 function setCountdown(status, bannerText, seconds) {
   const banner = board.querySelector(".board-banner");
   banner.textContent = bannerText;
+  banner.removeAttribute("aria-live");
+  showTimeTitle(status);
   countdown.running = false;
-  if (status !== "LAST_CALL" || seconds === null) {
-    banner.removeAttribute("aria-live");
+  countdown.inBanner = false;
+  if ((status !== "OPEN" && status !== "LAST_CALL") || seconds === null) {
+    board.querySelector(".board-time").textContent = board.querySelector(".countdown-card").dataset.closedText;
     return;
   }
-  // Find the server's time (like "4:59") in the banner and keep the words on each side of it.
-  const timeText = countdownText(seconds);
-  const where = bannerText.indexOf(timeText);
-  if (where === -1) {
-    banner.removeAttribute("aria-live");   // the time isn't there, so show banner_text as it came
-    return;
+  if (status === "LAST_CALL") {
+    findTimeInBanner(bannerText, seconds);
   }
-  countdown.textBefore = bannerText.slice(0, where);
-  countdown.textAfter = bannerText.slice(where + timeText.length);
   countdown.secondsAtStart = seconds;
   countdown.startedAtMs = Date.now();
   countdown.running = true;
   countdown.shownSeconds = null;
-  banner.setAttribute("aria-live", "off");
   showCountdownTime(seconds);
 }
 
 
-// Put the time in the banner in its own span. A new span each second replays the CSS pulse. A second
-// that is already showing is skipped, so the pulse stops at 0:00. replaceChildren treats the two
-// strings as plain text.
+// Find the server's time (like "4:59") in the banner and keep the words on each side of it. If it
+// isn't there, the banner stays as it came. While it ticks, aria-live="off" stops screen readers
+// reading the time out every second. setCountdown removes that again at each refresh, which puts
+// the banner back to role="status", so the next status change is read out.
+function findTimeInBanner(bannerText, seconds) {
+  const timeText = countdownText(seconds);
+  const where = bannerText.indexOf(timeText);
+  if (where === -1) {
+    return;
+  }
+  countdown.textBefore = bannerText.slice(0, where);
+  countdown.textAfter = bannerText.slice(where + timeText.length);
+  countdown.inBanner = true;
+  board.querySelector(".board-banner").setAttribute("aria-live", "off");
+}
+
+
+// Put the time on the card, and in the banner during last call. A second that is already showing
+// is skipped.
 function showCountdownTime(seconds) {
   if (seconds === countdown.shownSeconds) {
     return;
   }
   countdown.shownSeconds = seconds;
-  const time = makeSpan("board-countdown", countdownText(seconds));
-  board.querySelector(".board-banner").replaceChildren(countdown.textBefore, time, countdown.textAfter);
+  const timeText = countdownText(seconds);
+  board.querySelector(".board-time").textContent = timeText;
+  if (countdown.inBanner) {
+    board.querySelector(".board-banner").textContent = countdown.textBefore + timeText + countdown.textAfter;
+  }
 }
 
 
-// Once a second during LAST_CALL, rewrite only the time in the banner. The seconds left are worked
-// out from the clock, not by taking 1 away each tick, because phones slow timers down in background
-// tabs. It stops at 0:00 and waits: only the server decides that last call is over.
+// Once a second, work out the seconds left from the clock, not by taking 1 away each tick, because
+// phones slow timers down in background tabs. It stops at 0:00 and waits: only the server decides
+// that pledging is over.
 function tickCountdown() {
   if (!countdown.running) {
     return;
@@ -337,7 +410,7 @@ function tickCountdown() {
 }
 
 
-// "4:59", or "1:02:03" from one hour up. The same rules as countdown_text in app.py, so the banner
+// "4:59", or "47:59:12" from one hour up. The same rules as countdown_text in app.py, so the banner
 // doesn't jump when the next board.json arrives.
 function countdownText(seconds) {
   const secondsPart = twoDigits(seconds % 60);

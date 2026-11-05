@@ -21,10 +21,11 @@ function linkFor(button) {
 
 // Show "Copied ✓" for a moment, then the button's own words again.
 function showCopied(button) {
-  const label = button.textContent;
-  button.textContent = button.dataset.copiedLabel;
+  const label = button.querySelector(".button-label");
+  const words = label.textContent;
+  label.textContent = button.dataset.copiedLabel;
   setTimeout(function () {
-    button.textContent = label;
+    label.textContent = words;
   }, COPIED_SHOW_MS);
 }
 
@@ -67,7 +68,7 @@ function startShareButton(button) {
     return;
   }
   if (button.dataset.phoneLabel !== undefined) {
-    button.textContent = button.dataset.phoneLabel;
+    button.querySelector(".button-label").textContent = button.dataset.phoneLabel;
   }
   button.addEventListener("click", function () {
     shareLink(button);

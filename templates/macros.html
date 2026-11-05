@@ -32,9 +32,22 @@
 {# A button that shares a link: the phone's share menu, or a plain copy on a laptop (static/js/share.js).
    url is share_link on S2 and the public pledge path on S3. It is never this page's own address.
    phone_label is what the button says on a phone, when that differs from label. #}
-{% macro share_button(url, label, class_name="button-secondary", phone_label="", button_id="", hidden=false) -%}
+{% macro share_button(url, label, class_name="button-secondary", phone_label="", button_id="", hidden=false, icon_name="") -%}
 <button class="share-button {{ class_name }}" type="button" data-share-url="{{ url }}" data-copied-label="Copied ✓"
   {%- if phone_label %} data-phone-label="{{ phone_label }}"{% endif %}
   {%- if button_id %} id="{{ button_id }}"{% endif %}
-  {%- if hidden %} hidden{% endif %}>{{ label }}</button>
+  {%- if hidden %} hidden{% endif %}>{% if icon_name %}{{ icon(icon_name) }}{% endif %}<span class="button-label">{{ label }}</span></button>
+{%- endmacro %}
+
+{# One of the four totals on the board. number_class and caption_class are board.js's hooks. target is
+   the id of the card the arrow scrolls to. #}
+{% macro stat_card(title, number_class, number, caption_class, caption, target, target_label, extra_class="") -%}
+<div class="card stat-card {{ extra_class }}">
+  <div class="stat-top">
+    <h2 class="card-title">{{ title }}</h2>
+    <a class="icon-button" href="#{{ target }}" aria-label="{{ target_label }}">{{ icon("arrow-up-right") }}</a>
+  </div>
+  <p class="display-number stat-number {{ number_class }}">{{ number }}</p>
+  <p class="stat-caption {{ caption_class }}">{{ caption }}</p>
+</div>
 {%- endmacro %}
