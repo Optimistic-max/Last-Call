@@ -64,7 +64,27 @@ function showResultOfHold() {
   }
   if (friendPressedSave && resultLine.textContent !== "") {
     resultLine.scrollIntoView({ block: "center" });
+    if (document.getElementById("hold-text").textContent === "") {
+      shakeRefusedBox();
+    }
   }
+}
+
+
+// Continue was refused, so shake the first required box that is still empty, or else the message.
+// animationend takes the class off again, so the next refusal can shake too.
+function shakeRefusedBox() {
+  const required = [document.getElementById("pledge-name"), document.getElementById("pledge-max")];
+  let target = resultLine;
+  for (const box of required) {
+    if (box.value.trim() === "" && target === resultLine) {
+      target = box;
+    }
+  }
+  target.classList.add("shake");
+  target.addEventListener("animationend", function () {
+    target.classList.remove("shake");
+  }, { once: true });
 }
 
 

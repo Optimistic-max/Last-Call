@@ -44,6 +44,9 @@
   --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08), 0 24px 48px rgba(0, 0, 0, 0.06);
   --shadow-floating: 0 2px 4px rgba(0, 0, 0, 0.05), 0 12px 32px rgba(0, 0, 0, 0.10);
   --shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.06), 0 16px 40px rgba(0, 0, 0, 0.12);
+  --button-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --button-shadow-hover: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 16px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --button-shadow-pressed: 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 
   --landing-header-height: 64px;
 
@@ -79,7 +82,9 @@ html {
 /* tabular-nums gives every digit the same width, so money and times never jump. */
 body {
   margin: 0;
-  background: var(--page);
+  background-color: var(--page);
+  background-image: radial-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+  background-size: 20px 20px;
   color: var(--ink);
   font-family: var(--font);
   font-size: var(--text-body);
@@ -303,8 +308,10 @@ a {
   display: flex;
   gap: 8px;
   padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid var(--line);
-  background: var(--page);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
 }
 
 .page-actions > *,
@@ -325,11 +332,12 @@ a {
 
 /* ---------- Cards ---------- */
 
-/* White on the grey page, with no shadow: the color change is the edge. */
+/* White on the grey page, lifted a little, with a thin highlight along the top edge. */
 .card {
   padding: var(--card-padding);
   border-radius: var(--radius-card);
   background: var(--card);
+  box-shadow: var(--shadow-rest), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .card-title {
@@ -348,6 +356,7 @@ a {
     url("images/ribbed-dark.jpg");
   background-position: center;
   background-size: cover;
+  box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   color: var(--on-ink);
 }
 
@@ -388,6 +397,7 @@ button,
   border: 1px solid var(--ink);
   border-radius: 999px;
   background: var(--ink);
+  box-shadow: var(--button-shadow);
   color: var(--on-ink);
   font: inherit;
   font-weight: 500;
@@ -399,22 +409,18 @@ button,
   transition: transform 120ms var(--ease-out), background-color 200ms ease;
 }
 
-button:active,
-.button-link:active {
-  transform: scale(0.97);
-}
-
 /* A button that can't be pressed yet looks clearly switched off. */
 button:disabled {
   border-color: var(--line);
   background: var(--line);
+  box-shadow: none;
   color: var(--ink-2);
   cursor: not-allowed;
-  transform: none;
 }
 
 .button-secondary {
   background: var(--card);
+  box-shadow: none;
   color: var(--ink);
 }
 
@@ -439,6 +445,7 @@ button:disabled {
   border-color: var(--line);
   border-radius: 50%;
   background: transparent;
+  box-shadow: none;
   color: var(--ink);
 }
 
@@ -469,12 +476,12 @@ a.icon-button:active {
 
 /* Only a real mouse gets hover looks, because a tap would leave them stuck on a phone. */
 @media (hover: hover) and (pointer: fine) {
-  button:hover,
+  button:hover:not(:disabled),
   .button-link:hover {
     background: #2A2A2A;
   }
 
-  .button-secondary:hover {
+  .button-secondary:hover:not(:disabled) {
     background: var(--page);
   }
 
@@ -1101,10 +1108,6 @@ input.ai-filled {
 
 /* Last call: the status card turns black. It is the same element all along, so a
    transition does it, and the 10-second refresh can't restart it. */
-.status-card {
-  transition: background-color 300ms var(--ease-out), color 300ms var(--ease-out);
-}
-
 .board[data-status="LAST_CALL"] .status-card {
   background: var(--ink);
   color: var(--on-ink);
@@ -1158,7 +1161,7 @@ input.ai-filled {
   background: var(--ink);
   color: var(--on-ink);
   font-weight: 500;
-  animation: fade-away 300ms ease 3700ms forwards;
+  animation: wiggle 450ms ease-in-out, fade-away 300ms ease 3700ms forwards;
 }
 
 /* A changing number: the old text leaves upward as the new text comes in from below. */
@@ -1237,7 +1240,10 @@ input.ai-filled {
   display: inline-block;
 }
 
-.label-copied,
+.label-copied {
+  animation: fade-in 150ms ease, wiggle 450ms ease-in-out;
+}
+
 .label-back {
   animation: fade-in 150ms ease;
 }
@@ -1276,6 +1282,10 @@ input.ai-filled {
   font-size: 1.125rem;
   font-weight: 600;
   text-decoration: none;
+}
+
+.landing-logo-wrap {
+  display: inline-flex;
 }
 
 .landing-logo {
@@ -1533,7 +1543,7 @@ input.ai-filled {
 
 .piece-countdown {
   align-self: flex-end;
-  margin: -4px -8px -12px 0;
+  margin: 8px -8px -12px 0;
   --tilt: 4deg;
   --drift-x: 40px;
   --drift-y: 30px;
@@ -1630,7 +1640,7 @@ input.ai-filled {
     content: "";
     position: absolute;
     right: 0;
-    bottom: 8px;
+    bottom: -1px;
     left: 0;
     height: 1px;
     background: currentColor;
@@ -1639,8 +1649,8 @@ input.ai-filled {
     transition: transform 200ms var(--ease-out);
   }
 
-  .landing-footer .text-link::after {
-    bottom: 0;
+  .landing-nav .text-link::after {
+    bottom: 10px;
   }
 
   .text-link:hover::after {
@@ -1718,7 +1728,7 @@ input.ai-filled {
   }
 
   .hero-title {
-    font-size: 3.75rem;
+    font-size: 3.5rem;
   }
 
   .hero-lead {
@@ -1738,7 +1748,7 @@ input.ai-filled {
     display: block;
   }
 
-  .piece-ring { top: 40%; left: 2.5%; }
+  .piece-ring { top: 44%; left: 1%; }
   .piece-waiting { top: 44%; right: 3%; }
 }
 
@@ -1768,7 +1778,7 @@ input.ai-filled {
     .hero-tile,
     .hero-copy,
     .piece,
-    .landing-logo,
+    .landing-logo-wrap,
     .landing-name {
       animation-duration: 1ms;   /* the timeline sets the real length */
       animation-fill-mode: both;
@@ -1793,7 +1803,7 @@ input.ai-filled {
     }
 
     /* The header logo arrives as the tile fades, and the name slides over to make room. */
-    .landing-logo {
+    .landing-logo-wrap {
       animation-name: fade-in;
       animation-range: 200px 300px;
     }
@@ -1818,7 +1828,7 @@ input.ai-filled {
   transform: translateX(calc(var(--tile-x) * var(--tile-progress))) scale(calc(1 - 0.4 * var(--tile-progress)));
 }
 
-.scroll-fallback .landing-logo {
+.scroll-fallback .landing-logo-wrap {
   opacity: calc((var(--progress, 0) - 0.33) * 6);
 }
 
@@ -1852,6 +1862,127 @@ input.ai-filled {
 
 @keyframes piece-drift {
   to { opacity: 0; transform: translate(var(--drift-x, 0px), var(--drift-y, 0px)) scale(1.08); }
+}
+
+
+/* ---------- Depth, hover and wiggle, site-wide ---------- */
+
+/* A card's bigger shadow lives on a layer that only fades. Animating box-shadow itself
+   would repaint on every frame, and opacity doesn't. */
+.board .card,
+.how-step {
+  position: relative;
+  transition: transform 250ms var(--ease-out);
+}
+
+.board .card::after,
+.how-step::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--shadow-hover);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 250ms var(--ease-out);
+}
+
+/* The status card also changes color during last call. */
+.board .status-card {
+  transition: transform 250ms var(--ease-out), background-color 300ms var(--ease-out), color 300ms var(--ease-out);
+}
+
+.row-avatar {
+  transition: transform 200ms var(--ease-out);
+}
+
+.icon-button .icon {
+  transition: transform 200ms var(--ease-out);
+}
+
+.board-rows li {
+  margin: 0 -12px;
+  padding: 12px;
+  transition: background-color 200ms ease;
+}
+
+/* Only a real mouse gets these. A tap would leave them stuck on a phone. */
+@media (hover: hover) and (pointer: fine) {
+  .board .card:hover,
+  .how-step:hover {
+    transform: translateY(-2px);
+    transition-duration: 200ms;
+  }
+
+  .board .card:hover::after,
+  .how-step:hover::after {
+    opacity: 1;
+    transition-duration: 200ms;
+  }
+
+  .board-rows li:hover {
+    border-radius: 12px;
+    background: var(--page);
+  }
+
+  .board-rows li:hover .row-avatar {
+    transform: scale(1.05);
+  }
+
+  /* The arrow leans the way it points. */
+  .icon-button:hover .icon {
+    transform: translate(2px, -2px);
+  }
+
+  button:hover:not(:disabled):not(.icon-button),
+  .button-link:hover {
+    box-shadow: var(--button-shadow-hover);
+    transform: translateY(-1px);
+  }
+
+  .button-secondary:hover:not(:disabled) {
+    box-shadow: none;
+  }
+
+  /* The logo wiggles when pointed at. Never money, the countdown or a status chip. */
+  .hero-tile-face:hover,
+  .landing-brand:hover .landing-logo {
+    animation: wiggle 450ms ease-in-out;
+  }
+}
+
+/* A press comes last, so it beats hover. The shadow shrinks as the button goes in. */
+button:active:not(:disabled),
+.button-link:active {
+  box-shadow: var(--button-shadow-pressed);
+  transform: scale(0.97);
+}
+
+.icon-button:active:not(:disabled) {
+  box-shadow: none;
+}
+
+/* Wiggle: sometimes, never constantly. Shake is for a field with an error. */
+.wiggle {
+  animation: wiggle 450ms ease-in-out;
+}
+
+.shake {
+  animation: shake 350ms ease-in-out;
+}
+
+@keyframes wiggle {
+  20% { transform: rotate(-3deg); }
+  40% { transform: rotate(3deg); }
+  60% { transform: rotate(-2deg); }
+  80% { transform: rotate(1deg); }
+}
+
+@keyframes shake {
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
 }
 
 
@@ -1972,6 +2103,8 @@ input.ai-filled {
     padding: 0;
     border-top: 0;
     background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
   .page-actions > *,
@@ -2051,7 +2184,7 @@ input.ai-filled {
   }
 
   /* The status card keeps its own height and stays in view beside a long list. */
-  .status-card {
+  .board .status-card {
     position: sticky;
     top: calc(var(--banner-height) + 12px);
     align-self: start;

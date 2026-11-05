@@ -16,7 +16,7 @@
 
 {% block content %}
 <div class="form-page">
-  <p class="back-link"><a href="{{ url_for('board_page', event_id=event.id) }}">← Back to board</a></p>
+  <p class="back-link"><a class="text-link" href="{{ url_for('board_page', event_id=event.id) }}">← Back to board</a></p>
 
   {% if not pledging_open %}
   <div class="card form-card">

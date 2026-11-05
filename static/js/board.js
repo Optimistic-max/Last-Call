@@ -14,6 +14,7 @@
 
 const REFRESH_EVERY_MS = 10000;   // fetch board.json every 10 seconds (UI_DESIGN.md section 7)
 const TICK_EVERY_MS = 1000;       // tick the countdown once a second
+const INVITE_NUDGE_MS = 8000;     // an empty board nudges Invite once, this long after it loads
 
 const board = document.querySelector("section.board");
 
@@ -48,6 +49,20 @@ function startBoard() {
   setCountdown(board.dataset.status, banner.textContent, seconds);
   setInterval(refreshBoard, REFRESH_EVERY_MS);
   setInterval(tickCountdown, TICK_EVERY_MS);
+  setTimeout(nudgeInvite, INVITE_NUDGE_MS);
+}
+
+
+// A gentle wiggle on Invite, only if nobody has pledged yet. It runs once per visit.
+function nudgeInvite() {
+  if (lastRows.size > 0) {
+    return;
+  }
+  for (const invite of document.querySelectorAll(".board-invite")) {
+    if (!invite.hidden) {
+      invite.classList.add("wiggle");
+    }
+  }
 }
 
 

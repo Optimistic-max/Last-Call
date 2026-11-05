@@ -7,15 +7,14 @@
    field it belongs to (a blank title first, anything else under the amount), and static/js/landing.js
    brings it into view.
    The floating pieces are drawings made of our own components, so they are aria-hidden and every name
-   and amount in them is made up. "Everyone" in the headline is Samuel's wording, for review at
-   Checkpoint C. #}
+   and amount in them is made up. #}
 
 {% block title %}Last Call: nobody pays unless the goal is reached{% endblock %}
 
 {% block shell %}
 <header class="landing-header">
   <a class="landing-brand" href="#top">
-    <img class="landing-logo" src="{{ url_for('static', filename='img/logo.svg') }}" alt="" width="45" height="28">
+    <span class="landing-logo-wrap"><img class="landing-logo" src="{{ url_for('static', filename='img/logo.svg') }}" alt="" width="45" height="28"></span>
     <span class="landing-name">Last Call</span>
   </a>
   <nav class="landing-nav" aria-label="Menu">
@@ -49,7 +48,7 @@
       <div class="hero-copy">
         <h1 id="hero-title" class="hero-title">
           <span class="hero-line">Nobody pays</span>
-          <span class="hero-line hero-line-soft">unless everyone's in.</span>
+          <span class="hero-line hero-line-soft">unless the goal is met.</span>
         </h1>
         <p class="hero-lead">Friends pledge the most they'd pay. PayPal holds it. If the group reaches the goal, everyone pays their share once. If not, every hold is cancelled.</p>
         <a class="button-link" href="#create">Start a pledge</a>
