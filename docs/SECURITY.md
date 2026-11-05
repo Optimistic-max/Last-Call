@@ -39,6 +39,7 @@ Everything is sandbox and fake money, but we treat keys as if they were real. Ju
 
 - The treasurer's `admin_token` link and each pledger's `pledger_token` link are long random strings (`secrets.token_urlsafe(24)`).
 - Never show one person's token to someone else. Never put tokens in the README or the video.
+- The `pledger_token` is part of the friend's own "I'm out" address (`/p/<pledger_token>`, D82), so it can appear in Render's request logs, like the `admin_token`. Accepted for the hackathon, because only the team can read those logs (D59). The `admin_token` never works as a pledger's. Our own log lines name the route and IDs, never a token.
 - The `admin_token` is part of the treasurer's address (`/admin/<admin_token>`, D18), so it can appear in Render's request logs. Accepted for the hackathon, because only the team can read those logs (D59). Whether Render's logs show the full path: unverified. Our own log lines name the route, never the token.
 
 ## Sandbox guard
@@ -55,3 +56,4 @@ The pledge a friend types is sent to a third-party AI model, the AI provider set
 
 - After refund-all, the treasurer's account is short by the original processing fees, because PayPal keeps them on refunds (read in docs: PayPal US fees page, Nov 4 2026). Sandbox behavior is `NOT RUN`.
 - `money.py` uses the sandbox fee rate (2.59% + $0.49, checked against real sandbox captures Nov 4 2026). PayPal's live US Advanced card rate on Nov 4 2026 was 2.89% + $0.29, so a live launch must re-check the rate.
+- The `pledger_token` is kept in the browser's `localStorage` after a hold. On a shared computer, the next person could open that friend's cancel page.

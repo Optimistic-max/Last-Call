@@ -54,6 +54,16 @@ MIN_ABOVE_MAX_TEXT = "Your amount can't be more than your max."
 TOO_MANY_CONDITIONS_TEXT = "You can name up to %d people."
 NAME_TOO_LONG_TEXT = "Keep your name to %d characters or fewer."
 CONDITION_NAME_TOO_LONG_TEXT = "Keep each name to %d characters or fewer."
+# S6, "I'm out" (D82). LEAVE_COUNTED_TEXT is copied from docs/UI_DESIGN.md section 4; the others are
+# placeholders until Samuel approves them (D57).
+LEAVE_BUTTON_TEXT = "Cancel my pledge"
+LEAVE_ASK_TEXT = "Cancel your pledge? Your hold will be cancelled and nothing will be charged."
+LEAVE_COUNTED_TEXT = "You're counted, so you can't leave during last call."
+LEAVE_DONE_TEXT = "You're out. Your hold is cancelled, and nothing will be charged."
+LEAVE_CANCELLING_TEXT = "You're out. Cancelling your hold\u2026"
+LEAVE_CLOSED_TEXT = "It's too late to cancel here: pledging has ended for this event."
+LEAVE_MESSAGES = {"CAN_LEAVE": LEAVE_ASK_TEXT, "COUNTED": LEAVE_COUNTED_TEXT, "LEFT": LEAVE_DONE_TEXT,
+                  "LEFT_CANCELLING": LEAVE_CANCELLING_TEXT, "CLOSED": LEAVE_CLOSED_TEXT}
 # The board's texts, copied from docs/UI_DESIGN.md section 10. DRAFT_TEXT and the time formats are
 # D57's placeholders, and the "Charge failed" word is in BOARD_STATUS_WORDS below.
 DRAFT_TEXT = "This event isn't open yet."
@@ -205,6 +215,46 @@ def pledge_page(event_id):
     return render_template("pledge.html", event=event,
                            pledging_open=lifecycle.pledging_is_open(event, utc_now()),
                            closed_text=CLOSED_TEXT, error_text=ERROR_TEXT)
+
+
+# S6, the friend's own "I'm out" page (docs/UI_DESIGN.md section 3, D82). The pledger_token in the address
+# is the friend's login (D32). It can appear in Render's request logs, accepted like the admin_token (D59);
+# our own log lines name the route only, never the token. Showing the page changes nothing. The
+# treasurer's admin_token is just an unknown token here, so it gets the same 404.
+@app.route("/p/<pledger_token>")
+def leave_page(pledger_token):
+    try:
+        conn = db.connect(config.DATABASE_URL)
+        try:
+            state = lifecycle.leave_page_state(conn, pledger_token, utc_now())
+        finally:
+            conn.close()
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("GET /p/<token>: database error (%s)", type(error).__name__)
+        return ERROR_TEXT, 503
+    if state["state"] == "NOT_FOUND":
+        return ERROR_TEXT, 404
+    return render_template("leave.html", title=state["title"], message=LEAVE_MESSAGES[state["state"]],
+                           can_leave=state["state"] == "CAN_LEAVE", button_text=LEAVE_BUTTON_TEXT,
+                           leave_url=url_for("leave_submit", pledger_token=pledger_token))
+
+
+# The leave itself. Whatever happened, the answer is a redirect (303) back to the page, which shows the
+# result (left, counted, closed). So a refresh or a second click never sends the leave again.
+@app.route("/p/<pledger_token>/leave", methods=["POST"])
+def leave_submit(pledger_token):
+    try:
+        conn = db.connect(config.DATABASE_URL)
+        try:
+            result = lifecycle.leave_pledge(conn, pledger_token, utc_now(), paypal_client)
+        finally:
+            conn.close()
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("POST /p/<token>/leave: database error (%s)", type(error).__name__)
+        return ERROR_TEXT, 503
+    if result["outcome"] == "NOT_FOUND":
+        return ERROR_TEXT, 404
+    return redirect(url_for("leave_page", pledger_token=pledger_token), code=303)
 
 
 # The browser-safe client token the PayPal SDK v6 card fields start with (D16). It's sent only to the

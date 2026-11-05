@@ -46,6 +46,9 @@
     <p>CVV</p><div id="paypal-card-fields-cvv" class="card-field"></div>
     <button id="hold-button" type="button" disabled>Hold my max</button>
     <p id="message" role="status"></p>
+    {# D82: after "Held", the script fills in the friend's own "I'm out" link (S6). The line is a
+       placeholder until Samuel approves it (D57). #}
+    <p id="leave-link-line" hidden>Keep this link to cancel before last call. <a id="leave-link" href="#"></a></p>
   </main>
 
   {# Our script first, so onPayPalWebSdkLoaded exists before PayPal's script finishes loading. #}

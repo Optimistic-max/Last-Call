@@ -436,14 +436,15 @@ def max_list(pledges):
 # after the deadline, that gives the deadline itself, so the same request locks at once.
 # Runs after each new hold, and once more when a due event is settled. True if this call opened it.
 def check_goal(conn, event_id, now):
-    event = find_event(conn, event_id)
-    if event is None or event["status"] != "OPEN":
-        return False
-    if not money.goal_is_reached(event["deposit_cents"], max_list(counted_held_pledges(conn, event_id))):
-        return False
-    last_call_ends = min(now + last_call_window(event), event["hard_deadline"])
-    changed = db.run(conn, "UPDATE events SET status = 'LAST_CALL', last_call_ends = %s "
-                           "WHERE id = %s AND status = 'OPEN'", (last_call_ends, event_id))
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT * FROM events WHERE id = %s FOR UPDATE", (event_id,))
+        if event is None or event["status"] != "OPEN":
+            return False
+        if not money.goal_is_reached(event["deposit_cents"], max_list(counted_held_pledges(conn, event_id))):
+            return False
+        last_call_ends = min(now + last_call_window(event), event["hard_deadline"])
+        changed = db.run(conn, "UPDATE events SET status = 'LAST_CALL', last_call_ends = %s "
+                               "WHERE id = %s AND status = 'OPEN'", (last_call_ends, event_id))
     if changed == 1:
         logger.info("event %d reached its goal: last call is open", event_id)
     return changed == 1
@@ -712,6 +713,107 @@ def drop_pledges_without_a_hold(conn, event_id):
                         "AND NOT EXISTS (SELECT 1 FROM holds "
                         "WHERE holds.pledge_id = pledges.id AND holds.status = 'CREATED')",
                   (event_id,))
+
+
+# ---------- M2: a friend leaves (E3, E6, D82) ----------
+
+# "Actually I'm out." The friend's own pledger_token (never the admin_token) is the key. Two steps:
+# 1. drop_for_leave: in ONE transaction with the event row locked FOR UPDATE, check the leave is allowed
+#    and mark the pledge DROPPED. No PayPal call happens while the lock is held.
+# 2. cancel_holds_after_leave: only the request that won step 1 cancels the pledge's holds.
+# The pledge is DROPPED BEFORE the void goes out: a lock that starts during the void then no longer sees
+# the pledge as HELD, so it can never be counted or charged. If the void doesn't read back VOIDED, the
+# pledge stays DROPPED with its hold CREATED and the cleanup sweep finishes it (D80). Nothing here ever
+# captures (rule 6). Returns {"outcome": ...}: LEFT (with pledge_id), ALREADY_LEFT, CLOSED, COUNTED,
+# NOT_LEFT (the pledge changed under us) or NOT_FOUND.
+def leave_pledge(conn, pledger_token, now, paypal):
+    result = drop_for_leave(conn, pledger_token, now)
+    if result["outcome"] != "LEFT":
+        return result
+    cancel_holds_after_leave(conn, result["pledge_id"], now, paypal)
+    return result
+
+
+# Why this pledge can't leave right now, or None if it can. Only a pledge that is still unpaid
+# (PENDING_PAY), declined or HELD can leave, and only while the event takes pledges (OPEN or LAST_CALL,
+# before its time is up: pledging_is_open). So LOCKING, CHARGING and every later status are refused, which
+# D81 case 1 depends on. In LAST_CALL a HELD pledger the circle rule counts can't leave (D04).
+def why_cannot_leave(conn, pledge, event, now):
+    if pledge["status"] == "DROPPED":
+        return "ALREADY_LEFT"
+    if pledge["status"] not in ("PENDING_PAY", "DECLINED", "HELD"):
+        return "CLOSED"
+    if not pledging_is_open(event, now):
+        return "CLOSED"
+    if event["status"] == "LAST_CALL" and pledge["status"] == "HELD":
+        for counted in counted_held_pledges(conn, event["id"]):
+            if counted["id"] == pledge["id"]:
+                return "COUNTED"
+    return None
+
+
+# Step 1. The event row is locked FOR UPDATE until the transaction ends, so the lock (LAST_CALL ->
+# LOCKING), mark_held (FOR SHARE), check_goal and another leave all wait for this one, and a leave and a
+# lock are strictly ordered. The pledge is read again after the lock is held. The drop is a
+# compare-and-set on the status just read, so a change we didn't expect makes it change 0 rows.
+def drop_for_leave(conn, pledger_token, now):
+    pledge = find_pledge_by_token(conn, pledger_token)
+    if pledge is None:
+        return {"outcome": "NOT_FOUND"}
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT * FROM events WHERE id = %s FOR UPDATE", (pledge["event_id"],))
+        pledge = find_pledge_by_token(conn, pledger_token)
+        reason = why_cannot_leave(conn, pledge, event, now)
+        if reason is not None:
+            return {"outcome": reason}
+        changed = db.run(conn, "UPDATE pledges SET status = 'DROPPED' "
+                               "WHERE id = %s AND status = %s AND pledger_token = %s",
+                         (pledge["id"], pledge["status"], pledger_token))
+    if changed == 0:
+        return {"outcome": "NOT_LEFT"}
+    logger.info("pledge %d left event %d", pledge["id"], pledge["event_id"])
+    return {"outcome": "LEFT", "pledge_id": pledge["id"]}
+
+
+# Step 2. Cancel every CREATED hold of the pledge the normal way: claim_hold first (so the sweep stays off
+# it for VOID_RETRY_AFTER, D80), then void_hold, which saves the void's request ID before the call and
+# saves the status the GET reads back (rules 3, 4 and 5). Returns True if every hold read back VOIDED.
+# A pledge with no CREATED hold (unpaid, declined, or a hold still being placed) needs no PayPal call; a
+# hold that comes back later is voided by give_back_hold (F11). Logs IDs only.
+def cancel_holds_after_leave(conn, pledge_id, now, paypal):
+    holds = db.fetch_all(conn, "SELECT id FROM holds WHERE pledge_id = %s AND status = 'CREATED' "
+                               "AND auth_id IS NOT NULL ORDER BY id", (pledge_id,))
+    all_voided = True
+    for hold in holds:
+        if not claim_hold(conn, hold["id"], now):
+            all_voided = False
+            continue
+        status = void_hold(conn, hold["id"], paypal)
+        if status != "VOIDED":
+            all_voided = False
+            logger.warning("pledge %d left, but hold %d did not read back VOIDED (%s); left for the cleanup sweep",
+                           pledge_id, hold["id"], status)
+    return all_voided
+
+
+# What page S6 shows for this token, without changing anything. The state is one of NOT_FOUND, CAN_LEAVE,
+# COUNTED, CLOSED, LEFT (the hold is cancelled, or there was none) and LEFT_CANCELLING (the pledge is out
+# but a hold is still CREATED). The event's title is included for the page.
+def leave_page_state(conn, pledger_token, now):
+    pledge = find_pledge_by_token(conn, pledger_token)
+    if pledge is None:
+        return {"state": "NOT_FOUND"}
+    event = find_event(conn, pledge["event_id"])
+    if pledge["status"] == "DROPPED":
+        open_holds = db.fetch_one(conn, "SELECT COUNT(*) AS open FROM holds WHERE pledge_id = %s "
+                                        "AND status = 'CREATED'", (pledge["id"],))
+        state = "LEFT"
+        if open_holds["open"] > 0:
+            state = "LEFT_CANCELLING"
+        return {"state": state, "title": event["title"]}
+    reason = why_cannot_leave(conn, pledge, event, now)
+    state = {None: "CAN_LEAVE", "COUNTED": "COUNTED", "CLOSED": "CLOSED"}.get(reason, "CLOSED")
+    return {"state": state, "title": event["title"]}
 
 
 # ---------- M2: resume a lock that died halfway (D27, D50, D81) ----------

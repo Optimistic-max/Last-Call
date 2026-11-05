@@ -174,7 +174,8 @@ The full list of PayPal responses and what we do lives in one place: `PAYPAL_INT
 | `POST /api/pledges` | browser JS | D31: creates the pledge row (`PENDING_PAY`) from what the friend confirmed and returns its private `pledger_token`. D26 rules apply |
 | `POST /api/orders` | browser JS | create the hold row + PayPal order (intent AUTHORIZE) for a confirmed pledge, sent with its `pledger_token` (D31; before D31 this route also created the pledge) |
 | `POST /api/orders/<order_id>/authorize` | browser JS | authorize, save, report HELD or DECLINED. Sent with the pledge's `pledger_token`, so nobody can authorize someone else's order |
-| `POST /p/<pledger_token>/leave` | pledger | "actually I'm out" (M2) |
+| `GET /p/<pledger_token>` | pledger | S6: the cancel button, or why they can't leave. Changes nothing (D82) |
+| `POST /p/<pledger_token>/leave` | pledger | "actually I'm out": drops the pledge, voids its hold, redirects (303) to S6 (D82) |
 | `POST /admin/<admin_token>/refund-all` | treasurer | refund-all (M2) |
 | `GET /health` | pinger, Render | returns `ok`, wakes the app |
 
