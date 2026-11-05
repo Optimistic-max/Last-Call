@@ -574,31 +574,48 @@ def save_shares(conn, event, pledges):
 
 
 # Charge one pledge its share. Called by lock_and_charge after it won LAST_CALL -> LOCKING, and by the
-# resume (resume_one_pledge) after it won its compare-and-set (rule 6, D81). The capture row and its
-# PayPal-Request-Id are saved before the call (rule 3). Returns True if the pledge was charged.
+# resume (resume_one_pledge) after it won its compare-and-set (rule 6, D81). Each attempt's capture row
+# and PayPal-Request-Id are saved before its call (rule 3).
+# D83: a failed first attempt is retried ONCE, as attempt 2 with a NEW row and a NEW request ID, but only
+# when record_failed_charge says so (the GET of the hold answered CREATED and PayPal sent back no capture
+# ID). Attempt 2 is final: there is never an attempt 3. Returns True if the pledge was charged.
 def charge_one_pledge(conn, pledge, share_cents, paypal):
+    row_id, request_id = save_capture_attempt(conn, pledge, share_cents, 1)
+    result = send_capture(conn, pledge, row_id, request_id, share_cents, paypal, last_try=False)
+    if result == "RETRY":
+        row_id, request_id = save_capture_attempt(conn, pledge, share_cents, 2)
+        result = send_capture(conn, pledge, row_id, request_id, share_cents, paypal, last_try=True)
+    return result == "CHARGED"
+
+
+# Save a new capture row (status PENDING) with a new request ID, before the call that uses them (rule 3).
+# Returns the row's id and the request ID.
+def save_capture_attempt(conn, pledge, share_cents, attempt):
     request_id = new_request_id()
     capture = db.fetch_one(conn, "INSERT INTO captures (hold_id, request_id, attempt, amount_cents) "
-                                 "VALUES (%s, %s, 1, %s) RETURNING id",
-                           (pledge["hold_id"], request_id, share_cents))
-    return send_capture(conn, pledge, capture["id"], request_id, share_cents, paypal)
+                                 "VALUES (%s, %s, %s, %s) RETURNING id",
+                           (pledge["hold_id"], request_id, attempt, share_cents))
+    return capture["id"], request_id
 
 
 # The app's ONE capture call (rule 6, D81). The capture row with its request_id is already saved. A
 # resume sends a PENDING row again with the SAME request_id and amount, so PayPal returns the earlier
 # capture instead of making a second one (rule 4, A3). PayPal's capture ID is saved the moment it comes
-# back. Only HTTP 201 with status COMPLETED counts as charged (rule 5). Anything else, including no
-# answer, is a failure, with no retry here (D39). Returns True if the pledge was charged.
-def send_capture(conn, pledge, capture_row_id, request_id, share_cents, paypal):
+# back. Only HTTP 201 with status COMPLETED counts as charged (rule 5). Anything else is a failure.
+# Returns "CHARGED", "RETRY" (a failure that charge_one_pledge may try once more: only when last_try is
+# False and record_failed_charge allows it, D83) or "FAILED" (the pledge is FAILED). The resume sends a
+# PENDING row with last_try=True, so it never leads to a new attempt.
+def send_capture(conn, pledge, capture_row_id, request_id, share_cents, paypal, last_try=True):
     answer = paypal.capture_authorization(pledge["auth_id"], share_cents, request_id)
     capture_id = answer["data"].get("id")
     if capture_id is not None:
         db.run(conn, "UPDATE captures SET capture_id = %s WHERE id = %s", (capture_id, capture_row_id))
     if answer["http_status"] == 201 and answer["data"].get("status") == "COMPLETED":
         record_charge(conn, pledge, capture_row_id, capture_id, paypal)
-        return True
-    record_failed_charge(conn, pledge, capture_row_id, answer, paypal)
-    return False
+        return "CHARGED"
+    if record_failed_charge(conn, pledge, capture_row_id, answer, paypal, last_try):
+        return "RETRY"
+    return "FAILED"
 
 
 # The capture went through: the capture row is COMPLETED, the hold CAPTURED and the pledge CHARGED.
@@ -632,29 +649,40 @@ def read_paypal_cents(amount, paypal):
         return None
 
 
-# Anything but 201 COMPLETED is a failed charge in M1, with no retry (D39). Read the hold back and save
-# its real status, save PayPal's reason, and mark the pledge FAILED. If the read-back says CAPTURED, the
-# money did move (for example, PayPal's answer was lost on the way back). D47 still marks the pledge
-# FAILED in M1 and logs it as an error; finding that capture is M2 (F5, F6). That capture row stays
-# PENDING, because its real result is unknown to us, not failed.
-def record_failed_charge(conn, pledge, capture_row_id, answer, paypal):
+# Anything but 201 COMPLETED is a failed charge (D39). Read the hold back (rule 5) and save its real status,
+# and save PayPal's reason on the capture row. If the read-back says CAPTURED, the money did move (for
+# example, PayPal's answer was lost on the way back): D47 marks the pledge FAILED and logs it as an error,
+# and that capture row stays PENDING, because its real result is unknown to us, not failed.
+# D83: when this was the first attempt (last_try is False), the pledge is NOT marked FAILED if a retry is
+# allowed, so a successful attempt 2 can still charge it. A retry is allowed only when ALL of these hold:
+# the GET answered and says CREATED (nothing was captured), and PayPal sent back no capture ID (no capture
+# object exists that a second capture could duplicate). A GET with no answer is NOT a CREATED: we can't tell
+# whether money moved, so no retry. Returns True if the caller should now try attempt 2.
+def record_failed_charge(conn, pledge, capture_row_id, answer, paypal, last_try=True):
     check = paypal.get_authorization(pledge["auth_id"])
     hold_status = check["data"].get("status")
     if check["http_status"] == 200 and hold_status is not None:
         db.run(conn, "UPDATE holds SET status = %s WHERE id = %s", (hold_status, pledge["hold_id"]))
+    retrying = (not last_try and check["http_status"] == 200 and hold_status == "CREATED"
+                and answer["data"].get("id") is None)
     capture_status = "FAILED"
     if hold_status == "CAPTURED":
         capture_status = "PENDING"
     error_code = paypal_issue(answer)
     db.run(conn, "UPDATE captures SET status = %s, error_code = %s WHERE id = %s",
            (capture_status, error_code, capture_row_id))
-    db.run(conn, "UPDATE pledges SET status = 'FAILED' WHERE id = %s AND status = 'HELD'", (pledge["id"],))
+    if not retrying:
+        db.run(conn, "UPDATE pledges SET status = 'FAILED' WHERE id = %s AND status = 'HELD'", (pledge["id"],))
     if hold_status == "CAPTURED":
         logger.error("pledge %d: the capture answer was %s, but PayPal says hold %d is CAPTURED, so money moved. "
                      "Marked FAILED (D47): find the capture by hand", pledge["id"], error_code, pledge["hold_id"])
+    elif retrying:
+        logger.warning("pledge %d: capture failed (%s, PayPal-Debug-Id %s); the hold is still CREATED, so it is "
+                       "tried once more", pledge["id"], error_code, answer["debug_id"])
     else:
         logger.warning("pledge %d: capture failed (%s, PayPal-Debug-Id %s); the hold is %s",
                        pledge["id"], error_code, answer["debug_id"], hold_status)
+    return retrying
 
 
 # PayPal's reason for a refused call, saved in captures.error_code: the issue name, like
