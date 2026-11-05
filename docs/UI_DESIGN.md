@@ -243,10 +243,11 @@ Both get the same `board` object, and `board.json` is exactly this object, so th
 | `event_id` | number | `7` |
 | `title` | text | `"Ridgeline Hiking Club cabin"` |
 | `status` | text, for styling only: `DRAFT`, `OPEN`, `LAST_CALL`, `LOCKING`, `CHARGING`, `SETTLED`, `NEEDS_ATTENTION`, `EXPIRED` | `"OPEN"` |
-| `banner_text` | text, from the table below | `"Pledging open: 9 min left"` |
+| `banner_text` | text, from the table below | `"Pledging open: 0:09:00 left"` |
 | `seconds_left` | whole number of seconds until `last_call_ends` during `LAST_CALL`, until `hard_deadline` while `OPEN` (never below 0); `null` for every other status. Lets `board.js` tick the countdown live between refreshes. Added Nov 2 (D76), approved by Samuel Nov 3 | `299` |
 | `goal_text` | text | `"Goal $310.01 so the club gets a full $300.00 after fees"` |
 | `held_total_text` | text: HELD money only (D31, D43). It is `$0.00` after lock, because holds become charges | `"$120.00"` |
+| `counted_total_text` | finished money text: the sum of eligible counted held maximums during OPEN and LAST_CALL (D86). Waiting, unpaid, declined, dropped and ineligible holds add nothing. `""` at every other status, preserving the existing people-count fallback; it is not a confirmed-payment total | `"$45.00"` |
 | `progress_percent` | a whole number from 0 to 100. It is 100 only when the goal is reached (D54), and 100 from `LAST_CALL` on (§5) | `39` |
 | `pledging_open` | true or false: whether to show the link to `/e/<id>/pledge` | `true` |
 | `rows` | a list in join order, with DROPPED pledges left out (D56) | |
@@ -261,7 +262,7 @@ Both get the same `board` object, and `board.json` is exactly this object, so th
 | Event `status` | `banner_text` |
 |---|---|
 | `DRAFT` | "This event isn't open yet." *(placeholder)* |
-| `OPEN` | "Pledging open: [time] left", with [time] like "1 h 5 min", "9 min" or "less than a minute" *(placeholder formats)* |
+| `OPEN` | "Pledging open: [time] left", with [time] always `h:mm:ss`, such as `0:09:00` or `47:59:59` (D86). The banner and countdown card tick together from server `seconds_left`; only the server decides when pledging ends |
 | `LAST_CALL` | "Last call! Goal reached. Join in the next [mm:ss] and everyone's share drops.", with [mm:ss] like "4:59", or "1:02:03" from one hour up *(placeholder format)* |
 | `LOCKING`, `CHARGING` | "Locking shares…" |
 | `SETTLED` | "Done! Club receives $[real net]". If PayPal's net is missing for any charge: "Charged once. PayPal closes the rest of each hold." (D54, D57) |

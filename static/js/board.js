@@ -3,7 +3,7 @@
 // 1. Every 10 seconds it fetches /e/<id>/board.json and copies the new values into the page
 //    (docs/UI_DESIGN.md sections 7 and 10).
 // 2. While pledging is open it ticks the countdown card once a second, between fetches (D76).
-//    During LAST_CALL it also ticks the time inside the banner, so the two never disagree.
+//    It also ticks the time inside the OPEN and LAST_CALL banners, so the two never disagree.
 // 3. It compares each answer with the last one and marks what changed, so the CSS can animate it:
 //    who just pledged, who just became counted, and whose share changed (UI_DESIGN.md section 6).
 //
@@ -24,6 +24,7 @@ let lastRows = new Map();   // what each person's row said last time: name -> {c
 // The countdown, set from the server's latest seconds_left. textBefore and textAfter are the
 // banner's words around the time, so a tick changes only the time.
 const countdown = {
+  status: "",
   running: false,
   secondsAtStart: 0,
   startedAtMs: 0,
@@ -380,9 +381,8 @@ function setCountdown(status, bannerText, seconds) {
     board.querySelector(".board-time").textContent = board.querySelector(".countdown-card").dataset.closedText;
     return;
   }
-  if (status === "LAST_CALL") {
-    findTimeInBanner(bannerText, seconds);
-  }
+  countdown.status = status;
+  findTimeInBanner(bannerText, seconds);
   countdown.secondsAtStart = seconds;
   countdown.startedAtMs = Date.now();
   countdown.running = true;
@@ -396,7 +396,7 @@ function setCountdown(status, bannerText, seconds) {
 // reading the time out every second. setCountdown removes that again at each refresh, which puts
 // the banner back to role="status", so the next status change is read out.
 function findTimeInBanner(bannerText, seconds) {
-  const timeText = countdownText(seconds);
+  const timeText = countdownText(seconds, countdown.status);
   const where = bannerText.indexOf(timeText);
   if (where === -1) {
     return;
@@ -408,14 +408,14 @@ function findTimeInBanner(bannerText, seconds) {
 }
 
 
-// Put the time on the card, and in the banner during last call. A second that is already showing
+// Put the time on the card and in its banner. A second that is already showing
 // is skipped.
 function showCountdownTime(seconds) {
   if (seconds === countdown.shownSeconds) {
     return;
   }
   countdown.shownSeconds = seconds;
-  const timeText = countdownText(seconds);
+  const timeText = countdownText(seconds, countdown.status);
   board.querySelector(".board-time").textContent = timeText;
   if (countdown.inBanner) {
     board.querySelector(".board-banner").textContent = countdown.textBefore + timeText + countdown.textAfter;
@@ -439,11 +439,10 @@ function tickCountdown() {
 }
 
 
-// "4:59", or "47:59:12" from one hour up. The same rules as countdown_text in app.py, so the banner
-// doesn't jump when the next board.json arrives.
-function countdownText(seconds) {
+// OPEN always uses h:mm:ss. LAST_CALL keeps m:ss below an hour, matching app.py's formatters.
+function countdownText(seconds, status) {
   const secondsPart = twoDigits(seconds % 60);
-  if (seconds < 3600) {
+  if (seconds < 3600 && status !== "OPEN") {
     return Math.floor(seconds / 60) + ":" + secondsPart;
   }
   const hours = Math.floor(seconds / 3600);

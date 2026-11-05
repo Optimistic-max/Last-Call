@@ -563,6 +563,9 @@ def board_for_event_id(event_id):
 def board_for_event(facts, now):
     event = facts["event"]
     seconds = seconds_left(event, now)
+    counted_total_text = ""
+    if event["status"] in ("OPEN", "LAST_CALL"):
+        counted_total_text = dollars(facts["counted_total_cents"])
     return {
         "event_id": event["id"],
         "title": event["title"],
@@ -571,6 +574,7 @@ def board_for_event(facts, now):
         "seconds_left": seconds,
         "goal_text": GOAL_TEXT % (dollars(facts["goal_cents"]), dollars(event["deposit_cents"])),
         "held_total_text": dollars(facts["held_total_cents"]),
+        "counted_total_text": counted_total_text,
         "progress_percent": facts["progress_percent"],
         "pledging_open": lifecycle.pledging_is_open(event, now),
         "rows": board_row_texts(facts),
@@ -655,15 +659,9 @@ def banner_text(facts, seconds):
     return ""
 
 
-# Time left while OPEN: "1 h 5 min", "9 min" or "less than a minute" (D57 placeholder formats).
-# Whole minutes, rounded down.
+# OPEN always shows hours, minutes and seconds, matching the live countdown card and banner.
 def time_left_text(seconds):
-    if seconds < 60:
-        return "less than a minute"
-    minutes = seconds // 60
-    if minutes < 60:
-        return "%d min" % minutes
-    return "%d h %d min" % (minutes // 60, minutes % 60)
+    return "%d:%02d:%02d" % (seconds // 3600, seconds % 3600 // 60, seconds % 60)
 
 
 # The last-call countdown: "4:59", or "1:02:03" from one hour up (D57 placeholder format).
