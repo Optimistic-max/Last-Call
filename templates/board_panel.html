@@ -1,36 +1,69 @@
 {# The board (docs/UI_DESIGN.md section 10), included by S2 (admin.html) and S3 (board.html), D76.
    It gets one value, board, and every amount and time in it is finished text: this file never
    formats or adds up money (rule 2). board never holds a token or an email.
-   static/js/board.js refreshes it every 10 seconds from /e/<id>/board.json and ticks the last call
-   countdown. The classes and data- attributes below are its hooks, so keep them when restyling.
-   The labels were approved by Samuel on Nov 3 (D57). Each one is set once here and used both in the
+   static/js/board.js refreshes it every 10 seconds from /e/<id>/board.json, ticks the last call
+   countdown and marks what changed. The classes and data- attributes below are its hooks, so keep
+   them when restyling, and keep each row's markup the same as makeRow in board.js.
+   The labels were finalised by Samuel on Nov 5 (D57). Each one is set once here and used both in the
    rows and in the data- attributes board.js reads, so the JavaScript never has its own copy.
    "Waiting on [name]" arrives finished in row.waiting_on_text and is a placeholder until Samuel
    approves it (D57, D79). row.counted becomes data-counted, for styling (the circle turns green
-   together). #}
-{% set max_label = "max" %}
-{% set share_label = "share now" %}
+   together).
+   Each row has one plain sentence for screen readers (row-summary) and a layout for the eyes, marked
+   aria-hidden so nothing is read twice. pledge_new_tab is set by admin.html. #}
+{% set held_label = "Held on cards" %}
+{% set max_label = "up to" %}
+{% set summary_max_label = "max" %}
+{% set share_label = "would pay" %}
+{% set counted_label = "Counted" %}
 {% set pledge_label = "Pledge" %}
+{% set just_pledged_label = "just pledged" %}
 <section class="board" data-event-id="{{ board.event_id }}" data-status="{{ board.status }}"
   {%- if board.seconds_left is not none %} data-seconds-left="{{ board.seconds_left }}"{% endif %}>
   <p class="board-banner" role="status">{{ board.banner_text }}</p>
   <p class="board-goal">{{ board.goal_text }}</p>
-  <p>Held so far: <span class="board-held-total">{{ board.held_total_text }}</span></p>
-  <progress class="board-progress" max="100" value="{{ board.progress_percent }}">{{ board.progress_percent }}%</progress>
-
-  <ul class="board-rows" data-max-label="{{ max_label }}" data-share-label="{{ share_label }}">
-    {% for row in board.rows %}
-    <li data-status="{{ row.status }}" data-counted="{% if row.counted %}true{% else %}false{% endif %}">
-      {{- row.name }}: {{ row.status_word }}, {{ max_label }} {{ row.max_text }}
-      {%- if row.estimated_share_text %}, {{ share_label }} {{ row.estimated_share_text }}{% endif %}
-      {%- if row.waiting_on_text %}, {{ row.waiting_on_text }}{% endif %}</li>
-    {% endfor %}
-  </ul>
+  <p class="board-held">{{ held_label }}: <span class="board-held-total">{{ board.held_total_text }}</span></p>
+  {# The div is the bar people see, because a div's width can animate in every browser. The progress
+     element stays for screen readers. #}
+  <progress class="board-progress visually-hidden" max="100" value="{{ board.progress_percent }}">{{ board.progress_percent }}%</progress>
+  <div class="board-bar" aria-hidden="true"><div class="board-bar-fill" style="width: {{ board.progress_percent }}%"></div></div>
+  <p class="board-note">The bar shows counted pledges only. A hold with a condition counts once that condition is met.</p>
 
   {# Always here, so board.js can add the link if pledging opens or remove it when pledging closes.
-     The link itself is drawn only while pledging is open. #}
+     The link itself is drawn only while pledging is open. It sits above the rows so a long list
+     never pushes it down the page. #}
   <p class="board-pledge" data-pledge-url="{{ url_for('pledge_page', event_id=board.event_id) }}"
-    data-pledge-label="{{ pledge_label }}">
-    {%- if board.pledging_open %}<a href="{{ url_for('pledge_page', event_id=board.event_id) }}">{{ pledge_label }}</a>{% endif -%}
+    data-pledge-label="{{ pledge_label }}"{% if pledge_new_tab %} data-pledge-new-tab="true"{% endif %}>
+    {%- if board.pledging_open %}<a class="button-link" href="{{ url_for('pledge_page', event_id=board.event_id) }}"{% if pledge_new_tab %} target="_blank" rel="noopener"{% endif %}>{{ pledge_label }}</a>{% endif -%}
   </p>
+
+  <ul class="board-rows" data-max-label="{{ max_label }}" data-summary-max-label="{{ summary_max_label }}"
+    data-share-label="{{ share_label }}" data-counted-label="{{ counted_label }}"
+    data-just-pledged-label="{{ just_pledged_label }}">
+    {% for row in board.rows %}
+    {% set is_counted_hold = row.status == "HELD" and row.counted %}
+    <li data-status="{{ row.status }}" data-counted="{% if row.counted %}true{% else %}false{% endif %}"
+      {%- if row.waiting_on_text %} data-waiting="true"{% endif %}>
+      <span class="row-summary visually-hidden">
+        {{- row.name }}: {{ row.status_word }}, {{ summary_max_label }} {{ row.max_text }}
+        {%- if row.estimated_share_text %}, {{ share_label }} {{ row.estimated_share_text }}{% endif %}
+        {%- if row.waiting_on_text %}, {{ row.waiting_on_text }}{% endif %}
+        {%- if is_counted_hold %}, {{ counted_label }}{% endif %}</span>
+      <span class="row-line" aria-hidden="true">
+        <span class="row-name" dir="auto">{{ row.name }}</span>
+        <span class="status row-chip">
+          {%- if row.waiting_on_text %}{{ row.waiting_on_text }}
+          {%- elif is_counted_hold %}{{ counted_label }}
+          {%- else %}{{ row.status_word }}{% endif %}</span>
+      </span>
+      <span class="row-details" aria-hidden="true">
+        <span class="row-max">{{ max_label }} {{ row.max_text }}</span>
+        {%- if row.estimated_share_text %}
+        <span class="row-share-part">{{ share_label }} <span class="row-share">{{ row.estimated_share_text }}</span></span>
+        {%- endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="board-empty"{% if board.rows %} hidden{% endif %}>No pledges yet.</p>
 </section>

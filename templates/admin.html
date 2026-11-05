@@ -3,15 +3,24 @@
    for Samuel to restyle. This page's address holds the treasurer's private token (D18), and so does
    open_url: never put either on another page. The board below is the same one S3 shows
    (board_panel.html, D76); it never holds the token.
-   "Share link" is a placeholder label until Samuel approves it (D57). #}
+   "Share link" is a placeholder label until Samuel approves it (D57).
+   The Copy button and "Open in new tab" use share_link only (static/js/admin.js), never this page's
+   own address. pledge_new_tab makes the board's Pledge link open in a new tab, so the treasurer
+   keeps this page open. #}
 
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
 <h1>{{ title }}</h1>
 
-<p><label for="share-link">Share link</label>
-  <input id="share-link" value="{{ share_link }}" readonly></p>
+<p class="share-label"><label for="share-link">Share link</label></p>
+<div class="share-row">
+  <input id="share-link" value="{{ share_link }}" readonly>
+  <button id="copy-link-button" class="button-secondary" type="button"
+    data-copied-label="Copied ✓" data-share-label="Share">Copy link</button>
+</div>
+<p class="share-open"><a href="{{ share_link }}" target="_blank" rel="noopener">Open in new tab</a></p>
+<p class="private-warning">This page's address is private. Share only the link above.</p>
 
 {% if can_open %}
 <form method="post" action="{{ open_url }}">
@@ -19,9 +28,11 @@
 </form>
 {% endif %}
 
+{% set pledge_new_tab = true %}
 {% include "board_panel.html" %}
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/board.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/admin.js') }}" defer></script>
 {% endblock %}

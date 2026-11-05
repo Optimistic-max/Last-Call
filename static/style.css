@@ -120,6 +120,16 @@ a {
   color: var(--ink-soft);
 }
 
+/* Text for screen readers only: it takes up no space on the page. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 
 /* ---------- Money ---------- */
 
@@ -157,12 +167,53 @@ textarea {
   font: inherit;
 }
 
+::placeholder {
+  color: var(--ink-soft);
+  opacity: 1;
+}
+
+/* A short hint under a field. */
+.field-hint {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+
+/* A checkbox stays its normal size, on one line with its words. The row, not the
+   tiny box, is the 44px tap target, because the label is part of the checkbox. */
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 44px;
+  margin-bottom: 0;
+}
+
+input[type="checkbox"] {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.form-error {
+  color: var(--warn);
+}
+
 
 /* ---------- Buttons ---------- */
 
 /* The main button: dark text on the accent color, full width on a phone
-   so it's easy to hit with a thumb, and at least 44px tall. */
-button {
+   so it's easy to hit with a thumb, and at least 44px tall.
+   .button-link is a real link that goes to another page but looks the same. */
+button,
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   min-height: 44px;
   padding: 0.625rem 1.25rem;
@@ -172,10 +223,12 @@ button {
   color: var(--bg);
   font: inherit;
   cursor: pointer;
+  text-decoration: none;
   transition: background-color 150ms ease;
 }
 
-button:hover {
+button:hover,
+.button-link:hover {
   background: var(--accent-ink);
 }
 
@@ -222,6 +275,283 @@ button:disabled {
 }
 
 
+/* ---------- Front page (S1) ---------- */
+
+.front-headline {
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+
+/* ---------- Treasurer page (S2) ---------- */
+
+.share-label {
+  margin-bottom: 0.25rem;
+}
+
+/* The link and its Copy button share a line, and wrap on a very narrow phone. */
+.share-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.share-row input {
+  flex: 1 1 12rem;
+  width: auto;
+  min-width: 0;
+}
+
+.share-row button {
+  flex: none;
+  width: auto;
+}
+
+.private-warning {
+  padding: 0.625rem 0.75rem;
+  border-radius: 8px;
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+
+
+/* ---------- The board (S2, S3) ---------- */
+
+.board-promise {
+  color: var(--ink-soft);
+}
+
+/* The banner says where the event stands, and its color changes with the status below. */
+.board-banner {
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.board-held {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 0.75rem;
+  margin-bottom: 0.5rem;
+  color: var(--ink-soft);
+}
+
+.board-held-total {
+  color: var(--ink);
+  font-size: 2.5rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The bar people see. Its fill's width is set from progress_percent and slides to each new value. */
+.board-bar {
+  height: 12px;
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.board-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 600ms ease-out;
+}
+
+.board-note {
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+
+/* Empty while pledging is closed, so it leaves no gap. */
+.board-pledge:empty {
+  display: none;
+}
+
+.board-empty {
+  padding: 1rem 0;
+  color: var(--ink-soft);
+}
+
+/* The rows are lines between people, not boxes. overflow-wrap breaks a long name
+   with no spaces, so it can never push the chip off the screen. */
+.board-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-rows li {
+  position: relative;
+  margin: 0 -0.5rem;
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.row-line {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.row-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A long "Waiting on ..." wraps inside its chip. */
+.row-chip {
+  flex: none;
+  max-width: 62%;
+  border-radius: 0.75rem;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.row-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1rem;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.row-share {
+  color: var(--ink);
+}
+
+.row-old-share {
+  color: var(--ink-soft);
+}
+
+.row-note {
+  display: block;
+  color: var(--accent-ink);
+  font-size: 0.875rem;
+}
+
+/* Chip colors follow the row's data- attributes. The word is always there too, so
+   color is never the only signal. FAILED comes last because a failed charge also
+   has data-counted="true". */
+.board-rows li[data-counted="true"] .row-chip {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.board-rows li[data-waiting="true"] .row-chip {
+  border: 1px solid var(--ink-soft);
+  background: transparent;
+  color: var(--ink);
+}
+
+.board-rows li[data-status="DECLINED"] .row-chip,
+.board-rows li[data-status="FAILED"] .row-chip {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+
+/* Last call: the banner turns the accent color and the bar is full (UI_DESIGN.md section 5). */
+.board[data-status="LAST_CALL"] .board-banner {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+  animation: banner-slide-in 500ms ease-out;
+}
+
+.board-countdown {
+  display: inline-block;
+  font-size: 1.25em;
+  font-variant-numeric: tabular-nums;
+  animation: countdown-pulse 600ms ease-out;
+}
+
+.board[data-status="SETTLED"] .board-banner {
+  border-color: var(--accent-soft);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.board[data-status="NEEDS_ATTENTION"] .board-banner {
+  border-color: var(--warn-soft);
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+
+.board[data-status="NEEDS_ATTENTION"] .board-bar-fill {
+  background: var(--warn);
+}
+
+.board[data-status="EXPIRED"] .board-banner {
+  color: var(--ink-soft);
+}
+
+.board[data-status="EXPIRED"] .board-bar-fill {
+  background: var(--ink-soft);
+}
+
+/* After the lock, holds have become charges, so the held total would read $0.00.
+   A missed goal drops its pledges from the list, so "No pledges yet." would be untrue too. */
+.board[data-status="LOCKING"] .board-held,
+.board[data-status="CHARGING"] .board-held,
+.board[data-status="SETTLED"] .board-held,
+.board[data-status="NEEDS_ATTENTION"] .board-held,
+.board[data-status="EXPIRED"] .board-held,
+.board[data-status="LOCKING"] .board-note,
+.board[data-status="CHARGING"] .board-note,
+.board[data-status="SETTLED"] .board-note,
+.board[data-status="NEEDS_ATTENTION"] .board-note,
+.board[data-status="EXPIRED"] .board-note,
+.board[data-status="EXPIRED"] .board-empty {
+  display: none;
+}
+
+/* The moments board.js marks. Each is under 0.8 seconds, and each element's
+   normal rule is its final look, so reduced motion loses only the movement. */
+.row-just-counted {
+  animation: row-flash 700ms ease-out;
+}
+
+.row-new {
+  animation: row-new-flash 700ms ease-out;
+}
+
+.row-share-changed {
+  animation: share-flash 700ms ease-out;
+}
+
+@keyframes row-flash {
+  from { background: var(--accent); }
+  to { background: transparent; }
+}
+
+@keyframes row-new-flash {
+  from { background: var(--accent-soft); }
+  to { background: transparent; }
+}
+
+@keyframes share-flash {
+  from { background: var(--accent-soft); color: var(--accent-ink); }
+  to { background: transparent; }
+}
+
+@keyframes banner-slide-in {
+  from { opacity: 0; transform: translateY(-0.75rem); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes countdown-pulse {
+  from { opacity: 0.7; }
+  to { opacity: 1; }
+}
+
+
 /* ---------- Keyboard focus ---------- */
 
 /* A thick, bright ring around whatever the keyboard is on.
@@ -247,7 +577,8 @@ button:disabled {
 
   .money { font-size: 3rem; }
 
-  button { width: auto; }
+  button,
+  .button-link { width: auto; }
 }
 
 

@@ -3,6 +3,8 @@
 // 1. Every 10 seconds it fetches /e/<id>/board.json and copies the new values into the page
 //    (docs/UI_DESIGN.md sections 7 and 10).
 // 2. During LAST_CALL it ticks the countdown in the banner once a second, between fetches (D76).
+// 3. It compares each answer with the last one and marks what changed, so the CSS can animate it:
+//    who just pledged, who just became counted, and whose share changed (UI_DESIGN.md section 6).
 //
 // Names are typed by users, so this file writes text with textContent and builds elements with
 // createElement, never innerHTML. It does no money math and no money formatting: every amount
@@ -15,6 +17,7 @@ const TICK_EVERY_MS = 1000;       // tick the countdown once a second
 const board = document.querySelector("section.board");
 
 let fetching = false;   // true while a board.json request is waiting, so requests never pile up
+let lastRows = new Map();   // what each person's row said last time: name -> {counted, share}
 
 // The countdown, set from the server's latest seconds_left. textBefore and textAfter are the
 // banner's words around the time, so a tick changes only the time.
@@ -24,6 +27,7 @@ const countdown = {
   startedAtMs: 0,
   textBefore: "",
   textAfter: "",
+  shownSeconds: null,
 };
 
 
@@ -34,6 +38,7 @@ function startBoard() {
     return;
   }
   const banner = board.querySelector(".board-banner");
+  lastRows = rowsFromPage();
   let seconds = null;
   if (board.dataset.secondsLeft !== undefined) {   // the attribute is left out when seconds_left is null
     seconds = Number(board.dataset.secondsLeft);
@@ -82,25 +87,151 @@ function showProgress(percent) {
   const bar = board.querySelector(".board-progress");
   bar.value = percent;
   bar.textContent = percent + "%";
+  board.querySelector(".board-bar-fill").style.width = percent + "%";
 }
 
 
-// Rebuild the list of people, because people can join between refreshes. The labels ("max",
-// "share now") come from the template's data- attributes, so they are written in one place only.
+// What the rows the server drew say, so the first refresh has something to compare with.
+function rowsFromPage() {
+  const rows = new Map();
+  for (const item of board.querySelectorAll(".board-rows li")) {
+    const share = item.querySelector(".row-share");
+    let shareText = "";
+    if (share !== null) {
+      shareText = share.textContent;
+    }
+    rows.set(item.querySelector(".row-name").textContent, {
+      counted: item.dataset.counted === "true",
+      share: shareText,
+    });
+  }
+  return rows;
+}
+
+
+// Remember this answer's rows for the next comparison.
+function rememberRows(rows) {
+  const remembered = new Map();
+  for (const row of rows) {
+    remembered.set(row.name, { counted: row.counted, share: row.estimated_share_text });
+  }
+  return remembered;
+}
+
+
+// Rebuild the list of people, because people can join between refreshes. Rows that changed get
+// their marks while they are built, so they all appear in one step: that is what makes two rows
+// flash together. The labels come from the template's data- attributes, so they are written once.
 function showRows(rows) {
   const list = board.querySelector(".board-rows");
   list.replaceChildren();
   for (const row of rows) {
-    list.appendChild(makeRow(row, list.dataset.maxLabel, list.dataset.shareLabel));
+    const item = makeRow(row, list.dataset);
+    markChanges(item, row, lastRows.get(row.name), list.dataset);
+    list.appendChild(item);
+  }
+  board.querySelector(".board-empty").hidden = rows.length > 0;
+  lastRows = rememberRows(rows);
+}
+
+
+// Compare one row with what it said last time. before is undefined for a new name.
+function markChanges(item, row, before, labels) {
+  if (before === undefined) {
+    item.classList.add("row-new");
+    item.appendChild(makeSpan("row-note", row.name + " " + labels.justPledgedLabel));
+    return;
+  }
+  if (row.counted && !before.counted) {
+    item.classList.add("row-just-counted");
+  }
+  const share = row.estimated_share_text;
+  if (before.share !== "" && share !== "" && before.share !== share) {
+    markShareChange(item, before.share);
   }
 }
 
 
-// One person's row, with the same text the template draws: "Ana: Held, max $40.00", plus
-// ", share now $8.21" during last call and ", Waiting on Jay" while a condition isn't met (D79).
-// Every amount and the waiting text are the server's text, joined as they are.
-// data-counted is "true" or "false", for styling (the circle turns green together).
-function makeRow(row, maxLabel, shareLabel) {
+// Show the old share struck through next to the new one. Both are the server's finished text: this
+// only puts them side by side, so there is no money math here (rule 2).
+function markShareChange(item, oldShareText) {
+  const share = item.querySelector(".row-share");
+  const oldShare = document.createElement("s");
+  oldShare.className = "row-old-share";
+  oldShare.textContent = oldShareText;
+  share.classList.add("row-share-changed");
+  share.before(oldShare, " ");
+}
+
+
+// A span with a class and plain text. textContent keeps a name typed by a user as text, never HTML.
+function makeSpan(className, text) {
+  const span = document.createElement("span");
+  span.className = className;
+  span.textContent = text;
+  return span;
+}
+
+
+// The word in a row's chip, chosen like the template does: who they are waiting on, else "Counted"
+// for a hold the circle rule counts, else the server's status word.
+function chipText(row, labels) {
+  if (row.waiting_on_text !== "") {
+    return row.waiting_on_text;
+  }
+  if (row.status === "HELD" && row.counted) {
+    return labels.countedLabel;
+  }
+  return row.status_word;
+}
+
+
+// The one plain sentence a screen reader gets: "Ana: Held, max $40.00", plus the share, the waiting
+// text and "Counted" when they apply. Every amount is the server's text, joined as it is.
+function rowSummary(row, labels) {
+  let text = row.name + ": " + row.status_word + ", " + labels.summaryMaxLabel + " " + row.max_text;
+  if (row.estimated_share_text !== "") {
+    text = text + ", " + labels.shareLabel + " " + row.estimated_share_text;
+  }
+  if (row.waiting_on_text !== "") {
+    text = text + ", " + row.waiting_on_text;
+  }
+  if (row.status === "HELD" && row.counted) {
+    text = text + ", " + labels.countedLabel;
+  }
+  return text;
+}
+
+
+// The name and the chip, on one line.
+function makeRowLine(row, labels) {
+  const line = makeSpan("row-line", "");
+  line.setAttribute("aria-hidden", "true");
+  const name = makeSpan("row-name", row.name);
+  name.dir = "auto";
+  line.appendChild(name);
+  line.appendChild(makeSpan("status row-chip", chipText(row, labels)));
+  return line;
+}
+
+
+// The line under the name: the max, and what they would pay during last call.
+function makeRowDetails(row, labels) {
+  const details = makeSpan("row-details", "");
+  details.setAttribute("aria-hidden", "true");
+  details.appendChild(makeSpan("row-max", labels.maxLabel + " " + row.max_text));
+  if (row.estimated_share_text !== "") {
+    const sharePart = makeSpan("row-share-part", labels.shareLabel + " ");
+    sharePart.appendChild(makeSpan("row-share", row.estimated_share_text));
+    details.appendChild(sharePart);
+  }
+  return details;
+}
+
+
+// One person's row, with the same markup board_panel.html draws. data-counted is "true" or "false",
+// for styling (the circle turns green together).
+function makeRow(row, labels) {
   const item = document.createElement("li");
   item.dataset.status = row.status;
   if (row.counted) {
@@ -108,14 +239,12 @@ function makeRow(row, maxLabel, shareLabel) {
   } else {
     item.dataset.counted = "false";
   }
-  let text = row.name + ": " + row.status_word + ", " + maxLabel + " " + row.max_text;
-  if (row.estimated_share_text !== "") {
-    text = text + ", " + shareLabel + " " + row.estimated_share_text;
-  }
   if (row.waiting_on_text !== "") {
-    text = text + ", " + row.waiting_on_text;
+    item.dataset.waiting = "true";
   }
-  item.textContent = text;
+  item.appendChild(makeSpan("row-summary visually-hidden", rowSummary(row, labels)));
+  item.appendChild(makeRowLine(row, labels));
+  item.appendChild(makeRowDetails(row, labels));
   return item;
 }
 
@@ -127,8 +256,13 @@ function showPledgeLink(isOpen) {
   const link = holder.querySelector("a");
   if (isOpen && link === null) {
     const newLink = document.createElement("a");
+    newLink.className = "button-link";
     newLink.href = holder.dataset.pledgeUrl;
     newLink.textContent = holder.dataset.pledgeLabel;
+    if (holder.dataset.pledgeNewTab === "true") {   // on S2, so the treasurer keeps that page open
+      newLink.target = "_blank";
+      newLink.rel = "noopener";
+    }
     holder.appendChild(newLink);
   }
   if (!isOpen && link !== null) {
@@ -160,7 +294,22 @@ function setCountdown(status, bannerText, seconds) {
   countdown.secondsAtStart = seconds;
   countdown.startedAtMs = Date.now();
   countdown.running = true;
+  countdown.shownSeconds = null;
   banner.setAttribute("aria-live", "off");
+  showCountdownTime(seconds);
+}
+
+
+// Put the time in the banner in its own span. A new span each second replays the CSS pulse. A second
+// that is already showing is skipped, so the pulse stops at 0:00. replaceChildren treats the two
+// strings as plain text.
+function showCountdownTime(seconds) {
+  if (seconds === countdown.shownSeconds) {
+    return;
+  }
+  countdown.shownSeconds = seconds;
+  const time = makeSpan("board-countdown", countdownText(seconds));
+  board.querySelector(".board-banner").replaceChildren(countdown.textBefore, time, countdown.textAfter);
 }
 
 
@@ -176,8 +325,7 @@ function tickCountdown() {
   if (seconds < 0) {
     seconds = 0;
   }
-  const banner = board.querySelector(".board-banner");
-  banner.textContent = countdown.textBefore + countdownText(seconds) + countdown.textAfter;
+  showCountdownTime(seconds);
 }
 
 

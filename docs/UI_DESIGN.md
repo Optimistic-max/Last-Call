@@ -20,7 +20,7 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 
 | # | Screen | Route | Milestone | Must show |
 |---|---|---|---|---|
-| S1 | Create event | `/` | M1 | title, deposit ($), demo-mode checkbox, "Create" |
+| S1 | Create event | `/` | M1 | the three lines of intro text, title, how much the group needs ($), demo-mode checkbox (ticked by default), "Create" |
 | S2 | Treasurer view | `/admin/<token>` | M1 | the share link (copy button), "Open pledging", the board, needs-attention actions (M2). D31: a Share button, see §9 |
 | S3 | Board (public) | `/e/<id>` | M1 | goal, progress bar, who's in, time left, status banner |
 | S4 | Pledge | `/e/<id>/pledge` | M1 | name, max, the promise text, PayPal card fields, "Hold my max". D31 (M4): name (required) and email (optional), a box to type the pledge in your own words, quick-amount buttons, the privacy note, and an editable confirm step before the card fields: amount (the minimum, shown only, D12), cap (the maximum held) and condition. Nothing is saved until the friend confirms: the AI's result stays only in the page. The card fields part stays the B1 flow |
@@ -50,9 +50,21 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | Declined card, on the friend's own link (D31) | **Your card was declined, so nothing is held and you're not counted yet. Try another card.** |
 | S3 goal line | **Goal $[goal] so the club gets a full $[deposit] after fees** |
 | S3 last call banner | **Last call! Goal reached. Join in the next [mm:ss] and everyone's share drops.** |
-| Board held total (S2, S3) | **Held so far: $[held]** (approved by Samuel Nov 3, D57) |
-| Board row (S2, S3) | **[Name]: [status word], max $[max]**, plus **, share now $[share]** during last call (approved by Samuel Nov 3, D57, D76) |
-| Board link to S4 | **Pledge** (approved by Samuel Nov 3, D57) |
+| Board held total (S2, S3) | **Held on cards: $[held]** (final, Samuel Nov 5, D57) |
+| Board row, on screen (S2, S3) | **[Name]**, a status chip (**Counted**, or "Waiting on [name]", or the status word), **up to $[max]**, plus **would pay $[share]** during last call (final, Samuel Nov 5, D57, D76) |
+| Board row, for screen readers | **[Name]: [status word], max $[max]**, plus **, would pay $[share]**, the waiting text and **, Counted** when they apply |
+| Board, under the progress bar | **The bar shows counted pledges only. A hold with a condition counts once that condition is met.** (Samuel Nov 5) |
+| Board, no pledges yet | **No pledges yet.** (not shown once the event has ended: a missed goal drops its pledges from the list) |
+| Board, a new name in a refresh | **[Name] just pledged** |
+| Board button to S4 | **Pledge** (final, Samuel Nov 5, D57) |
+| S4 link to the board | **← Back to board** |
+| S1 intro | **Get your group to actually chip in.** then **Friends pledge with their card. Nobody is charged unless the group reaches the goal; if it doesn't, every hold is cancelled.** then **PayPal holds each friend's max. AI turns 'I'm in for $40 if Jay's in' into a pledge, and they confirm it.** |
+| S1 amount field | **How much does the group need? ($)** with the hint **$20 to $2,000** |
+| S1 title example | **Ridgeline cabin weekend** |
+| S1 demo-mode checkbox | **Demo mode: timers in minutes, not hours** |
+| S2 share button | **Copy link**, then **Copied ✓**. On a phone with a share menu: **Share** |
+| S2 share link | **Open in new tab** |
+| S2 private address warning | **This page's address is private. Share only the link above.** |
 | S6 during last call | **You're counted, so you can't leave during last call.** |
 | After lock | **Charged once. PayPal closes the rest of each hold.** |
 | Missed goal | **Goal not reached. Every hold was cancelled. Nobody paid.** |
@@ -78,7 +90,7 @@ Never write "released instantly", "sent to the cabin", or "no signup needed" (th
 | `NEEDS_ATTENTION` | "Needs the treasurer's attention" | full, warning color |
 | `EXPIRED` | the missed-goal message | grey |
 
-Each pledger row shows (never the email, which never appears on the public board or in `board.json`, D31): name · status chip (Pledged / Hold pending / Held / Counted / Waiting on [name] / Declined / Charged $[share]; Pledged and Hold pending from M4, D31) · max. Conditions show as "if Jay's in".
+Each pledger row shows (never the email, which never appears on the public board or in `board.json`, D31): name · status chip (Pledged / Hold pending / Held / Counted / Waiting on [name] / Declined / Charged $[share] / Charge failed; Pledged and Hold pending from M4, D31) · max · during last call, what they would pay. A hold the circle rule counts shows **Counted**. A hold still waiting shows its `waiting_on_text`. **Hold pending** needs a server value that doesn't exist yet, so it can't appear yet. Conditions show as "if Jay's in".
 
 **D31:** three visible states, each a word, not only a color: **Pledged** (confirmed, no card yet), **Hold pending** (card sent, PayPal's answer not back yet), **Held**. Board totals count only held money: pledged and hold-pending rows add $0.
 
@@ -89,7 +101,7 @@ Each pledger row shows (never the email, which never appears on the public board
 ## 6. The three moments the video needs (simple CSS only)
 
 1. **Circle turns green together:** when Ana ("if Jay's in") and Jay ("if Ana's in") both become counted, their two rows flash to the accent color at the same time.
-2. **Share drops:** during last call, when someone joins, each share number counts down from the old value to the new one (about 600ms).
+2. **Share drops:** during last call, when someone joins, the old share shows struck through next to the new one, which flashes (700ms). Both are the server's text, so JavaScript does no money math (D83).
 3. **Goal reached:** the progress bar fills and the last call banner slides in.
 
 Keep animations under about 0.8 seconds and respect `prefers-reduced-motion`.
@@ -100,7 +112,7 @@ Keep animations under about 0.8 seconds and respect `prefers-reduced-motion`.
 - Buttons are at least 44px tall on phones.
 - **Never ask a friend for the same info twice (D31):** the name (and the email, if given) once, the pledge once. A retry after "Card declined" keeps everything they typed.
 - The board refreshes every 10 seconds with a simple `fetch` to `GET /e/<id>/board.json` (no websockets).
-- Show money as `$1,234.56` using one template filter. That filter must reuse `dollars()` from `app.py`, so the pages and the JSON messages always format money the same way. The JSON endpoint sends amounts already formatted, so JavaScript never does money math or formatting. For the share-drop animation, it also sends the old and new values in cents.
+- Show money as `$1,234.56` using one template filter. That filter must reuse `dollars()` from `app.py`, so the pages and the JSON messages always format money the same way. The JSON endpoint sends amounts already formatted, so JavaScript never does money math or formatting.
 
 ## 8. Final palette and fonts
 
