@@ -1,14 +1,35 @@
 {% extends "base.html" %}
+{% from "macros.html" import nav_item, pledge_link, pledge_nav_item, share_button %}
 {# S3, the public board (docs/UI_DESIGN.md section 10). A bare page from Emmanuel's step 5b C, for
    Samuel to restyle. The board itself is board_panel.html, which S2 shows too (D76). #}
 
 {% block title %}{{ board.title }}{% endblock %}
 
+{% block nav %}
+<nav class="shell-nav" aria-label="Menu">
+  {{ nav_item(url_for('board_page', event_id=board.event_id), "Board", "layout-dashboard", current=true) }}
+  {{ pledge_nav_item(board) }}
+  {{ nav_item("#how-it-works", "How it works", "circle-help") }}
+</nav>
+{% endblock %}
+
 {% block content %}
-<h1>{{ board.title }}</h1>
-{% include "board_panel.html" %}
+<main>
+  <header class="page-header">
+    <div class="page-heading">
+      <h1>{{ board.title }}</h1>
+      <p class="page-goal board-goal">{{ board.goal_text }}</p>
+    </div>
+    <div class="page-actions">
+      {{ pledge_link(board, "button-link") }}
+      {{ share_button(url_for('pledge_page', event_id=board.event_id), "Invite", class_name="button-secondary board-invite", hidden=not board.pledging_open) }}
+    </div>
+  </header>
+  {% include "board_panel.html" %}
+</main>
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/board.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/share.js') }}" defer></script>
 {% endblock %}

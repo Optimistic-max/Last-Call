@@ -1,59 +1,88 @@
-<!doctype html>
-{# S4 and S5, the pledge page (docs/UI_DESIGN.md section 3). A bare page from Emmanuel's step 2.4,
-   adapted from the B1 spike: Samuel restyles it. The PayPal part is static/js/pledge_paypal.js (Emmanuel's).
-   Jinja escapes every value it fills in, so a title like "<script>" shows as text and never runs.
-   This is a Jinja comment, so it stays on the server and never reaches the browser. #}
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pledge: {{ event.title }}</title>
-  <style>
-    /* v6 card fields need boxes with a set height and width (from the B1 spike) */
-    .card-field { height: 56px; width: 100%; }
-    button { min-height: 44px; }
-  </style>
-</head>
-<body>
-  <p><strong>SANDBOX DEMO: fake money, no real charges</strong></p>
-  <h1>{{ event.title }}</h1>
-  <p><strong>Nobody pays unless the goal is reached.</strong></p>
+{% extends "base.html" %}
+{% from "macros.html" import nav_item %}
+{# S4 and S5, the pledge page (docs/UI_DESIGN.md section 3). Samuel owns this page; the PayPal part is
+   static/js/pledge_paypal.js (Emmanuel's), so keep every id.
+   Jinja escapes every value it fills in, so a title like "<script>" shows as text and never runs. #}
+
+{% block title %}Pledge: {{ event.title }}{% endblock %}
+
+{% block nav %}
+<nav class="shell-nav" aria-label="Menu">
+  {{ nav_item(url_for('board_page', event_id=event.id), "Board", "layout-dashboard") }}
+  {{ nav_item(url_for('pledge_page', event_id=event.id), "Pledge", "hand-coins", current=true) }}
+  {{ nav_item(url_for('board_page', event_id=event.id) ~ "#how-it-works", "How it works", "circle-help") }}
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="form-page">
+  <p class="back-link"><a class="text-link" href="{{ url_for('board_page', event_id=event.id) }}">← Back to board</a></p>
 
   {% if not pledging_open %}
-  <p>{{ closed_text }}</p>
+  <div class="card form-card">
+    <h1>{{ event.title }}</h1>
+    <p class="form-promise">Nobody pays unless the goal is reached.</p>
+    <p class="info-box">{{ closed_text }}</p>
+  </div>
   {% else %}
-  {# The own-words box, Check button and the min and conditions boxes (M4, D31, D77) are bare elements
-     with new ids, for Samuel to style: pledge-message, check-button, check-message, pledge-min and
-     pledge-conditions. Every older id is unchanged. Their labels are placeholders (D57). Samuel adds the
-     "AI reads. You confirm. Plain code handles the money." line and the privacy note (docs/TEAM.md). #}
-  <main id="pledge" data-event-id="{{ event.id }}" data-error-text="{{ error_text }}">
-    <p><label for="pledge-message">Say it in your own words (optional)</label><br>
-      <textarea id="pledge-message" rows="3" maxlength="280"></textarea></p>
-    <button id="check-button" type="button">Check</button>
-    <p id="check-message" role="status"></p>
+  {# The labels are placeholders until Samuel approves them (D57). #}
+  <main id="pledge" class="card form-card" data-event-id="{{ event.id }}" data-error-text="{{ error_text }}"
+    data-closed-result="Pledging closed">
+    <h1>{{ event.title }}</h1>
+    <p class="form-promise">Nobody pays unless the goal is reached.</p>
 
-    <p><label for="pledge-name">Your name</label><br><input id="pledge-name" autocomplete="name"></p>
-    <p><label for="pledge-max">Your max ($)</label><br><input id="pledge-max" inputmode="decimal"></p>
-    <p><label for="pledge-min">Your minimum ($, optional)</label><br><input id="pledge-min" inputmode="decimal"></p>
-    <p><label for="pledge-conditions">Only if these people are in (optional, separate names with commas)</label><br>
-      <input id="pledge-conditions"></p>
-    <button id="confirm-button" type="button">Continue</button>
+    <section class="form-step">
+      <h2 class="card-title">Say it your way</h2>
+      <p class="field"><label for="pledge-message">Say it in your own words (optional)</label>
+        <textarea id="pledge-message" rows="4" maxlength="280"></textarea></p>
+      <p class="ai-line">AI reads. You confirm. Plain code handles the money.</p>
+      <p class="privacy-note">What you type here is sent to Groq to read it. Don't type anything private.</p>
+      <button id="check-button" class="button-secondary" type="button">Check</button>
+      <p id="check-message" class="check-message" role="status"></p>
+    </section>
 
-    <p id="hold-text"></p>
-    <p>Name on card</p><div id="paypal-card-fields-name" class="card-field"></div>
-    <p>Card number</p><div id="paypal-card-fields-number" class="card-field"></div>
-    <p>Expiry</p><div id="paypal-card-fields-expiry" class="card-field"></div>
-    <p>CVV</p><div id="paypal-card-fields-cvv" class="card-field"></div>
-    <button id="hold-button" type="button" disabled>Hold my max</button>
-    <p id="message" role="status"></p>
+    <section class="form-step">
+      <h2 class="card-title">Check it</h2>
+      <p class="field"><label for="pledge-name">Your name</label>
+        <input id="pledge-name" autocomplete="name"></p>
+      <p class="field"><label for="pledge-max">Your max ($)</label>
+        <input id="pledge-max" inputmode="decimal" aria-describedby="pledge-max-ai">
+        <span id="pledge-max-ai" class="field-hint" hidden>Filled by AI, edit if wrong</span></p>
+      <p class="field"><label for="pledge-min">Your minimum ($, optional)</label>
+        <input id="pledge-min" inputmode="decimal" aria-describedby="pledge-min-ai">
+        <span id="pledge-min-ai" class="field-hint" hidden>Filled by AI, edit if wrong</span></p>
+      <p class="field"><label for="pledge-conditions">Only if these people are in (optional, separate names with commas)</label>
+        <input id="pledge-conditions" aria-describedby="pledge-conditions-ai">
+        <span id="pledge-conditions-ai" class="field-hint" hidden>Filled by AI, edit if wrong</span></p>
+      <button id="confirm-button" class="button-full" type="button">Continue</button>
+    </section>
+
+    {# One line for every answer: a refusal from Continue, and the result of the hold (S5). #}
+    <p id="message" class="result-line" role="status"></p>
+
+    <section id="step-hold" class="form-step">
+      <h2 class="card-title">Hold it</h2>
+      <p id="hold-text" class="hold-text"></p>
+      <p class="card-field-label">Name on card</p><div id="paypal-card-fields-name" class="card-field"></div>
+      <p class="card-field-label">Card number</p><div id="paypal-card-fields-number" class="card-field"></div>
+      <p class="card-field-label">Expiry</p><div id="paypal-card-fields-expiry" class="card-field"></div>
+      <p class="card-field-label">CVV</p><div id="paypal-card-fields-cvv" class="card-field"></div>
+      <button id="hold-button" class="button-full" type="button" disabled>Hold my max</button>
+    </section>
+
     {# D82: after "Held", the script fills in the friend's own "I'm out" link (S6). The line is a
        placeholder until Samuel approves it (D57). #}
-    <p id="leave-link-line" hidden>Keep this link to cancel before last call. <a id="leave-link" href="#"></a></p>
+    <p id="leave-link-line" class="leave-line" hidden>Keep this link to cancel before last call. <a id="leave-link" href="#"></a></p>
   </main>
+  {% endif %}
+</div>
+{% endblock %}
 
+{% block scripts %}
+{% if pledging_open %}
   {# Our script first, so onPayPalWebSdkLoaded exists before PayPal's script finishes loading. #}
   <script src="{{ url_for('static', filename='js/pledge_paypal.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/pledge_page.js') }}" defer></script>
   <script async src="https://www.sandbox.paypal.com/web-sdk/v6/core" onload="onPayPalWebSdkLoaded()"></script>
-  {% endif %}
-</body>
-</html>
+{% endif %}
+{% endblock %}

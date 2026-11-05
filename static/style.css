@@ -1,45 +1,57 @@
-/* Last Call styles, "Bar sign" direction (docs/UI_DESIGN.md section 8).
-   Phone first: the normal rules are for a 375px-wide phone.
-   The one media query near the bottom adjusts things for laptops. */
+/* Last Call styles: a clean light dashboard in black and white (docs/UI_DESIGN.md section 8).
+   Phone first: the normal rules are for a phone. The one media query near the bottom
+   adjusts things for laptops, from 1024px wide. */
 
 
-/* ---------- The font ---------- */
+/* ---------- Colors, type and spacing, in one place ---------- */
 
-/* Geist Serif (Vercel, OFL-1.1 license) has one weight, 400. It isn't on
-   Google Fonts yet, so we load it from jsDelivr, pinned to one commit of
-   Vercel's geist-font repo so the file can never change under us.
-   font-display: swap shows the fallback font at once and swaps in Geist
-   Serif when it arrives, so text is never invisible on a slow phone. */
-@font-face {
-  font-family: "Geist Serif";
-  src: url("https://cdn.jsdelivr.net/gh/vercel/geist-font@d33068f8680340092804b3a97ea668a443af63a6/fonts/GeistSerif/webfonts/GeistSerif-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-
-/* ---------- Colors and font, in one place ---------- */
-
-/* Every color on the site comes from these variables, so changing one
-   line here changes it everywhere. Contrast ratios are in UI_DESIGN.md §8. */
+/* Every value on the site comes from these variables, so changing one line here
+   changes it everywhere. Contrast ratios are in UI_DESIGN.md section 8. */
 :root {
-  --bg: #17161E;           /* page background */
-  --surface: #212130;      /* cards */
-  --line: #2C2A36;         /* borders, empty progress bar track */
-  --ink: #F4EFE6;          /* main text */
-  --ink-soft: #B3ADA3;     /* secondary text, input borders */
-  --accent: #5FD69C;       /* counted / goal reached */
-  --accent-soft: #1E3D2D;  /* background behind accent-ink text */
-  --accent-ink: #9BF0C3;   /* accent text on accent-soft, focus outline */
-  --warn: #FF7A66;         /* declined / needs attention */
-  --warn-soft: #45201B;    /* background behind warn-ink text */
-  --warn-ink: #FFB3A7;     /* warning text on warn-soft */
-  --banner: #FFD76A;       /* sandbox banner only */
-  --banner-ink: #2A2100;   /* sandbox banner text only */
+  --page: #F3F3F1;         /* page background */
+  --card: #FFFFFF;         /* cards */
+  --ink: #0B0B0B;          /* main text, primary buttons, featured cards, counted */
+  --ink-2: #5C5C5C;        /* secondary text */
+  --ink-3: #8A8A8A;        /* 3.45:1 on white: too faint for text, so no text uses it */
+  --line: #E5E5E2;         /* borders and dividers */
+  --held: #9A9A9A;         /* held but not counted, in the gauge */
+  --on-ink: #FFFFFF;       /* text on black */
+  --on-ink-2: #BDBDBD;     /* quieter text on black */
+  --danger: #B42318;       /* only Declined, Charge failed, Needs attention, always with a word */
+  --danger-bg: #FDECEA;
 
-  /* If Geist Serif hasn't loaded (or fails), the browser uses the next one. */
-  --font: "Geist Serif", Georgia, "Times New Roman", serif;
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --text-display: 2.5rem;  /* 40px: the big numbers */
+  --text-title: 1.75rem;   /* 28px: the page title */
+  --text-card: 1rem;       /* 16px: card titles */
+  --text-body: 0.9375rem;  /* 15px */
+  --text-caption: 0.8125rem;  /* 13px: captions and chips */
+
+  --gutter: 16px;
+  --card-padding: 20px;
+  --card-gap: 12px;
+  --banner-height: 32px;
+  --button-height: 48px;
+
+  --radius-card: 24px;
+  --radius-field: 14px;
+  /* The nested radius rule: an inner box's corner follows the card's corner around it,
+     with a floor so the box never turns square on a laptop. */
+  --radius-inner: max(calc(var(--radius-card) - var(--card-padding)), 8px);
+
+  /* Soft black shadows in layers, never a colored glow. */
+  --shadow-rest: 0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08), 0 24px 48px rgba(0, 0, 0, 0.06);
+  --shadow-floating: 0 2px 4px rgba(0, 0, 0, 0.05), 0 12px 32px rgba(0, 0, 0, 0.10);
+  --shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.06), 0 16px 40px rgba(0, 0, 0, 0.12);
+  --button-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --button-shadow-hover: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 16px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --button-shadow-pressed: 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+
+  --landing-header-height: 64px;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 
@@ -53,83 +65,437 @@
   box-sizing: border-box;
 }
 
+/* No gray flash when a phone user taps something. Each control has its own
+   pressed look instead. text-size-adjust stops phones inflating text sideways. */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Menu links and the stat cards' arrows glide to their card. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* tabular-nums gives every digit the same width, so money and times never jump. */
 body {
   margin: 0;
-  background: var(--bg);
+  background-color: var(--page);
+  background-image: radial-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+  background-size: 20px 20px;
   color: var(--ink);
   font-family: var(--font);
-  font-size: 1.0625rem;  /* 17px: comfortable to read on a phone */
+  font-size: var(--text-body);
+  font-variant-numeric: tabular-nums;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Geist Serif has no bold, so headings stand out by size, not weight.
-   Weight 400 stops the browser from faking a bold version. */
-h1,
-h2,
-h3 {
-  font-weight: 400;
+/* Some rules below set display, which would beat the browser's own [hidden] rule. */
+[hidden] {
+  display: none !important;
+}
+
+h1 {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: 600;
+  letter-spacing: -0.02em;
   line-height: 1.15;
-  margin: 0 0 1rem;
+  overflow-wrap: anywhere;
 }
-
-h1 { font-size: 2rem; }
-h2 { font-size: 1.5rem; }
-h3 { font-size: 1.25rem; }
 
 p {
-  margin: 0 0 1rem;
+  margin: 0 0 12px;
 }
 
 a {
-  color: var(--accent-ink);
+  color: inherit;
   text-underline-offset: 0.15em;
+}
+
+.text-soft {
+  color: var(--ink-2);
+}
+
+.caption {
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+
+/* The big numbers on the board. */
+.display-number {
+  font-size: var(--text-display);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+/* Text for screen readers only: it takes up no space on the page. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+
+/* ---------- Icons ---------- */
+
+/* The sheet of drawings stays hidden. Each icon on a page borrows one with <use>.
+   The drawings are 24 units wide and shown at 20px, so 1.8 units is a 1.5px line. */
+.icon-sprite {
+  display: none;
+}
+
+.icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 
 /* ---------- Sandbox banner (top of every page) ---------- */
 
+/* It stays on screen while the page scrolls, so the video always shows it. */
 .sandbox-banner {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--banner-height);
   margin: 0;
-  padding: 0.5rem 1rem;
-  background: var(--banner);
-  color: var(--banner-ink);
-  font-size: 0.875rem;
-  letter-spacing: 0.04em;
+  padding: env(safe-area-inset-top, 0px) var(--gutter) 0;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-size: var(--text-caption);
   text-align: center;
 }
 
 
-/* ---------- Layout ---------- */
+/* ---------- The app shell: top bar and tabs on a phone, sidebar on a laptop ---------- */
 
-/* On a phone, the page uses the full width with a little room at the sides. */
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - var(--banner-height));
+}
+
+.shell-side {
+  display: flex;
+  flex-direction: column;
+}
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  margin: 0;
+  padding-left: var(--gutter);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* A row of pills that scrolls sideways if it doesn't fit. */
+.shell-nav {
+  display: flex;
+  gap: 8px;
+  padding: 0 var(--gutter) 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.shell-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.nav-item {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink-2);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 120ms var(--ease-out), color 200ms ease;
+}
+
+.nav-item:active {
+  transform: scale(0.97);
+}
+
+/* The pills stay short on a phone, so all three fit without scrolling. */
+.nav-item .icon {
+  display: none;
+}
+
+.nav-item[aria-current="page"] {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+/* The sidebar's black card is for laptops. Phones have the banner. */
+.sandbox-card {
+  display: none;
+}
+
+.sandbox-card-title {
+  margin: 0 0 4px;
+  font-size: var(--text-card);
+  font-weight: 500;
+}
+
+.sandbox-card-text {
+  margin: 0;
+  color: var(--on-ink-2);
+  font-size: var(--text-caption);
+}
+
+.shell-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The bottom padding keeps the last card clear of the sticky action bar on a phone. */
 .page {
-  padding: 1.25rem 1rem 3rem;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 16px var(--gutter) 96px;
 }
 
-/* A box on a slightly lighter background, for grouping things. */
+
+/* ---------- Page header ---------- */
+
+.page-header {
+  margin-bottom: 20px;
+}
+
+.page-goal {
+  margin: 4px 0 0;
+  color: var(--ink-2);
+}
+
+/* On a phone the main actions sit in a bar at the bottom, in reach of a thumb.
+   The bar pads itself away from the home indicator. */
+.page-actions {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 15;
+  display: flex;
+  gap: 8px;
+  padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+}
+
+.page-actions > *,
+.page-actions form button {
+  flex: 1;
+  width: 100%;
+}
+
+.page-actions form {
+  display: flex;
+}
+
+/* With nothing left to do (pledging closed), the bar goes away. */
+.page-actions:not(:has(> :not([hidden]))) {
+  display: none;
+}
+
+
+/* ---------- Cards ---------- */
+
+/* White on the grey page, lifted a little, with a thin highlight along the top edge. */
 .card {
-  background: var(--surface);
+  padding: var(--card-padding);
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-rest), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.card-title {
+  margin: 0 0 12px;
+  font-size: var(--text-card);
+  font-weight: 500;
+}
+
+/* A black card with the ribbed picture behind it. The 60% dark layer on top keeps text
+   readable: over the picture's brightest pixel, white is 6:1 and the quieter text below
+   is 4.7:1, so quiet text is a lighter grey here than on plain black. */
+.photo-card {
+  --on-ink-2: #E5E5E5;
+  background-color: var(--ink);
+  background-image: linear-gradient(rgba(11, 11, 11, 0.6), rgba(11, 11, 11, 0.6)),
+    url("images/ribbed-dark.jpg");
+  background-position: center;
+  background-size: cover;
+  box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: var(--on-ink);
+}
+
+/* ---------- Avatars ---------- */
+
+.avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--ink);
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+
+.avatar-counted {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+
+/* ---------- Buttons ---------- */
+
+/* The primary button: a black pill. .button-link is a real link that goes to another
+   page and looks the same. It presses in as soon as a finger lands. */
+button,
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--button-height);
+  padding: 0 20px;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  background: var(--ink);
+  box-shadow: var(--button-shadow);
+  color: var(--on-ink);
+  font: inherit;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 120ms var(--ease-out), background-color 200ms ease;
+}
+
+/* A button that can't be pressed yet looks clearly switched off. */
+button:disabled {
+  border-color: var(--line);
+  background: var(--line);
+  box-shadow: none;
+  color: var(--ink-2);
+  cursor: not-allowed;
+}
+
+.button-secondary {
+  background: var(--card);
+  box-shadow: none;
+  color: var(--ink);
+}
+
+.button-full {
+  width: 100%;
+}
+
+/* Leaving is the only red button, and its word says what it does. */
+.button-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* A 40px circle. The invisible ::after ring makes the tap target 44px. */
+.icon-button {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  min-height: 0;
+  padding: 0;
+  border-color: var(--line);
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+}
+
+.icon-button::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+}
+
+.photo-card .icon-button {
+  border-color: var(--on-ink-2);
+  color: var(--on-ink);
+}
+
+a.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 1rem;
-  margin-bottom: 1rem;
+  transition: transform 120ms var(--ease-out), background-color 200ms ease;
+  touch-action: manipulation;
 }
 
-/* Less important text, like hints and "time left". */
-.text-soft {
-  color: var(--ink-soft);
+a.icon-button:active {
+  transform: scale(0.97);
 }
 
+/* Only a real mouse gets hover looks, because a tap would leave them stuck on a phone. */
+@media (hover: hover) and (pointer: fine) {
+  button:hover:not(:disabled),
+  .button-link:hover {
+    background: #2A2A2A;
+  }
 
-/* ---------- Money ---------- */
+  .button-secondary:hover:not(:disabled) {
+    background: var(--page);
+  }
 
-/* Big money amounts, like the board total. tabular-nums gives every digit
-   the same width, so a changing number doesn't wobble sideways. */
-.money {
-  display: block;
-  font-size: 2.5rem;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
+  .icon-button:hover {
+    background: var(--page);
+  }
+
+  .nav-item:hover {
+    color: var(--ink);
+  }
+
+  .nav-item[aria-current="page"]:hover {
+    color: var(--on-ink);
+  }
 }
 
 
@@ -137,117 +503,1702 @@ a {
 
 label {
   display: block;
-  margin-bottom: 0.25rem;
+  margin-bottom: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
-/* Inputs are at least 44px tall, easy to tap. Their text is 16px or more,
-   because iPhones zoom the whole page in when you tap a smaller input.
-   The border is ink-soft, not line: a field's edge must reach 3:1 contrast
-   to be seen (WCAG 1.4.11), and line is only 1.27:1 on the page. */
+.field {
+  margin: 0 0 20px;
+}
+
+/* Fields are 48px tall. Their text is always 16px, because iPhones zoom the
+   whole page in when you tap anything smaller. */
 input,
 select,
 textarea {
+  display: block;
   width: 100%;
-  min-height: 44px;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--ink-soft);
-  border-radius: 8px;
-  background: var(--bg);
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-field);
+  background: var(--card);
   color: var(--ink);
   font: inherit;
+  font-size: 1rem;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
 }
 
+textarea {
+  padding: 12px 16px;
+  resize: vertical;
+}
 
-/* ---------- Buttons ---------- */
+/* The black 2px edge on focus: the border turns black and the shadow adds the
+   second pixel, so the field doesn't change size. */
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+  outline: none;
+}
 
-/* The main button: dark text on the accent color, full width on a phone
-   so it's easy to hit with a thumb, and at least 44px tall. */
-button {
-  width: 100%;
+input:disabled,
+textarea:disabled {
+  background: var(--page);
+  color: var(--ink-2);
+}
+
+::placeholder {
+  color: var(--ink-2);
+  opacity: 1;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+}
+
+.form-error {
+  margin-top: 4px;
+  color: var(--danger);
+  font-size: var(--text-caption);
+}
+
+/* A checkbox keeps its real size, on one line with its words. The whole row is the
+   tap target, because the label belongs to the checkbox. */
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-height: 44px;
-  padding: 0.625rem 1.25rem;
-  border: 0;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--bg);
-  font: inherit;
+  margin-bottom: 0;
+  font-size: var(--text-body);
+  font-weight: 400;
   cursor: pointer;
-  transition: background-color 150ms ease;
 }
 
-button:hover {
-  background: var(--accent-ink);
-}
-
-/* A button that can't be pressed yet looks clearly switched off. */
-button:disabled {
-  background: var(--line);
-  color: var(--ink-soft);
-  cursor: not-allowed;
-}
-
-/* A quieter button, for secondary actions like "Copy link". */
-.button-secondary {
-  background: transparent;
-  border: 1px solid var(--ink-soft);
-  color: var(--ink);
-}
-
-.button-secondary:hover {
-  background: var(--surface);
+input[type="checkbox"] {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--ink);
 }
 
 
-/* ---------- Status words ---------- */
+/* ---------- Form pages: create, pledge, leave ---------- */
 
-/* A small pill around a status word. Color only adds to the word,
-   it never replaces it (UI_DESIGN.md section 7). */
-.status {
-  display: inline-block;
-  padding: 0.125rem 0.625rem;
-  border-radius: 999px;
-  background: var(--line);
-  color: var(--ink);
+/* One centered white card. */
+.form-page {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.form-card {
+  padding: 24px;
+}
+
+.form-card h1 {
+  margin-bottom: 12px;
+}
+
+.form-card form {
+  margin: 0;
+}
+
+.form-promise {
+  margin: 8px 0 20px;
+  color: var(--ink-2);
+}
+
+.back-link {
+  margin-bottom: 4px;
+}
+
+/* A neutral box for a message, like "You're counted, so you can't leave during last call." */
+.info-box {
+  margin: 0 0 20px;
+  padding: 12px 16px;
+  border-radius: var(--radius-inner);
+  background: var(--page);
+}
+
+/* The pledge page's three steps are sections of one card, split by a line. */
+.form-step + .form-step,
+.form-step + .result-line + .form-step {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.ai-line {
+  margin: 0 0 4px;
+  font-weight: 500;
+}
+
+.privacy-note {
+  margin: 0 0 12px;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+}
+
+.check-message {
+  margin: 12px 0 0;
+}
+
+.check-message:empty,
+.result-line:empty,
+.hold-text:empty {
+  display: none;
+}
+
+/* A box the AI filled has a black edge until the friend edits it. */
+input.ai-filled {
+  border-color: var(--ink);
+}
+
+.hold-text {
+  font-weight: 500;
+}
+
+/* The card fields are PayPal's own frames: only the space around them is ours. */
+.card-field-label {
+  margin: 0 0 8px;
   font-size: 0.875rem;
+  font-weight: 500;
 }
 
-.status-good {
-  background: var(--accent-soft);
-  color: var(--accent-ink);
+.card-field {
+  width: 100%;
+  height: 56px;
+  margin-bottom: 12px;
 }
 
-.status-warn {
-  background: var(--warn-soft);
-  color: var(--warn-ink);
+/* One result card, in place of the step (S5). */
+.result-line {
+  margin: 24px 0 0;
+  padding: 16px;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-inner);
+  font-weight: 500;
+}
+
+.leave-line {
+  margin: 12px 0 0;
+  overflow-wrap: anywhere;
+}
+
+
+/* ---------- Treasurer page (S2) ---------- */
+
+.share-card {
+  margin-bottom: var(--card-gap);
+}
+
+/* The link and its Copy button share a line, and wrap on a very narrow phone.
+   text-overflow cuts a long link with dots, and it scrolls normally when focused. */
+.share-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.share-row input {
+  flex: 1 1 12rem;
+  width: auto;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+
+.share-row button {
+  flex: none;
+}
+
+.share-open {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 4px 0;
+}
+
+.private-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+}
+
+
+/* ---------- The board (S2, S3) ---------- */
+
+/* On a phone the cards stack in the order of the HTML: status, countdown, totals,
+   progress, who's in, how it works. Laptops rearrange them further down. */
+.board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--card-gap);
+}
+
+/* Anchored cards stop clear of the sticky banner. */
+.board [id] {
+  scroll-margin-top: calc(var(--banner-height) + 12px);
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.card-head .card-title {
+  margin-bottom: 0;
+}
+
+/* The status card */
+.board-banner {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+/* Phones have Pledge in the bottom bar, so it isn't shown twice on one screen. */
+.status-button {
+  display: none;
+  margin-top: 20px;
+}
+
+.board[data-status="NEEDS_ATTENTION"] .board-banner {
+  color: var(--danger);
+}
+
+/* The countdown card. container-type lets the number size itself to the card, because
+   "47:59:12" has to fit a narrow column on a laptop. */
+.countdown-card {
+  display: flex;
+  flex-direction: column;
+  container-type: inline-size;
+}
+
+/* The auto margins center the time in whatever height the card has. */
+.board-time {
+  margin: auto 0;
+  font-size: min(var(--text-display), 24cqi);
+}
+
+/* The totals: a swipeable row on a phone. Each card is 78% wide so the next one peeks in.
+   The negative margin lets the row run to the screen edges. */
+.board-stats {
+  display: flex;
+  gap: 12px;
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 0 var(--gutter);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-padding: 0 var(--gutter);
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.board-stats::-webkit-scrollbar {
+  display: none;
+}
+
+.stat-card {
+  display: flex;
+  flex: 0 0 min(78%, 320px);
+  flex-direction: column;
+  min-height: 184px;
+  container-type: inline-size;
+  scroll-snap-align: start;
+}
+
+.stat-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.stat-top .card-title {
+  margin: 0;
+  padding-top: 8px;
+}
+
+/* 17cqi keeps even "$50,000.00" inside the card at every width. */
+.stat-number {
+  margin: 0 0 12px;
+  font-size: min(var(--text-display), 17cqi);
+}
+
+.stat-caption {
+  margin: auto 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+
+.photo-card .stat-caption {
+  color: var(--on-ink-2);
+}
+
+/* The half ring */
+.ring {
+  position: relative;
+  width: 100%;
+  max-width: 280px;
+  margin: 8px auto 16px;
+}
+
+.ring-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.ring-svg path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 32;   /* 28px when the ring is drawn 280px wide */
+}
+
+.ring-track {
+  stroke: url(#ring-stripes);
+}
+
+.ring-counted {
+  stroke: var(--ink);
+  stroke-dasharray: 100 100;
+  transition: stroke-dashoffset 600ms var(--ease-out);
+}
+
+/* A zero-length arc with round caps would still draw a dot. */
+.ring-empty {
+  opacity: 0;
+}
+
+.board[data-status="NEEDS_ATTENTION"] .ring-counted {
+  stroke: var(--danger);
+}
+
+.board[data-status="EXPIRED"] .ring-counted {
+  stroke: var(--held);
+}
+
+.ring-center {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  text-align: center;
+}
+
+.ring-percent {
+  margin: 0 0 4px;
+}
+
+.ring-center .caption {
+  margin: 0;
+}
+
+.ring-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 16px;
+  margin: 0 0 12px;
+  padding: 0;
+  font-size: var(--text-caption);
+  font-weight: 500;
+  list-style: none;
+}
+
+.ring-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+.board-note {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+  text-align: center;
+  text-wrap: balance;
+}
+
+/* Who's in */
+.button-small {
+  min-height: 44px;
+  padding: 0 16px;
+}
+
+.board-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A phone row: the avatar, then the name and chip on one line, then the details across
+   the rest of the width. display: contents lets the name and details join this grid. */
+.board-rows li {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 12px;
+  min-height: 64px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.row-avatar {
+  grid-row: 1 / span 2;
+  align-self: start;
+}
+
+.row-text {
+  display: contents;
+}
+
+.row-name {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.row-chip {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.row-details {
+  grid-column: 2 / -1;
+  grid-row: 2;
+}
+
+.board-rows li:first-child {
+  border-top: 0;
+}
+
+.board-rows li[data-counted="true"] .row-avatar {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+/* overflow-wrap breaks a long name with no spaces, so it can't push the chip off the screen. */
+.row-name {
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.row-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+  overflow-wrap: anywhere;
+}
+
+.row-share-part::before,
+.row-waiting::before {
+  content: "· ";
+}
+
+/* Chips stay on one line. */
+.status {
+  flex: none;
+  min-height: 28px;
+  padding: 0 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  line-height: 26px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-rows li[data-status="HOLD_PENDING"] .row-chip {
+  border-style: dashed;
+}
+
+.board-rows li[data-status="HELD"] .row-chip {
+  border-color: var(--line);
+  background: var(--line);
+}
+
+/* Only this chip may be cut short with dots, because the line under the name shows the
+   same words in full. A "Charged $x" chip is money, so it is never cut. */
+.board-rows li[data-waiting="true"] .row-chip {
+  max-width: 8rem;
+  border-color: var(--ink);
+  background: var(--card);
+}
+
+.board-rows li[data-counted="true"] .row-chip {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+/* Last, because a failed charge also has data-counted="true". */
+.board-rows li[data-status="DECLINED"] .row-chip,
+.board-rows li[data-status="FAILED"] .row-chip {
+  border-color: var(--danger-bg);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.board-empty {
+  padding: 8px 0;
+  color: var(--ink-2);
+}
+
+/* A missed goal drops its pledges from the list, so "Nobody has pledged yet" would be untrue. */
+.board[data-status="EXPIRED"] .board-empty {
+  display: none;
+}
+
+/* How it works */
+.how-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.how-list li {
+  display: flex;
+  gap: 12px;
+}
+
+.how-promise {
+  margin: 0;
+}
+
+/* ---------- Motion on the board ---------- */
+
+/* Last call: the status card turns black. It is the same element all along, so a
+   transition does it, and the 10-second refresh can't restart it. */
+.board[data-status="LAST_CALL"] .status-card {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+.board[data-status="LAST_CALL"] .status-button {
+  border-color: var(--on-ink);
+  background: var(--on-ink);
+  color: var(--ink);
+}
+
+/* First load: the cards rise and fade in one after another. These elements are never rebuilt,
+   so this runs once. "backwards" lets go of the card afterwards, so hover can move it. */
+.board .card,
+.share-card {
+  animation: card-enter 300ms var(--ease-out) backwards;
+  animation-delay: calc(var(--order, 0) * 40ms);
+}
+
+.countdown-card { --order: 1; }
+.stat-card:nth-child(1) { --order: 2; }
+.stat-card:nth-child(2) { --order: 3; }
+.stat-card:nth-child(3) { --order: 4; }
+.stat-card:nth-child(4) { --order: 5; }
+.progress-card { --order: 6; }
+.who-card { --order: 7; }
+.how-card { --order: 8; }
+
+/* The countdown card breathes during last call, after it has finished coming in. */
+.board[data-status="LAST_CALL"] .countdown-card {
+  animation: card-enter 300ms var(--ease-out) backwards, countdown-pulse 2s ease-in-out 340ms infinite;
+  animation-delay: calc(var(--order, 0) * 40ms), 340ms;
+}
+
+/* The moments board.js marks. Each element's normal rule is its final look, so reduced
+   motion loses only the movement. */
+.row-new {
+  animation: card-enter 300ms var(--ease-out);
+}
+
+/* The circle turns black together: no delay, so they change at the same moment. */
+.row-just-counted .row-chip,
+.row-just-counted .row-avatar {
+  animation: turn-black 200ms var(--ease-out);
+}
+
+.just-pledged {
+  display: inline-block;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-weight: 500;
+  animation: wiggle 450ms ease-in-out, fade-away 300ms ease 3700ms forwards;
+}
+
+/* A changing number: the old text leaves upward as the new text comes in from below. */
+.text-swap {
+  position: relative;
+  display: inline-block;
+}
+
+.text-new {
+  display: inline-block;
+  animation: text-in 300ms var(--ease-out);
+}
+
+.text-old {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  white-space: nowrap;
+  animation: text-out 300ms var(--ease-out);
+}
+
+/* The percent in the ring crossfades instead, without moving. */
+.ring-percent.text-swap {
+  display: block;
+}
+
+.ring-percent .text-old {
+  right: 0;
+}
+
+.ring-percent .text-new {
+  animation-name: fade-in;
+}
+
+.ring-percent .text-old {
+  animation-name: fade-away-now;
+}
+
+@keyframes card-enter {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+@keyframes turn-black {
+  from { background-color: var(--line); color: var(--ink); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+
+@keyframes fade-away {
+  to { opacity: 0; }
+}
+
+@keyframes fade-away-now {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes text-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+@keyframes text-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes countdown-pulse {
+  50% { transform: scale(1.02); }
+}
+
+/* The Copy button's words crossfade. */
+.button-label {
+  display: inline-block;
+}
+
+.label-copied {
+  animation: fade-in 150ms ease, wiggle 450ms ease-in-out;
+}
+
+.label-back {
+  animation: fade-in 150ms ease;
+}
+
+
+/* ---------- Landing page (top of S1) ---------- */
+
+/* Anchored sections stop clear of the sticky banner and header. */
+.landing section[id] {
+  scroll-margin-top: calc(var(--banner-height) + var(--landing-header-height) + 16px);
+}
+
+/* Glass: the bar stays readable because 72% white sits behind its text. Where a browser
+   has no backdrop-filter, the @supports rule further down makes it solid white. */
+.landing-header {
+  position: sticky;
+  top: var(--banner-height);
+  z-index: 18;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: var(--landing-header-height);
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+}
+
+.landing-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.landing-logo-wrap {
+  display: inline-flex;
+}
+
+.landing-logo {
+  width: auto;
+  height: 28px;
+}
+
+.landing-name {
+  display: inline-block;
+}
+
+.landing-nav {
+  display: none;
+  gap: 24px;
+}
+
+.landing-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 500;
+}
+
+.landing-start {
+  min-height: 44px;
+  padding: 0 16px;
+}
+
+/* The canvas: a big rounded panel with a faint dot grid. overflow keeps the pieces inside it. */
+.hero {
+  padding: 16px 16px 0;
+}
+
+.hero-canvas {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100dvh - var(--banner-height) - var(--landing-header-height) - 16px);
+  padding: 24px 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 32px;
+  background-color: var(--page);
+  background-image: radial-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+  background-size: 20px 20px;
+  text-align: center;
+}
+
+/* The logo as a raised app tile. Scrolling moves .hero-tile; hover wiggles the face inside it. */
+.hero-tile {
+  flex: none;
+  width: 96px;
+  height: 96px;
+  margin-bottom: 24px;
+}
+
+.hero-tile-face {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  place-items: center;
+}
+
+.hero-tile-face img {
+  width: 64%;
+  height: auto;
+}
+
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Two lines at every width: below 580px the size follows the screen, because 44px
+   "unless everyone's in." would need a third line on a phone. */
+.hero-title {
+  font-size: min(2.75rem, 7.6vw);
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.hero-line {
+  display: block;
+  white-space: nowrap;
+}
+
+/* Your #9A9A9A is 2.5:1 on this page. --ink-3 looks the same and passes for text this large. */
+.hero-line-soft {
+  color: var(--ink-3);
+}
+
+.hero-lead {
+  max-width: 46ch;
+  margin: 16px 0 20px;
+  color: var(--ink-2);
+  font-size: 1rem;
+}
+
+.hero-note {
+  margin: 8px 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+}
+
+/* The floating pieces. .piece is where it sits and what scrolling moves. .piece-body tilts
+   and floats, so the two movements never fight over one transform. */
+.piece {
+  flex: none;
+  display: none;
+}
+
+.piece-body {
+  width: max-content;
+  max-width: 240px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: var(--shadow-floating), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  text-align: left;
+  transform: rotate(var(--tilt, 0deg)) scale(var(--piece-scale, 1));
+}
+
+.piece-body p {
+  margin: 0;
+}
+
+.piece-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.piece-name {
+  font-weight: 500;
+}
+
+.piece-caption {
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+}
+
+.piece-pledge .piece-caption {
+  margin-top: 6px;
+  padding-left: 48px;
+}
+
+.piece-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px !important;
+  font-weight: 500;
+}
+
+.piece-chip-black {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+.piece-chip-outline {
+  display: inline-block;
+  border-color: var(--ink);
+}
+
+.piece-avatars {
+  display: flex;
+  margin-bottom: 8px;
+}
+
+.piece-avatars .avatar + .avatar {
+  margin-left: -8px;
+  box-shadow: 0 0 0 2px var(--card);
+}
+
+.piece-black {
+  min-width: 140px;
+  background: var(--ink);
+  box-shadow: var(--shadow-floating), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: var(--on-ink);
+}
+
+.piece-black .piece-caption {
+  color: var(--on-ink-2);
+}
+
+.piece-time {
+  font-size: var(--text-display);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.mini-ring {
+  display: block;
+  width: 136px;
+  margin-top: 4px;
+}
+
+.mini-ring path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 18;
+}
+
+.mini-ring-track {
+  stroke: url(#piece-stripes);
+}
+
+.mini-ring-arc {
+  stroke: var(--ink);
+  stroke-dasharray: 70 100;
+}
+
+.piece-paper {
+  position: relative;
+  max-width: 200px;
+  padding-top: 20px;
+  background: #FFFDF5;
+  font-size: 1.0625rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.piece-pin {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+/* Phones get two pieces, in the flow of the page, so they can never cover text. */
+.piece-pledge,
+.piece-countdown {
+  display: block;
+  --piece-scale: 0.8;
+}
+
+.piece-pledge {
+  align-self: flex-start;
+  margin: -8px 0 -4px -16px;
+  --tilt: -4deg;
+  --drift-x: -40px;
+  --drift-y: -30px;
+}
+
+.piece-countdown {
+  align-self: flex-end;
+  margin: 8px -8px -12px 0;
+  --tilt: 4deg;
+  --drift-x: 40px;
+  --drift-y: 30px;
+}
+
+.piece-ring { --tilt: -5deg; --drift-x: -120px; --drift-y: 0px; }
+.piece-waiting { --tilt: 3deg; --drift-x: 120px; --drift-y: 0px; }
+.piece-note { --tilt: -3deg; --drift-x: -80px; --drift-y: 60px; }
+.piece-hold { --tilt: 5deg; --drift-x: 80px; --drift-y: 60px; }
+
+/* The sections under the hero */
+.landing-section {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 48px var(--gutter) 0;
+}
+
+.landing-title {
+  margin: 0 0 20px;
+  font-size: var(--text-title);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.how-cards {
+  display: grid;
+  gap: var(--card-gap);
+}
+
+.how-step .icon {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 12px;
+}
+
+.how-step .card-title {
+  margin-bottom: 4px;
+}
+
+.how-step p {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+/* Cards that rise in when they reach the screen. landing.js adds these classes, so with no
+   JavaScript, or with reduced motion, the cards just stay in place. */
+.will-rise {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.will-rise.risen {
+  opacity: 1;
+  transform: none;
+  transition: opacity 300ms var(--ease-out), transform 300ms var(--ease-out);
+  transition-delay: calc(var(--rise-order, 0) * 60ms);
+}
+
+.front-headline {
+  font-size: var(--text-card);
+  font-weight: 500;
+}
+
+.landing-footer {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 48px var(--gutter);
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+}
+
+.landing-footer p {
+  margin: 0 0 4px;
+}
+
+.landing-footer-name {
+  color: var(--ink);
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+/* A link whose line slides in from the left under a mouse. Touch screens keep the plain underline.
+   inline-flex and the minimum height give a short link a 44px tap target. */
+.text-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .text-link {
+    text-decoration: none;
+  }
+
+  .text-link::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 10px;
+    left: 0;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 200ms var(--ease-out);
+  }
+
+  .text-link:hover::after {
+    transform: scaleX(1);
+  }
+}
+
+/* The pieces are glass on a bigger screen only. Blur behind something that moves is heavy on
+   a phone, and there it would only blur the dots. */
+@media (min-width: 768px) {
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass {
+      background: rgba(255, 255, 255, 0.8);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+    }
+  }
+
+  /* Four pieces, in the corners. The canvas keeps enough height for them to clear the words. */
+  .hero-canvas {
+    min-height: max(calc(100dvh - var(--banner-height) - var(--landing-header-height) - 24px), 860px);
+  }
+
+  .hero-title {
+    font-size: 2.75rem;
+  }
+
+  .piece-pledge,
+  .piece-countdown,
+  .piece-note,
+  .piece-hold {
+    position: absolute;
+    display: block;
+    margin: 0;
+    --piece-scale: 1;
+  }
+
+  .piece-pledge { top: 6%; left: 5%; }
+  .piece-countdown { top: 5%; right: 5%; --drift-x: 100px; --drift-y: -60px; }
+  .piece-note { bottom: 6%; left: 6%; }
+  .piece-hold { bottom: 7%; right: 5%; }
+  .piece-pledge { --drift-x: -100px; --drift-y: -60px; }
+
+  .how-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Solid white where glass isn't possible. Text on it passes either way. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .landing-header,
+  .page-actions {
+    background: var(--card);
+  }
+}
+
+/* Solid white too for anyone who asked their device for less transparency. */
+@media (prefers-reduced-transparency: reduce) {
+  .landing-header,
+  .page-actions {
+    background: var(--card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* All six pieces. Below 1200px the headline steps down so they clear it. */
+@media (min-width: 1024px) {
+  .hero {
+    padding: 24px 24px 0;
+  }
+
+  .hero-tile {
+    width: 120px;
+    height: 120px;
+    margin-bottom: 32px;
+  }
+
+  .hero-canvas {
+    min-height: max(calc(100dvh - var(--banner-height) - var(--landing-header-height) - 24px), 720px);
+  }
+
+  .hero-tile-face {
+    border-radius: 28px;
+  }
+
+  .hero-title {
+    font-size: 3.5rem;
+  }
+
+  .hero-lead {
+    font-size: 1.125rem;
+  }
+
+  .landing-nav {
+    display: flex;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .piece-ring,
+  .piece-waiting {
+    position: absolute;
+    display: block;
+  }
+
+  .piece-ring { top: 44%; left: 1%; }
+  .piece-waiting { top: 44%; right: 3%; }
+}
+
+@media (min-width: 1200px) {
+  .hero-title {
+    font-size: 4.5rem;
+  }
+
+  .piece-ring { left: 5%; }
+  .piece-waiting { right: 6%; }
+}
+
+/* Idle float, and the scroll zoom. .piece-body floats; .piece, .hero-tile and .hero-copy follow
+   the scroll, and scrolling back up plays it in reverse by itself. */
+@media (prefers-reduced-motion: no-preference) {
+  .piece-body {
+    animation: piece-float 3s ease-in-out infinite alternate;
+  }
+
+  .piece-countdown .piece-body { animation-duration: 3.5s; animation-delay: -1s; }
+  .piece-ring .piece-body { animation-duration: 2.8s; animation-delay: -2s; }
+  .piece-waiting .piece-body { animation-duration: 3.2s; animation-delay: -0.6s; }
+  .piece-note .piece-body { animation-duration: 2.6s; animation-delay: -1.6s; }
+  .piece-hold .piece-body { animation-duration: 3.4s; animation-delay: -2.4s; }
+
+  @supports (animation-timeline: scroll()) {
+    .hero-tile,
+    .hero-copy,
+    .piece,
+    .landing-logo-wrap,
+    .landing-name {
+      animation-duration: 1ms;   /* the timeline sets the real length */
+      animation-fill-mode: both;
+      animation-timeline: scroll(root);
+      animation-timing-function: linear;
+    }
+
+    /* The tile only needs 280px: by then the page has carried it up to the header. */
+    .hero-tile {
+      animation-name: tile-to-header;
+      animation-range: 0 280px;
+    }
+
+    .hero-copy {
+      animation-name: copy-recede;
+      animation-range: 0 600px;
+    }
+
+    .piece {
+      animation-name: piece-drift;
+      animation-range: 0 600px;
+    }
+
+    /* The header logo arrives as the tile fades, and the name slides over to make room. */
+    .landing-logo-wrap {
+      animation-name: fade-in;
+      animation-range: 200px 300px;
+    }
+
+    .landing-name {
+      animation-name: name-slide;
+      animation-range: 200px 300px;
+    }
+  }
+}
+
+/* The fallback does the same thing with one number, --progress, from 0 to 1. */
+.scroll-fallback .piece {
+  opacity: calc(1 - var(--progress, 0));
+  transform: translate(calc(var(--drift-x, 0px) * var(--progress, 0)), calc(var(--drift-y, 0px) * var(--progress, 0)))
+    scale(calc(1 + 0.08 * var(--progress, 0)));
+}
+
+.scroll-fallback .hero-tile {
+  --tile-progress: min(1, calc(var(--progress, 0) * 2.14));   /* done at 280px of the 600px */
+  opacity: calc(1 - var(--tile-progress));
+  transform: translateX(calc(var(--tile-x) * var(--tile-progress))) scale(calc(1 - 0.4 * var(--tile-progress)));
+}
+
+.scroll-fallback .landing-logo-wrap {
+  opacity: calc((var(--progress, 0) - 0.33) * 6);
+}
+
+.scroll-fallback .hero-copy {
+  opacity: calc(1 - 0.4 * var(--progress, 0));
+  transform: scale(calc(1 - 0.08 * var(--progress, 0)));
+}
+
+/* The tile slides toward the header's logo while the page carries it upward. It stays level with
+   the words below it, so it never crosses them. */
+.hero-tile {
+  --tile-x: calc(-50vw + 40px);
+}
+
+@keyframes piece-float {
+  from { transform: rotate(var(--tilt, 0deg)) scale(var(--piece-scale, 1)) translateY(0); }
+  to { transform: rotate(var(--tilt, 0deg)) scale(var(--piece-scale, 1)) translateY(-6px); }
+}
+
+@keyframes tile-to-header {
+  to { opacity: 0; transform: translateX(var(--tile-x)) scale(0.6); }
+}
+
+@keyframes name-slide {
+  from { transform: translateX(-53px); }
+}
+
+@keyframes copy-recede {
+  to { opacity: 0.6; transform: scale(0.92); }
+}
+
+@keyframes piece-drift {
+  to { opacity: 0; transform: translate(var(--drift-x, 0px), var(--drift-y, 0px)) scale(1.08); }
+}
+
+
+/* ---------- Depth, hover and wiggle, site-wide ---------- */
+
+/* A card's bigger shadow lives on a layer that only fades. Animating box-shadow itself
+   would repaint on every frame, and opacity doesn't. */
+.board .card,
+.how-step {
+  position: relative;
+  transition: transform 250ms var(--ease-out);
+}
+
+.board .card::after,
+.how-step::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--shadow-hover);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 250ms var(--ease-out);
+}
+
+/* The status card also changes color during last call. */
+.board .status-card {
+  transition: transform 250ms var(--ease-out), background-color 300ms var(--ease-out), color 300ms var(--ease-out);
+}
+
+.row-avatar {
+  transition: transform 200ms var(--ease-out);
+}
+
+.icon-button .icon {
+  transition: transform 200ms var(--ease-out);
+}
+
+.board-rows li {
+  margin: 0 -12px;
+  padding: 12px;
+  transition: background-color 200ms ease;
+}
+
+/* Only a real mouse gets these. A tap would leave them stuck on a phone. */
+@media (hover: hover) and (pointer: fine) {
+  .board .card:hover,
+  .how-step:hover {
+    transform: translateY(-2px);
+    transition-duration: 200ms;
+  }
+
+  .board .card:hover::after,
+  .how-step:hover::after {
+    opacity: 1;
+    transition-duration: 200ms;
+  }
+
+  .board-rows li:hover {
+    border-radius: 12px;
+    background: var(--page);
+  }
+
+  .board-rows li:hover .row-avatar {
+    transform: scale(1.05);
+  }
+
+  /* The arrow leans the way it points. */
+  .icon-button:hover .icon {
+    transform: translate(2px, -2px);
+  }
+
+  button:hover:not(:disabled):not(.icon-button),
+  .button-link:hover {
+    box-shadow: var(--button-shadow-hover);
+    transform: translateY(-1px);
+  }
+
+  .button-secondary:hover:not(:disabled) {
+    box-shadow: none;
+  }
+
+  /* The logo wiggles when pointed at. Never money, the countdown or a status chip. */
+  .hero-tile-face:hover,
+  .landing-brand:hover .landing-logo {
+    animation: wiggle 450ms ease-in-out;
+  }
+}
+
+/* A press comes last, so it beats hover. The shadow shrinks as the button goes in. */
+button:active:not(:disabled),
+.button-link:active {
+  box-shadow: var(--button-shadow-pressed);
+  transform: scale(0.97);
+}
+
+.icon-button:active:not(:disabled) {
+  box-shadow: none;
+}
+
+/* Wiggle: sometimes, never constantly. Shake is for a field with an error. */
+.wiggle {
+  animation: wiggle 450ms ease-in-out;
+}
+
+.shake {
+  animation: shake 350ms ease-in-out;
+}
+
+@keyframes wiggle {
+  20% { transform: rotate(-3deg); }
+  40% { transform: rotate(3deg); }
+  60% { transform: rotate(-2deg); }
+  80% { transform: rotate(1deg); }
+}
+
+@keyframes shake {
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
 }
 
 
 /* ---------- Keyboard focus ---------- */
 
-/* A thick, bright ring around whatever the keyboard is on.
-   :focus-visible shows it for keyboard users, not after every mouse click. */
+/* A black ring around whatever the keyboard is on. :focus-visible shows it
+   for keyboard users, not after every mouse click. Fields use their black edge. */
 :focus-visible {
-  outline: 3px solid var(--accent-ink);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
+}
+
+.photo-card :focus-visible {
+  outline-color: var(--on-ink);
 }
 
 
 /* ---------- Laptops ---------- */
 
-/* From 768px wide and up: keep the page to a readable width in the middle
-   of the screen, make the big text bigger, and let buttons size to their words. */
-@media (min-width: 768px) {
-  .page {
-    max-width: 40rem;
-    margin: 0 auto;
-    padding: 2rem 1.5rem 4rem;
+@media (min-width: 1024px) {
+  :root {
+    --text-display: 3.5rem;   /* 56px */
+    --text-title: 2.25rem;    /* 36px */
+    --text-card: 1.125rem;    /* 18px */
+    --text-body: 1rem;        /* 16px */
+    --gutter: 32px;
+    --card-padding: 24px;
+    --card-gap: 20px;
+    --button-height: 44px;
   }
 
-  h1 { font-size: 2.5rem; }
+  /* The sidebar stays put while the page scrolls. */
+  .shell {
+    flex-direction: row;
+  }
 
-  .money { font-size: 3rem; }
+  .shell-side {
+    position: sticky;
+    top: var(--banner-height);
+    flex: none;
+    width: 248px;
+    height: calc(100dvh - var(--banner-height));
+    padding-bottom: 24px;
+  }
 
-  button { width: auto; }
+  .wordmark {
+    min-height: 0;
+    padding: 32px 0 32px var(--gutter);
+  }
+
+  .shell-nav {
+    flex-direction: column;
+    gap: 4px;
+    padding: 0;
+    overflow-x: visible;
+  }
+
+  /* Menu items become plain lines. A 4px black bar on the left edge marks the page you're on. */
+  .nav-item .icon {
+    display: block;
+  }
+
+  .nav-item {
+    display: flex;
+    gap: 12px;
+    padding: 0 16px 0 var(--gutter);
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .nav-item[aria-current="page"] {
+    background: transparent;
+    color: var(--ink);
+  }
+
+  .nav-item[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    left: 0;
+    width: 4px;
+    border-radius: 0 4px 4px 0;
+    background: var(--ink);
+  }
+
+  .nav-item[aria-current="page"]:hover {
+    color: var(--ink);
+  }
+
+  .sandbox-card {
+    display: block;
+    margin: auto 16px 0;
+    padding: 20px;
+    border-radius: var(--radius-card);
+  }
+
+  .page {
+    padding-top: 32px;
+    padding-bottom: 64px;
+  }
+
+  .page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+
+  .page-heading {
+    min-width: 0;
+  }
+
+  .page-actions {
+    position: static;
+    flex: none;
+    padding: 0;
+    border-top: 0;
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .page-actions > *,
+  .page-actions form button {
+    flex: none;
+    width: auto;
+  }
+
+  /* The board: two columns on a small laptop. */
+  .board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "status countdown"
+      "stats stats"
+      "progress progress"
+      "who who"
+      "how how";
+    align-items: start;
+  }
+
+  .status-card { grid-area: status; align-self: stretch; }
+  .countdown-card { grid-area: countdown; align-self: stretch; }
+  .board-stats { grid-area: stats; }
+  .progress-card { grid-area: progress; align-self: stretch; }
+  .who-card { grid-area: who; }
+  .how-card { grid-area: how; align-self: stretch; }
+
+  /* A laptop row is one line: avatar, name with details, chip on the right. */
+  .board-rows li {
+    display: flex;
+  }
+
+  .row-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  /* The totals stop scrolling and sit in a plain grid. */
+  .board-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--card-gap);
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .status-button {
+    display: inline-flex;
+  }
+
+  .ring {
+    max-width: 320px;
+  }
+
+  .ring-svg path {
+    stroke-width: 28;
+  }
+}
+
+
+/* ---------- Wide laptops: the full dashboard ---------- */
+
+@media (min-width: 1200px) {
+  .board {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-areas:
+      "stats stats stats stats"
+      "progress progress countdown how"
+      "who who status status";
+  }
+
+  .board-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  /* The status card keeps its own height and stays in view beside a long list. */
+  .board .status-card {
+    position: sticky;
+    top: calc(var(--banner-height) + 12px);
+    align-self: start;
+  }
 }
 
 

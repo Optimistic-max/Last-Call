@@ -1,19 +1,22 @@
 {% extends "base.html" %}
-{# S6, "I'm out" (docs/UI_DESIGN.md sections 3 and 10, D82). A bare page from Emmanuel, for Samuel to restyle.
-   The button is shown only when the pledger can leave; every other state shows one line of text.
-   app.py reads nothing from this form, so the ids are free to restyle, but keep leave-message and
-   leave-button: the tests look for them. The texts are placeholders until Samuel approves them (D57). #}
+{# S6, "I'm out" (docs/UI_DESIGN.md sections 3 and 10, D82). The button is shown only when the pledger
+   can leave; every other state shows one line of text. app.py reads nothing from this form, but keep
+   leave-message and leave-button: the tests look for them. The texts are placeholders until Samuel
+   approves them (D57). This page gets no event id, so it has no menu and no link to the board. #}
 
 {% block title %}Your pledge: {{ title }}{% endblock %}
 
 {% block content %}
-<h1>{{ title }}</h1>
+<main class="form-page">
+  <div class="card form-card">
+    <h1>{{ title }}</h1>
+    <p id="leave-message" class="info-box" role="status">{{ message }}</p>
 
-<p id="leave-message" role="status">{{ message }}</p>
-
-{% if can_leave %}
-<form method="post" action="{{ leave_url }}">
-  <button id="leave-button" type="submit">{{ button_text }}</button>
-</form>
-{% endif %}
+    {% if can_leave %}
+    <form method="post" action="{{ leave_url }}">
+      <button id="leave-button" class="button-secondary button-danger button-full" type="submit">{{ button_text }}</button>
+    </form>
+    {% endif %}
+  </div>
+</main>
 {% endblock %}
