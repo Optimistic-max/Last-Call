@@ -88,13 +88,26 @@ function showBoard(answer) {
 // The hidden <progress> and the ring's aria-valuenow give screen readers the same number.
 function showProgress(percent) {
   const bar = board.querySelector(".board-progress");
+  const oldPercent = bar.value;
   bar.value = percent;
   bar.textContent = percent + "%";
   const arc = board.querySelector(".ring-counted");
   arc.style.strokeDashoffset = 100 - percent;
   arc.classList.toggle("ring-empty", percent === 0);
   board.querySelector(".board-ring").setAttribute("aria-valuenow", percent);
-  board.querySelector(".ring-percent").textContent = percent + "%";
+  if (percent !== oldPercent) {
+    swapText(board.querySelector(".ring-percent"), oldPercent + "%", percent + "%");
+  }
+}
+
+
+// Put the old and the new words in an element, so the CSS can move one out as the other comes in.
+// Both are finished text, so nothing here counts or calculates. The old words end up invisible.
+function swapText(element, oldText, newText) {
+  element.textContent = "";
+  element.classList.add("text-swap");
+  element.appendChild(makeSpan("text-new", newText));
+  element.appendChild(makeSpan("text-old", oldText));
 }
 
 
@@ -188,6 +201,7 @@ function showRows(rows) {
 function markChanges(item, row, before, labels) {
   if (before === undefined) {
     item.classList.add("row-new");
+    item.querySelector(".row-details").appendChild(makeSpan("just-pledged", labels.justPledgedLabel));
     return;
   }
   if (row.counted && !before.counted) {
@@ -195,7 +209,7 @@ function markChanges(item, row, before, labels) {
   }
   const share = row.estimated_share_text;
   if (before.share !== "" && share !== "" && before.share !== share) {
-    item.querySelector(".row-share").classList.add("row-share-changed");
+    swapText(item.querySelector(".row-share"), before.share, share);
   }
 }
 

@@ -19,13 +19,22 @@ function linkFor(button) {
 }
 
 
-// Show "Copied ✓" for a moment, then the button's own words again.
+// Show "Copied ✓" for a moment, then the button's own words again. A second click while it says
+// "Copied ✓" is ignored, or the button would remember those words as its own. Each change swaps the
+// class, which replays the CSS fade.
 function showCopied(button) {
+  if (button.dataset.copying === "true") {
+    return;
+  }
+  button.dataset.copying = "true";
   const label = button.querySelector(".button-label");
   const words = label.textContent;
   label.textContent = button.dataset.copiedLabel;
+  label.className = "button-label label-copied";
   setTimeout(function () {
     label.textContent = words;
+    label.className = "button-label label-back";
+    button.dataset.copying = "false";
   }, COPIED_SHOW_MS);
 }
 

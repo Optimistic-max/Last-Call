@@ -61,6 +61,13 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Menu links and the stat cards' arrows glide to their card. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 /* tabular-nums gives every digit the same width, so money and times never jump. */
 body {
   margin: 0;
@@ -1082,11 +1089,149 @@ input.ai-filled {
   margin: 0;
 }
 
-/* The moments board.js marks. Part 6 gives each one its motion. */
-.row-just-counted,
-.row-new,
-.row-share-changed {
-  animation-duration: 0ms;
+/* ---------- Motion on the board ---------- */
+
+/* Last call: the status card turns black. It is the same element all along, so a
+   transition does it, and the 10-second refresh can't restart it. */
+.status-card {
+  transition: background-color 300ms var(--ease-out), color 300ms var(--ease-out);
+}
+
+.board[data-status="LAST_CALL"] .status-card {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+.board[data-status="LAST_CALL"] .status-button {
+  border-color: var(--on-ink);
+  background: var(--on-ink);
+  color: var(--ink);
+}
+
+/* First load: the cards rise and fade in one after another. These elements are never rebuilt,
+   so this runs once. "backwards" lets go of the card afterwards, so hover can move it. */
+.board .card,
+.share-card {
+  animation: card-enter 300ms var(--ease-out) backwards;
+  animation-delay: calc(var(--order, 0) * 40ms);
+}
+
+.countdown-card { --order: 1; }
+.stat-card:nth-child(1) { --order: 2; }
+.stat-card:nth-child(2) { --order: 3; }
+.stat-card:nth-child(3) { --order: 4; }
+.stat-card:nth-child(4) { --order: 5; }
+.progress-card { --order: 6; }
+.who-card { --order: 7; }
+.how-card { --order: 8; }
+
+/* The countdown card breathes during last call, after it has finished coming in. */
+.board[data-status="LAST_CALL"] .countdown-card {
+  animation: card-enter 300ms var(--ease-out) backwards, countdown-pulse 2s ease-in-out 340ms infinite;
+  animation-delay: calc(var(--order, 0) * 40ms), 340ms;
+}
+
+/* The moments board.js marks. Each element's normal rule is its final look, so reduced
+   motion loses only the movement. */
+.row-new {
+  animation: card-enter 300ms var(--ease-out);
+}
+
+/* The circle turns black together: no delay, so they change at the same moment. */
+.row-just-counted .row-chip,
+.row-just-counted .row-avatar {
+  animation: turn-black 200ms var(--ease-out);
+}
+
+.just-pledged {
+  display: inline-block;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-weight: 500;
+  animation: fade-away 300ms ease 3700ms forwards;
+}
+
+/* A changing number: the old text leaves upward as the new text comes in from below. */
+.text-swap {
+  position: relative;
+  display: inline-block;
+}
+
+.text-new {
+  display: inline-block;
+  animation: text-in 300ms var(--ease-out);
+}
+
+.text-old {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  white-space: nowrap;
+  animation: text-out 300ms var(--ease-out);
+}
+
+/* The percent in the ring crossfades instead, without moving. */
+.ring-percent.text-swap {
+  display: block;
+}
+
+.ring-percent .text-old {
+  right: 0;
+}
+
+.ring-percent .text-new {
+  animation-name: fade-in;
+}
+
+.ring-percent .text-old {
+  animation-name: fade-away-now;
+}
+
+@keyframes card-enter {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+@keyframes turn-black {
+  from { background-color: var(--line); color: var(--ink); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+
+@keyframes fade-away {
+  to { opacity: 0; }
+}
+
+@keyframes fade-away-now {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes text-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+@keyframes text-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes countdown-pulse {
+  50% { transform: scale(1.02); }
+}
+
+/* The Copy button's words crossfade. */
+.button-label {
+  display: inline-block;
+}
+
+.label-copied,
+.label-back {
+  animation: fade-in 150ms ease;
 }
 
 
