@@ -35,6 +35,7 @@
     <span class="card-bloom" aria-hidden="true"></span>
     <h2 class="card-title board-time-title">{% if board.status == "LAST_CALL" %}Last call{% else %}Time left{% endif %}</h2>
     <p class="display-number board-time" role="timer">{% if board.seconds_left is none %}Closed{% endif %}</p>
+    {% if board.demo_mode %}<p class="demo-badge">Demo mode: timers are minutes, not hours</p>{% endif %}
   </div>
 
   <div class="board-stats" tabindex="0" role="group" aria-label="The totals">

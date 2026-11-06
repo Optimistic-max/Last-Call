@@ -93,7 +93,7 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | Needs attention (treasurer) | **[Name]'s charge didn't go through. The others were charged. Choose what to do:** [Refund everyone] |
 | Refund-all confirm | **Refunding returns everyone's money, but PayPal keeps its fees ($[fees]). This can't be undone.** |
 | Slow first load | **Waking up the app… (free hosting can take up to a minute)** |
-| Demo mode badge | **Demo mode: timers are minutes, not hours**, only where `demo_mode` is on. Not built yet: it waits for `demo_mode` in `board.json` |
+| Demo mode badge | **Demo mode: timers are minutes, not hours**, in the countdown card on S2 and S3, only where `board.demo_mode` is true |
 | S4 own-words box (D31) | **AI reads. You confirm. Plain code handles the money.** and **What you type here is sent to Groq to read it. Don't type anything private.** (D75) |
 
 The [Send [Name] a new pay link] button moved to `docs/LATER.md` (D49), so [Refund everyone] is the only button in the "Needs attention" wording.
@@ -198,6 +198,8 @@ The black cards' light sits on `.card-bloom`, an empty element inside the card. 
 
 **Sandbox banner (D87):** the one sandbox notice, at the very top of every page: 28px tall, `--grey-100`, 12px `--ink-2`, weight 500. It isn't sticky, so it scrolls away with the page, and only the landing's glass header stays at the top. There is no second notice under the hero button or in the sidebar. The browser's `theme-color` matches the banner.
 
+**Demo mode badge (D87):** an outlined label on the countdown card, under the time it explains: white at 25% for the border, 12px `--on-ink-2`, weight 500. Its corners are 12px, not a pill, because the words wrap to two lines on a narrow card. It appears from `board.demo_mode` in the template. That value never changes once an event exists, so `board.js` doesn't touch it.
+
 **Landing page (D85):** it sits at the top of S1, on `GET /`. A sticky glass header, then a hero canvas with soft grey light, the logo tile, the headline, one button 32px under it, and six floating pieces (four on tablets, two on phones). Then `#how`, `#create` (the form) and the footer. The pieces are aria-hidden drawings of our own components, and every name and amount in them is made up. Scrolling the first 600px zooms past them. The tile reaches the header at 280px, because any later and the headline would scroll through it.
 
 **Share panel (D87):** every Share, Invite and Copy link button opens one native `<dialog>`, so focus stays inside, Esc closes it, and focus returns to the button that opened it. It only ever holds `share_link` or the public pledge link, never the admin page's own address. On a phone it is a bottom sheet: it slides up in 300ms with a grab handle, and a drag down, a tap on the dim area or the close button closes it. From 768px it is a centered 420px dialog that rises 8px and fades in over 200ms. The dim area is black at 35% with a 2px blur. The tiles are 56px frosted circles with a line icon and a word, never a brand's logo or color, and they fade in 30ms apart. Messages shows only on touch screens, and More apps only where the browser has `navigator.share`. WhatsApp, Telegram and Email open in a new tab, so a web service can't replace the page. Messages doesn't, because it only hands over to a phone's app. Under reduced motion the panel fades instead of sliding. The page behind it stays still while it is open.
@@ -207,7 +209,7 @@ The black cards' light sits on `.card-bloom`, an empty element inside the card. 
 | Text on background | Lowest ratio | Used for |
 |---|---|---|
 | White on a black card's lightest part | 11.37 | Titles and numbers on black cards, last call status |
-| `--on-ink-2` on a black card | 8.37 | Captions on black cards |
+| `--on-ink-2` on a black card | 7.64 | Captions on black cards, the demo mode badge |
 | White on the primary button | 13.77 | Primary buttons |
 | `--ink` on frosted glass | 18.53 | Secondary buttons, also with a black card under the phone's action bar |
 | `--ink-2` on the page's darkest part | 5.86 | The line under the page title |
@@ -273,6 +275,7 @@ Both get the same `board` object, and `board.json` is exactly this object, so th
 | `held_total_text` | text: HELD money only (D31, D43). It is `$0.00` after lock, because holds become charges | `"$120.00"` |
 | `counted_total_text` | finished money text: the sum of eligible counted held maximums during OPEN and LAST_CALL (D86). Waiting, unpaid, declined, dropped and ineligible holds add nothing. `""` at every other status, preserving the existing people-count fallback; it is not a confirmed-payment total | `"$45.00"` |
 | `progress_percent` | a whole number from 0 to 100. It is 100 only when the goal is reached (D54), and 100 from `LAST_CALL` on (§5) | `39` |
+| `demo_mode` | true while the event runs on minute timers. Shows the demo mode badge. **Not sent yet** (`TEAM.md`); with no key, the badge stays off | `true` |
 | `pledging_open` | true or false: whether to show the link to `/e/<id>/pledge` | `true` |
 | `rows` | a list in join order, with DROPPED pledges left out (D56) | |
 | `rows[].name` | text | `"Ana"` |

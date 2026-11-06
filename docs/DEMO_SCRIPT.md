@@ -6,7 +6,7 @@ From the project plan (section 10), with the agreed corrections. Samuel edits th
 
 - Under 3 minutes (judges don't have to watch past 3:00). Aim for 2:30.
 - Uploaded to YouTube, **public**, link on the Devpost form.
-- **SANDBOX DEMO** banner visible the whole time.
+- **SANDBOX DEMO** banner at the top of every screen. It scrolls away with the page (D87), so open each screen at the top.
 - Fictional brands only ("Ridgeline Hiking Club", "Pinecrest Cabins"). No real logos, apps or chat-app screenshots.
 - No copyrighted music. Use no music, or a track you have permission to use.
 - Open the live link a minute before recording, so the free server is awake.

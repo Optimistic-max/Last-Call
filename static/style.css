@@ -893,6 +893,19 @@ input.ai-filled {
   font-size: min(var(--text-display), 24cqi);
 }
 
+/* It sits with the time it explains. The rounded corners suit one line or two, because a narrow
+   card on a laptop wraps these words. */
+.demo-badge {
+  align-self: flex-start;
+  margin: 12px 0 0;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+  color: var(--on-ink-2);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
 /* The totals: a swipeable row on a phone. Each card is 78% wide so the next one peeks in.
    The negative margin lets the row run to the screen edges. */
 .board-stats {
