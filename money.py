@@ -80,6 +80,11 @@ def progress_percent(deposit_cents, counted_max_cents_list):
     return percent
 
 
+# Add the eligible counted maximums for the live board; an empty group counts zero cents.
+def counted_total_cents(counted_max_cents_list):
+    return sum(counted_max_cents_list)
+
+
 # What the club really received: the sum of PayPal's own net on each charge (MONEY_RULES.md section 7).
 # Returns None if the list is empty or any net is None (not saved yet), so the board never shows a
 # made-up number (D54). A real net of 0 still counts as a number.
