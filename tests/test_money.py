@@ -9,6 +9,14 @@ import config
 import money
 
 
+# Synthetic maximums stay in whole cents, including an empty counted group.
+def test_counted_total_adds_integer_cents_without_rounding_or_a_goal_cap():
+    for amounts, expected in [([], 0), ([1001], 1001), ([1001, 2002], 3003), ([200000, 200000], 400000)]:
+        result = money.counted_total_cents(amounts)
+        assert result == expected
+        assert type(result) is int
+
+
 # What the club keeps after PayPal's estimated fee on every share.
 def club_receives_cents(shares):
     total = 0

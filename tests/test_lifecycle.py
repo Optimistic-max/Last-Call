@@ -60,6 +60,31 @@ def set_event_status(conn, event_id, status):
     db.run(conn, "UPDATE events SET status = %s WHERE id = %s", (status, event_id))
 
 
+# Synthetic records prove the display total uses eligible holds and the circle rule, once per pledge.
+def test_board_counted_total_excludes_waiting_and_ineligible_holds(test_db):
+    event_id = make_open_event(test_db)
+    try:
+        add_held_pledge(test_db, event_id, "Ana", 1001, ["Jay"])
+        bo_id = add_held_pledge(test_db, event_id, "Bo", 2002)
+        confirm(test_db, event_id, "Unpaid", 5000)
+        for name, pledge_status, hold_status in [("Declined", "DECLINED", "DENIED"),
+                                                ("Dropped", "DROPPED", "CREATED"),
+                                                ("Voided", "HELD", "VOIDED")]:
+            pledge_id = add_held_pledge(test_db, event_id, name, 6000)
+            db.run(test_db, "UPDATE pledges SET status = %s WHERE id = %s", (pledge_status, pledge_id))
+            db.run(test_db, "UPDATE holds SET status = %s WHERE pledge_id = %s", (hold_status, pledge_id))
+        db.run(test_db, "INSERT INTO holds (pledge_id, create_request_id, auth_id, amount_cents, status) "
+                       "VALUES (%s, %s, %s, %s, 'CREATED')",
+               (bo_id, lifecycle.new_request_id(), fake_paypal.new_id("AUTH"), 2002))
+        for status in ("OPEN", "LAST_CALL"):
+            set_event_status(test_db, event_id, status)
+            assert lifecycle.board_facts(test_db, event_id)["counted_total_cents"] == 2002
+        add_held_pledge(test_db, event_id, "Jay", 1500)
+        assert lifecycle.board_facts(test_db, event_id)["counted_total_cents"] == 4503
+    finally:
+        delete_event(test_db, event_id)
+
+
 # Confirm a pledge and return its private token. The test fails here if it wasn't confirmed.
 # The clock is NOW unless a test passes another time.
 def confirm(conn, event_id, name, max_cents, now=NOW):
@@ -1623,6 +1648,7 @@ def test_c8_the_board_and_the_lock_use_the_same_counted_set(test_db):
         assert facts["goal_cents"] == goal_cents
         assert facts["progress_percent"] == 100
         assert facts["held_total_cents"] == 5500
+        assert facts["counted_total_cents"] == 4500
         assert len(facts["rows"]) == 4
 
         lifecycle.lock_and_charge(test_db, event_id, AFTER_DEADLINE, fake_paypal)

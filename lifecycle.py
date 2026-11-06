@@ -1182,6 +1182,7 @@ def board_facts(conn, event_id):
         "counted_ids": pledge_ids(counted),
         "waiting_on": board_waiting_on(conn, event, held, counted),
         "held_total_cents": held_total_cents(conn, event_id),
+        "counted_total_cents": money.counted_total_cents(max_list(counted)),
         "goal_cents": goal_cents,
         "progress_percent": board_progress_percent(event, counted),
         "estimated_shares": estimated_shares(event, counted, goal_cents),

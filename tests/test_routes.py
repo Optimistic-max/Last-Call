@@ -368,7 +368,7 @@ def test_s2_shows_the_open_button_only_for_a_draft(monkeypatch, test_db, test_db
 # ---------- Step 5b C: the board (S3, board.json, and S2's panel) ----------
 
 # The exact keys of docs/UI_DESIGN.md section 10. A key may be added there later, never renamed.
-BOARD_KEYS = {"event_id", "title", "status", "banner_text", "seconds_left", "goal_text", "held_total_text",
+BOARD_KEYS = {"event_id", "title", "status", "banner_text", "seconds_left", "goal_text", "held_total_text", "counted_total_text",
               "progress_percent", "pledging_open", "rows"}
 ROW_KEYS = {"name", "status", "status_word", "max_text", "estimated_share_text", "counted", "waiting_on_text"}
 
@@ -378,7 +378,7 @@ def facts_for(status, any_hold_created=False, club_net_cents=None):
     event = {"id": 7, "title": "Cabin (made up)", "status": status, "deposit_cents": 30000,
              "hard_deadline": NOW + timedelta(minutes=9, seconds=30),
              "last_call_ends": NOW + timedelta(minutes=4, seconds=59)}
-    return {"event": event, "rows": [], "held_total_cents": 0, "goal_cents": 31001, "progress_percent": 0,
+    return {"event": event, "rows": [], "held_total_cents": 0, "counted_total_cents": 0, "goal_cents": 31001, "progress_percent": 0,
             "estimated_shares": {}, "any_hold_created": any_hold_created, "club_net_cents": club_net_cents,
             "counted_ids": [], "waiting_on": {}}
 
@@ -403,7 +403,7 @@ def test_board_banner_for_every_status():
         return app.banner_text(facts, app.seconds_left(facts["event"], NOW))
 
     assert banner(facts_for("DRAFT")) == "This event isn't open yet."
-    assert banner(facts_for("OPEN")) == "Pledging open: 9 min left"
+    assert banner(facts_for("OPEN")) == "Pledging open: 0:09:30 left"
     assert banner(facts_for("LAST_CALL")) == ("Last call! Goal reached. Join in the next 4:59 "
                                               "and everyone's share drops.")
     assert banner(facts_for("LOCKING")) == "Locking shares…"
@@ -419,9 +419,11 @@ def test_board_banner_for_every_status():
 # D57's placeholder time formats, and seconds_left: whole seconds while OPEN or LAST_CALL, never below
 # 0, 0 when the time is missing, and None (null in JSON) for every other status.
 def test_board_times():
-    assert app.time_left_text(3900) == "1 h 5 min"
-    assert app.time_left_text(599) == "9 min"
-    assert app.time_left_text(59) == "less than a minute"
+    assert app.time_left_text(3900) == "1:05:00"
+    assert app.time_left_text(599) == "0:09:59"
+    assert app.time_left_text(59) == "0:00:59"
+    assert app.time_left_text(0) == "0:00:00"
+    assert app.time_left_text(172799) == "47:59:59"
     assert app.countdown_text(299) == "4:59"
     assert app.countdown_text(3723) == "1:02:03"
     assert app.seconds_left(facts_for("OPEN")["event"], NOW) == 570
@@ -430,6 +432,60 @@ def test_board_times():
     assert app.seconds_left({"status": "LAST_CALL", "last_call_ends": None}, NOW) == 0
     for status in ["DRAFT", "LOCKING", "CHARGING", "SETTLED", "NEEDS_ATTENTION", "EXPIRED"]:
         assert app.seconds_left(facts_for(status)["event"], NOW) is None
+
+
+# Synthetic facts distinguish counted cents from held money, shares, goals and percentages.
+def test_board_counted_text_is_only_current_counted_holds():
+    for status in ("OPEN", "LAST_CALL"):
+        facts = facts_for(status)
+        facts["counted_total_cents"] = 1501
+        facts["held_total_cents"] = 5501
+        facts["progress_percent"] = 7
+        assert app.board_for_event(facts, NOW)["counted_total_text"] == "$15.01"
+        facts["counted_total_cents"] = 0
+        assert app.board_for_event(facts, NOW)["counted_total_text"] == "$0.00"
+    for status in ("DRAFT", "LOCKING", "CHARGING", "SETTLED", "NEEDS_ATTENTION", "EXPIRED", "REFUNDING", "REFUNDED"):
+        facts = facts_for(status)
+        facts["counted_total_cents"] = 1501
+        board = app.board_for_event(facts, NOW)
+        assert board["counted_total_text"] == ""
+
+
+# Synthetic eligible holds exercise the real circle rule without a database or PayPal call.
+def test_board_facts_counted_total_uses_the_same_circle_rule(monkeypatch):
+    event = facts_for("OPEN")["event"]
+    event["goal_cents"] = None
+    held = [{"id": 1, "name": "Ana", "max_cents": 1001},
+            {"id": 2, "name": "Bo", "max_cents": 2002}]
+    conditions_by_id = {1: ["Jay"], 2: []}
+    monkeypatch.setattr(lifecycle, "find_event", lambda conn, event_id: event)
+    monkeypatch.setattr(lifecycle, "held_pledges", lambda conn, event_id: held)
+    monkeypatch.setattr(lifecycle, "pledge_conditions_of", lambda conn, pledge_id: conditions_by_id[pledge_id])
+    monkeypatch.setattr(lifecycle, "board_rows", lambda conn, event_id: [])
+    monkeypatch.setattr(lifecycle, "held_total_cents", lambda conn, event_id: 3003)
+    monkeypatch.setattr(lifecycle, "has_created_hold", lambda conn, event_id: True)
+    monkeypatch.setattr(lifecycle, "charge_net_cents", lambda conn, event_id: [])
+    for status in ("OPEN", "LAST_CALL"):
+        event["status"] = status
+        facts = lifecycle.board_facts(None, 7)
+        assert facts["counted_ids"] == [2]
+        assert facts["counted_total_cents"] == 2002
+    conditions_by_id[1] = []
+    assert lifecycle.board_facts(None, 7)["counted_total_cents"] == 3003
+
+
+# The existing template uses finished money while open and preserves its people fallback after lock.
+def test_board_counted_card_preserves_the_post_lock_fallback():
+    facts = facts_for("OPEN")
+    facts["counted_total_cents"] = 1501
+    with app.app.test_request_context():
+        page = app.app.jinja_env.get_template("board_panel.html")
+        text = page.render(board=app.board_for_event(facts, NOW), pledge_new_tab=False)
+        assert re.search(r'class="[^"]*board-counted-total[^"]*"[^>]*>\s*\$15\.01', text)
+        facts["event"]["status"] = "SETTLED"
+        facts["rows"] = [{"id": 1, "name": "Ana", "status": "CHARGED", "max_cents": 4000, "share_cents": 1501}]
+        text = page.render(board=app.board_for_event(facts, NOW), pledge_new_tab=False)
+        assert re.search(r'class="[^"]*board-counted-total[^"]*"[^>]*>\s*1 person', text)
 
 
 # board.json has exactly the section 10 keys, and so does each row. Money and times are finished text.
@@ -453,8 +509,9 @@ def test_board_json_keys_match_the_contract(monkeypatch, test_db, test_db_url):
         assert board["rows"][1]["status_word"] == "Pledged"
         assert board["rows"][1]["counted"] is False
         assert board["held_total_text"] == "$40.00"
+        assert board["counted_total_text"] == "$40.00"
         assert board["seconds_left"] == 600
-        assert board["banner_text"] == "Pledging open: 10 min left"
+        assert board["banner_text"] == "Pledging open: 0:10:00 left"
         assert board["pledging_open"] is True
     finally:
         delete_event(test_db, event_id)
@@ -505,7 +562,7 @@ def test_board_page_and_s2_panel(monkeypatch, test_db, test_db_url):
         assert page.status_code == 200
         text = page.get_data(as_text=True)
         assert "Ana: Held, max $40.00" in text
-        assert "Pledging open: 10 min left" in text
+        assert "Pledging open: 0:10:00 left" in text
         assert pledge_link in text
         assert "Ana: Held, max $40.00" in client.get(admin_url).get_data(as_text=True)
         set_event_status(test_db, event_id, "EXPIRED")
