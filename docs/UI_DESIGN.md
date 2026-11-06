@@ -11,9 +11,9 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 ## 2. Visual direction
 
 - **Mood:** a friendly "last call" at a bar or campfire: warm, confident, a little playful. Not a bank.
-- Black means "counted / goal reached", and one warning color means "declined / needs attention". Everything else is neutral (D84).
+- Muted sage means "counted / goal reached", and one warning color means "declined / needs attention". Everything else is neutral (D86).
 - One font, Inter, for everything (D84, replaces D53's Geist Serif). Money amounts should be big and easy to read.
-- Avoid the default look of a template: no generic hero gradient, no stock illustrations. The ribbed picture behind the black cards is the one texture on the app pages.
+- Avoid the default look of a template: no generic hero gradient, no stock illustrations. Gradients are light, not paint, and follow the rules in §8 (D86).
 - Record the final palette and fonts at the bottom of this file so the video and README match.
 
 ## 3. Screens
@@ -76,6 +76,10 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | S1 demo-mode checkbox | **Demo mode: timers in minutes, not hours** |
 | S2 share button | **Copy link**, then **Copied ✓**. On a phone with a share menu: **Share** |
 | S2 share link | **Open in new tab** |
+| Board, before pledging opens | **Invite opens when pledging starts** (not shown after an event ends, when it would be untrue) |
+| Share buttons, if the browser can't copy | **Press and hold to copy**, above the link in a small field |
+| 404 page | **This page doesn't exist.** and **Back to start** |
+| 500 page | **Something went wrong on our side.** then **Nothing was charged.** and **Back to start** (the second line is for Emmanuel to confirm before it's wired up) |
 | S2 private address warning | **This page's address is private. Share only the link above.** |
 | S6 during last call | **You're counted, so you can't leave during last call.** |
 | After lock | **Charged once. PayPal closes the rest of each hold.** |
@@ -96,7 +100,7 @@ Never write "released instantly", "sent to the cabin", or "no signup needed" (th
 | Event status | Banner | Progress bar |
 |---|---|---|
 | `OPEN` | "Pledging open: [time] left" | sum of counted maxes / goal |
-| `LAST_CALL` | the last call banner + countdown | full, black |
+| `LAST_CALL` | the last call banner + countdown | full, sage |
 | `LOCKING` / `CHARGING` | "Locking shares…" | full |
 | `SETTLED` | "Done! Club receives $[real net]" | full |
 | `NEEDS_ATTENTION` | "Needs the treasurer's attention" | full, warning color, with the word |
@@ -112,11 +116,11 @@ Each pledger row shows (never the email, which never appears on the public board
 
 ## 6. The three moments the video needs (simple CSS only)
 
-1. **The circle turns black together:** when Ana ("if Jay's in") and Jay ("if Ana's in") both become counted, their chips and avatars turn black at the same moment, 200ms, no stagger (D84).
+1. **The circle turns sage together:** when Ana ("if Jay's in") and Jay ("if Ana's in") both become counted, their chips and avatars turn sage at the same moment, 200ms, no stagger (D86).
 2. **Share drops:** during last call, when someone joins, the old share slides up and fades as the new one slides in from below, 300ms. Both are the server's text, so JavaScript does no money math (D83, D84).
-3. **Goal reached:** the half ring fills, the status card turns black, the countdown card starts its gentle pulse, and the main button becomes "Join last call".
+3. **Goal reached:** the half ring fills, light comes up in the status card, the countdown card starts its gentle pulse and its light drifts, and the main button becomes "Join last call".
 
-Keep one-time animations under about 0.8 seconds and respect `prefers-reduced-motion`. The countdown's 2-second pulse is a loop, and it stops under reduced motion.
+Keep one-time animations under about 0.8 seconds and respect `prefers-reduced-motion`. The countdown's 2-second pulse and 8-second light drift are loops, and they stop under reduced motion.
 
 The hero's idle float and scroll zoom are extra to these three moments, and they are off under reduced motion too (D85).
 
@@ -130,20 +134,25 @@ The hero's idle float and scroll zoom are extra to these three moments, and they
 
 ## 8. Final palette and fonts
 
-**Look (D84, D85):** a clean light dashboard in black and white. A calm grey page, white cards, black for anything important. The copy stays warm and plain, so it never feels like a bank. The variables live on `:root` in `static/style.css`.
+**Look (D86):** dark, calm and high-end, like a premium card or a watch face: deep black, light coming through ribbed glass, one muted color, real depth. The copy stays warm and plain, so it never feels like a bank. The variables live on `:root` in `static/style.css`.
 
 | Variable | Value | Job |
 |---|---|---|
-| `--page` | `#F3F3F1` | Page background, with a faint dot grid |
-| `--card` | `#FFFFFF` | Cards |
-| `--ink` | `#0B0B0B` | Main text, primary buttons, counted |
-| `--ink-2` | `#5C5C5C` | Secondary text, captions, placeholders |
-| `--ink-3` | `#8A8A8A` | The hero's second headline line only. 3.45:1 on white is too faint for smaller text |
-| `--line` | `#E5E5E2` | Borders and dividers |
-| `--held` | `#9A9A9A` | Held but not counted in the gauge, and the EXPIRED ring |
-| `--on-ink` | `#FFFFFF` | Text on black |
-| `--on-ink-2` | `#BDBDBD` on plain black, `#E5E5E5` on a photo card | Quieter text on black |
-| `--danger` / `--danger-bg` | `#B42318` / `#FDECEA` | Only Declined, Charge failed and Needs attention, always with a word |
+| `--bg` | `#0A0B0C` | Page |
+| `--surface` | `#131517` | Cards |
+| `--surface-2` | `#1A1D20` | Raised cards and inputs |
+| `--line` | white at 8% | Borders |
+| `--line-strong` | white at 14% | Input edges, outlined chips |
+| `--ink` | `#F2F3F1` | Main text |
+| `--ink-2` | `#A6ACA8` | Secondary text and captions |
+| `--ink-3` | `#6E7571` | Reserved. 3.6 to 4.2:1 is too faint for small text, so no text uses it |
+| `--tint-900` | `#0F1A1B` | The darkest of the one color |
+| `--tint-700` | `#1E3436` | Button bottoms, the middle of a bloom |
+| `--tint-500` | `#3F6461` | Button tops, the bright part of a bloom |
+| `--tint-300` | `#9DB8AE` | `--accent`: counted and goal reached, focus rings, always with a word |
+| `--tint-100` | `#D6E3DC` | Sandbox banner, Charged chip |
+| `--on-accent` | `#0A0B0C` | Text on the light tints |
+| `--danger` / `--danger-bg` | `#F2867A` / `#2A1513` | Only Declined, Charge failed and Needs attention, always with a word |
 
 **Font:** Inter from Google Fonts, weights 400, 500 and 600, with system-ui as the fallback. `tabular-nums` is on for the whole page, so money and times never jump.
 
@@ -159,41 +168,50 @@ Two sizes sit outside that scale on purpose: form labels (14px) and the status c
 
 **Spacing and shape:** a 4px scale (4, 8, 12, 16, 20, 24, 32, 48, 64). Gutter 16 / 32px, card padding 20 / 24px, card gap 12 / 20px, content max-width 1280px. Cards are 24px round. Fields are 48px tall, 14px round, with 16px text so iPhones don't zoom. Buttons and chips are pills: 48px tall on phones, 44px on laptops. The 40px icon buttons have an invisible ring that makes the tap target 46px. Layout breakpoints are 768, 1024 and 1200px.
 
-**Icons:** Lucide (ISC license, copyright notice in `templates/icons.html`), inline SVG, 20px, 1.5px line. **Logo:** `static/img/logo.svg` and `logo-white.svg`, Samuel's files, used as they are. **Picture:** `static/images/ribbed-dark.jpg`, Samuel's, behind the black cards under a 60% dark layer, so text passes AA over its brightest pixel.
+**Gradients (D86):** they are light, not paint.
 
-**Shadows (D85):** layered, soft and black only, never a colored glow.
+- One hue family: ink to teal to sage. At most three stops, all from the `--tint` scale or black. No gradient text.
+- Big, soft, off-center radial blooms from one corner, never a straight fade across a whole card.
+- Grain on every gradient, so it doesn't band: a noise SVG in `--grain`, at 5%.
+- No text under 16px on the bright part. Words sit at the side away from the light.
+- Used on the landing hero, the "Held so far" card, the countdown card, the status card in last call, the sidebar's sandbox card and one 6% bloom at the top right of the page. Everything else is solid `--surface`.
+- **Ribbed light:** thin vertical ribs, 6px apart, white at 4 to 5%, over a bloom. Used on the landing hero and the countdown card only. In last call the countdown's light drifts on an 8-second loop.
 
-| Variable | Used on |
-|---|---|
-| `--shadow-rest` | Every card |
-| `--shadow-raised` | The featured "Held so far" card, the countdown card, the logo tile |
-| `--shadow-floating` | The hero's floating pieces |
-| `--shadow-hover` | Hovered cards. It sits on a layer that only fades, because animating `box-shadow` would repaint every frame |
+The gradient sits on `.card-bloom`, an empty element inside the card. It is a separate layer, so it can move without repainting the card.
 
-Raised surfaces also get a 1px highlight along the top edge. Primary buttons get a small shadow so they look pressable. Inputs stay flat.
+**Depth:** on a dark page, depth comes from light. Cards have a 1px `--line` border, a thin highlight along the top edge and a soft shadow. Raised cards (`--surface-2`) have a stronger highlight and a deeper shadow. Hovered cards lift 2px, and their bigger shadow sits on a layer that only fades, because animating `box-shadow` would repaint every frame.
 
-**Glass (D85), used sparingly:** the landing header, the phone's bottom action bar and the hero's floating pieces on screens from 768px, and nowhere else. Phones skip it on the pieces, because blur behind moving cards is heavy there. Without `backdrop-filter`, the header and bar are solid white.
+**Buttons:** the primary is a pill lit from inside: a `--tint-500` to `--tint-700` gradient, a highlight along the top, a shade along the bottom and a soft glow under it. Hover fades in a brighter layer and a bigger glow. Secondary buttons, icon buttons and the current menu item are glass: white at 6%, `blur(12px)`, a 12% border and a highlight along the top. The leave button is glass with `--danger` text.
 
-**Hover, press and wiggle (D85):** hover effects apply only under `@media (hover: hover) and (pointer: fine)`. Cards lift 2px, buttons lift 1px, "Who's in" rows fill with `--page` and the avatar grows slightly, arrows lean 2px the way they point, and `.text-link` underlines slide in from the left. A press is `scale(0.97)` over 120ms. The wiggle (rotate -3, 3, -2, 1, 0 degrees over 450ms) is for the logo on hover, "Copied ✓", "Just pledged", and Invite once, 8 seconds after an empty board loads. A refused field shakes instead. Money, the countdown and status chips never wiggle.
+**Glass (used sparingly):** the landing header, the phone's bottom action bar and buttons, and nowhere else. Without `backdrop-filter`, or under `prefers-reduced-transparency`, these become solid.
 
-**Landing page (D85):** it sits at the top of S1, on `GET /`. A sticky glass header, then a dotted hero canvas with the logo tile, the headline, the supporting line, one button, and six floating pieces (four on tablets, two on phones). Then `#how`, `#create` (the form) and the footer. The pieces are aria-hidden drawings of our own components, and every name and amount in them is made up. Scrolling the first 600px zooms past them. The tile reaches the header at 280px, because any later and the headline would scroll through it.
+**Chips:** Counted is `--tint-300` with dark text. Held is white at 10%. Pledged is an outline. Hold pending is a dashed outline. Waiting on is a `--tint-300` outline with `--tint-100` text. Declined and Charge failed are `--danger-bg` with `--danger` text. Charged is `--tint-100` with dark text.
+
+**Half ring:** the counted arc runs from `--tint-500` to `--tint-300`. Still-needed stripes are white at 12%. A held arc, white at 25%, waits for `held_percent`.
+
+**Icons:** Lucide (ISC license, copyright notice in `templates/icons.html`), inline SVG, 20px, 1.5px line. **Logo:** `static/img/logo-white.svg` on dark surfaces, and `logo.svg` for light ones. Both are Samuel's files, used as they are. **Favicon:** `static/img/favicon.svg` follows the browser's light or dark setting. A mask widens the mark's gaps slightly, because its thin lines blur at 16px. The two PNG icons were drawn from the logo.
+
+**Hover, press and wiggle (D85):** hover effects apply only under `@media (hover: hover) and (pointer: fine)`. Cards lift 2px, buttons lift 1px, "Who's in" rows lighten and the avatar grows slightly, arrows lean 2px the way they point, and `.text-link` underlines slide in from the left. A press is `scale(0.97)` over 120ms. The wiggle (rotate -3, 3, -2, 1, 0 degrees over 450ms) is for the logo on hover, "Copied ✓", "Just pledged", and Invite once, 8 seconds after an empty board loads. A refused field shakes instead. Money, the countdown and status chips never wiggle.
+
+**Landing page (D85):** it sits at the top of S1, on `GET /`. A sticky glass header, then a hero canvas with ribbed light, the logo tile, the headline, the supporting line, one button, and six floating pieces (four on tablets, two on phones). Then `#how`, `#create` (the form) and the footer. The pieces are aria-hidden drawings of our own components, and every name and amount in them is made up. Scrolling the first 600px zooms past them. The tile reaches the header at 280px, because any later and the headline would scroll through it.
 
 **Contrast** (WCAG 2 formula, worked out Nov 5; AA needs 4.5:1 for text and 3:1 for large text):
 
 | Foreground on background | Ratio | Used for |
 |---|---|---|
-| `--ink` on `--card` / `--page` | 19.68 / 17.72 | Main text |
-| `--ink-2` on `--card` / `--page` | 6.69 / 6.02 | Secondary text, captions, placeholders |
-| `--ink-3` on `--page` | 3.11 | The hero's second line: large text only |
-| White on `--ink` | 19.68 | Buttons, black chips |
-| White on a photo card's brightest pixel | 6.0 | Numbers and titles |
-| `#E5E5E5` on a photo card's brightest pixel | 4.7 | Captions on photo cards |
-| `#BDBDBD` on `--ink` | 10.48 | Quieter text on plain black |
-| `--danger` on `--danger-bg` / `--card` | 5.75 / 6.57 | Declined, Charge failed, Needs attention |
-| `--ink` on `--line` | 15.59 | Held chip |
-| `--ink-2` on `--line` | 5.30 | Disabled button |
+| `--ink` on `--bg` / `--surface` / `--surface-2` | 17.70 / 16.44 / 15.21 | Main text |
+| `--ink-2` on `--bg` / `--surface` / `--surface-2` | 8.52 / 7.92 / 7.33 | Secondary text, captions, placeholders |
+| `--ink-2` on `--tint-900` / `--tint-700` | 7.68 / 5.68 | Captions on a bloom's darker part |
+| `--ink` on `--tint-900` / `--tint-700` / `--tint-500` | 15.94 / 11.79 / 5.88 | Text on a bloom, primary buttons |
+| `--ink` on a hovered primary button | 4.85 | Button words |
+| `--ink` on glass, resting / hovered | 14.16 / 12.52 | Secondary buttons |
+| `--danger` on glass / `--danger-bg` | 6.35 / 6.97 | Leave button, Declined, Charge failed |
+| `#0A0B0C` on `--tint-300` / `--tint-100` | 9.29 / 14.90 | Counted chip, banner, Charged chip |
+| `--tint-100` on `--surface` | 13.84 | Waiting on chip |
+| `--ink` on the Held chip | 12.52 | Held chip |
+| `--tint-300` on `--bg` / `--surface-2` | 9.29 / 7.98 | Hero's second line, focus ring |
 
-Not text, but worth knowing: `--line` on white is 1.26:1, below the 3:1 WCAG asks for a field's edge, and `--held` on white is 2.81:1, below 3:1 for a graphic. A field's label and the ring's legend words carry the meaning. `--ink-3` (3.45:1) would clear the bar for field borders if the team wants that.
+Below the bar, so nothing depends on them alone: `--ink-2` on `--tint-500` is 2.83, so small text stays off a bloom's bright part. `--ink-3` is 3.58 to 4.17, so it isn't used for text. An input's edge is 1.67:1 and the ring's stripes 1.40:1 against 3:1 for graphics; a field's label and the ring's words and number carry the meaning.
 
 ## 9. Sharing the link (D31)
 
@@ -208,7 +226,7 @@ Added by Emmanuel on Oct 31 for step 5b (D54–D58). `app.py` passes exactly the
 - Money and times arrive as finished text, so templates and JavaScript never format or add up money (§7, rule 2). The `dollars` filter (`{{ 4000|dollars }}` shows `$40.00`) is for a template that is given cents. No 5b page needs it.
 - No page and no JSON ever gets an email or a `pledger_token`, except the friend's own S6 page and the link on their own pledge page (D82), which carry their own token. Only S2 gets anything that contains the `admin_token`.
 - Later milestones may add keys. They never rename one.
-- Files: `create_event.html` (S1), `admin.html` (S2), `board.html` (S3) and `board_panel.html` (the board). `board_panel.html` is included by S2 and S3; the others extend `base.html` (D76). `macros.html` holds shared pieces and `icons.html` the icons. `create_event.html` replaces `base.html`'s whole `shell` block and keeps the banner (D85).
+- Files: `create_event.html` (S1), `admin.html` (S2), `board.html` (S3) and `board_panel.html` (the board). `board_panel.html` is included by S2 and S3; the others extend `base.html` (D76). `macros.html` holds shared pieces and `icons.html` the icons. `create_event.html` replaces `base.html`'s whole `shell` block and keeps the banner (D85). `404.html` and `500.html` are ready for `app.errorhandler`.
 - *Placeholder* marks D57's texts, used until Samuel approves or replaces them in §4.
 
 ### S1 `create_event.html` (`GET /`, and `POST /events` when it refuses)
