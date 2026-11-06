@@ -245,3 +245,118 @@ def test_first_authorization():
               "purchase_units": [{"payments": {"authorizations": [{"id": "AUTH1", "status": "DENIED"}]}}]}
     assert paypal_client.first_authorization(answer) == {"id": "AUTH1", "status": "DENIED"}
     assert paypal_client.first_authorization({"name": "UNPROCESSABLE_ENTITY"}) == {}
+
+
+# Full refunds use the saved capture ID and request ID, with no amount to recalculate.
+def test_refund_capture_uses_full_refund_contract(monkeypatch):
+    use_fake_settings(monkeypatch)
+    sent = fake_api(monkeypatch, make_response(201, {"id": "REFUND1", "status": "COMPLETED"}))
+    result = paypal_client.refund_capture("CAPTURE1", "saved-refund-request")
+    assert len(sent) == 1
+    assert sent[0]["method"] == "POST"
+    assert sent[0]["url"] == "https://api-m.sandbox.paypal.com/v2/payments/captures/CAPTURE1/refund"
+    assert sent[0]["options"]["json"] == {}
+    assert sent[0]["options"]["headers"]["PayPal-Request-Id"] == "saved-refund-request"
+    assert sent[0]["options"]["timeout"] == config.PAYPAL_TIMEOUT_SECONDS
+    assert result["data"] == {"id": "REFUND1", "status": "COMPLETED"}
+
+
+# Reading an existing refund must never turn into another refund POST.
+def test_get_refund_is_read_only(monkeypatch):
+    use_fake_settings(monkeypatch)
+    sent = fake_api(monkeypatch, make_response(200, {"id": "REFUND1", "status": "PENDING"}))
+    result = paypal_client.get_refund("REFUND1")
+    assert len(sent) == 1
+    assert sent[0]["method"] == "GET"
+    assert sent[0]["url"] == "https://api-m.sandbox.paypal.com/v2/payments/refunds/REFUND1"
+    assert sent[0]["options"]["json"] is None
+    assert "PayPal-Request-Id" not in sent[0]["options"]["headers"]
+    assert result["data"]["status"] == "PENDING"
+
+
+# Preserve real statuses even on HTTP success; only the status parser identifies COMPLETED.
+@pytest.mark.parametrize("status", ["COMPLETED", "PENDING", "FAILED", "CANCELLED"])
+@pytest.mark.parametrize("http_status", [200, 201])
+def test_refund_reads_actual_status(monkeypatch, status, http_status):
+    use_fake_settings(monkeypatch)
+    fake_api(monkeypatch, make_response(http_status, {"id": "REFUND1", "status": status}))
+    result = paypal_client.refund_capture("CAPTURE1", "saved-refund-request")
+    assert result["data"]["status"] == status
+    assert paypal_client.refund_status(result) == status
+
+
+# Empty, malformed, unsuccessful and unrecognized answers are not proof of a refund.
+@pytest.mark.parametrize("answer", [
+    {"http_status": 201, "data": {}},
+    {"http_status": 201, "data": {"id": "REFUND1"}},
+    {"http_status": 201, "data": {"status": "COMPLETED"}},
+    {"http_status": 201, "data": {"id": "REFUND1", "status": "UNKNOWN"}},
+    {"http_status": 500, "data": {"id": "REFUND1", "status": "COMPLETED"}},
+    {"http_status": None, "data": {}},
+    {"http_status": 200, "data": []},
+    {"http_status": 200, "data": {"id": "REFUND1/other", "status": "COMPLETED"}},
+])
+def test_refund_status_rejects_unknown_results(answer):
+    assert paypal_client.refund_status(answer) is None
+
+
+# One wrapper invocation makes at most one HTTP attempt, including a timeout or server failure.
+@pytest.mark.parametrize("failure", ["timeout", "server_error", "not_json"])
+def test_refund_post_never_retries_automatically(monkeypatch, failure):
+    use_fake_settings(monkeypatch)
+    sent = fake_api(monkeypatch, make_response(500, {}))
+
+    def failed_request(method, url, **options):
+        sent.append({"method": method})
+        if failure == "timeout":
+            raise requests.Timeout()
+        if failure == "not_json":
+            response = make_response(201)
+            response._content = b"not JSON"
+            return response
+        return make_response(500, {})
+
+    monkeypatch.setattr(paypal_client.requests, "request", failed_request)
+    result = paypal_client.refund_capture("CAPTURE1", "saved-refund-request")
+    assert len(sent) == 1
+    assert paypal_client.refund_status(result) is None
+
+
+# Refund writes need a nonblank saved ID; rejecting it must happen before getting a token.
+@pytest.mark.parametrize("request_id", [None, "", "   ", 123])
+def test_refund_requires_saved_request_id(monkeypatch, request_id):
+    use_fake_settings(monkeypatch)
+    sent = fake_api(monkeypatch, make_response(201, {}))
+    with pytest.raises(ValueError):
+        paypal_client.refund_capture("CAPTURE1", request_id)
+    assert sent == []
+
+
+# The two new methods retain the existing sandbox guard and URL-ID validation.
+@pytest.mark.parametrize("method", ["refund_capture", "get_refund"])
+def test_refund_methods_refuse_live_and_bad_ids(monkeypatch, method):
+    use_fake_settings(monkeypatch)
+    sent = fake_api(monkeypatch, make_response(200, {}))
+    arguments = ["CAPTURE1", "saved-request"] if method == "refund_capture" else ["REFUND1"]
+    function = getattr(paypal_client, method)
+    monkeypatch.setattr(config, "PAYPAL_BASE_URL", "https://api-m.paypal.com")
+    with pytest.raises(RuntimeError):
+        function(*arguments)
+    monkeypatch.setattr(config, "PAYPAL_BASE_URL", config.SANDBOX_BASE_URL)
+    arguments[0] = "ID1/another-path"
+    with pytest.raises(ValueError):
+        function(*arguments)
+    assert sent == []
+
+
+# Refund logs may identify payment operations, but never disclose credentials or bearer headers.
+def test_refund_logs_do_not_expose_secrets(monkeypatch, caplog):
+    use_fake_settings(monkeypatch)
+    caplog.set_level(logging.INFO)
+    fake_api(monkeypatch, make_response(201, {"id": "REFUND1", "status": "COMPLETED"}))
+    paypal_client.refund_capture("CAPTURE1", "saved-refund-request")
+    paypal_client.get_refund("REFUND1")
+    assert "/v2/payments/captures/CAPTURE1/refund" in caplog.text
+    assert FAKE_TOKEN not in caplog.text
+    assert FAKE_SECRET not in caplog.text
+    assert "Bearer" not in caplog.text

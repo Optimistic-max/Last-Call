@@ -122,4 +122,6 @@ Logs `pp_verify*.log`, `pp_recheck.log`, `pp_void10.log` and `pp_retry.log` live
 
 ## 8. Still unverified / not run
 
+**F7 Stage 1 (D87):** `refund_capture(capture_id, request_id)` sends one full-refund POST with `{}` and the exact saved request ID. `get_refund(refund_id)` GETs `/v2/payments/refunds/{refund_id}`. Both use `send_request`, its sandbox guard, ID validation and existing timeout; neither retries a refund POST. `refund_status(answer)` returns PayPal's actual `COMPLETED`, `PENDING`, `FAILED` or `CANCELLED` from a valid HTTP 200/201 refund resource, or None for an unknown/malformed result. This parser does not change database status. These HTTP-only wrappers cannot establish database ownership/provenance: Stage 2 must select the recorded successful capture, commit its refund record/request ID, guard concurrency and match the returned ID. No production caller is added in Stage 1. Real sandbox refund through these wrappers: NOT RUN. Local checks are recorded in TEST_PLAN.md.
+
 Card fields in the app on the live Render URL (M1, `NOT RUN`) · charging a hold placed through card fields (`NOT RUN`) · PayPal-button authorize in a browser · reauthorizing after day 3 · live (non-sandbox) fees · how fast a card issuer clears the leftover pending amount · whether ACDC is on for our app · which sandbox app A13 ran on (app unverified, not re-run).

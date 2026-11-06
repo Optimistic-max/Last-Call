@@ -18,6 +18,8 @@ CREATE TABLE events (
     last_call_ends  TIMESTAMPTZ,                       -- min(goal time + 1h, hard_deadline); M1: hard_deadline (D25)
     goal_cents      INTEGER,                           -- fee-adjusted goal, saved at lock
     lock_started_at TIMESTAMPTZ,                       -- saved when LAST_CALL -> LOCKING wins; resumes a stuck lock (D27)
+    refund_run_token TEXT,                             -- durable refund owner, no automatic expiry (D87)
+    refund_revision INTEGER NOT NULL DEFAULT 0 CHECK (refund_revision >= 0),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -58,6 +60,7 @@ CREATE TABLE holds (
     status          TEXT        NOT NULL DEFAULT 'PENDING',  -- PENDING, CREATED, DENIED, CAPTURED, VOIDED, NOT_PLACED
     expires_at      TIMESTAMPTZ,                       -- from PayPal's expiration_time
     void_tried_at   TIMESTAMPTZ,                       -- the cleanup sweep's claim on this hold (D80)
+    refund_check_status TEXT CHECK (refund_check_status IN ('PENDING', 'RESOLVED', 'MANUAL_REVIEW')),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -84,11 +87,23 @@ CREATE TABLE refunds (
     refund_id       TEXT        UNIQUE,
     amount_cents    INTEGER     NOT NULL,
     status          TEXT        NOT NULL DEFAULT 'PENDING',
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    send_state TEXT NOT NULL DEFAULT 'READY',
+    send_started_at TIMESTAMPTZ,
+    error_code TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT refunds_one_per_capture UNIQUE (capture_id),
+    CONSTRAINT refunds_amount_positive CHECK (amount_cents > 0),
+    CONSTRAINT refunds_request_not_blank CHECK (btrim(request_id) <> ''),
+    CONSTRAINT refunds_send_state CHECK (send_state IN ('READY', 'IN_FLIGHT', 'ANSWERED', 'UNCERTAIN')),
+    CONSTRAINT refunds_send_evidence CHECK (send_state <> 'IN_FLIGHT' OR send_started_at IS NOT NULL)
 );
 ```
 
 ## Notes
+
+- **F7 Stage 1 (D87): designed, not tested in PostgreSQL.** `schema.sql` also installs `public.protect_refund_record()` and the `refunds_protect_record` BEFORE INSERT OR UPDATE trigger. INSERT requires a recorded `COMPLETED` capture with a nonblank PayPal capture ID and matching full amount; a share lock keeps that capture stable through insertion. UPDATE cannot change the capture reference, original request ID, amount or creation time, or erase/replace an assigned refund ID. Updating result fields remains possible. These guards do not send payments or implement refund lifecycle.
+- **Recovery fields are evidence for Stage 2, not a working recovery system.** A null `refund_run_token` means no owner; a nonnull owner never expires automatically. `refund_revision` will guard stale submitted actions. `send_state` separates never-started (`READY`), started (`IN_FLIGHT`), recorded response (`ANSWERED`) and uncertain (`UNCERTAIN`); `IN_FLIGHT` requires `send_started_at`. `error_code` is for sanitized codes. A null hold `refund_check_status` means not checked; `PENDING`, `RESOLVED` and `MANUAL_REVIEW` record F7 authorization checks.
+- **Existing databases:** `migrations/001_f7_refund_all.sql` is prepared for separate review and execution approval; it has NOT RUN against Neon. It targets `public`, locks before checking conflicts, adds fields/constraints/trigger atomically, and does not rewrite existing IDs, amounts, statuses or timestamps. Existing refund rows get new send state `UNCERTAIN`, since their prior sending history is unknown; only future inserts default to `READY`. Do not rerun `schema.sql` on an existing database. Malama reviews this schema change.
 
 - **Why `holds.status` starts at `PENDING` and `order_id` may be empty:** the row is saved with its `create_request_id` *before* the create-order call, and `order_id` is filled in the moment PayPal returns it. That is the "save before you send" rule (D24). A `PENDING` hold older than an hour with no `auth_id` is usually an abandoned checkout, with nothing to void. On a finished event, the cleanup sweep marks one whose `authorize_request_id` is empty `NOT_PLACED` (authorize was never sent, D80). If its `authorize_request_id` is set, authorize was sent and the answer never came: see `PAYPAL_INTEGRATION.md` §5.
 - **`holds.status` can also hold PayPal's own word:** after a failed or resumed capture, `lifecycle.record_failed_charge` and `resend_pending_capture` save the status PayPal's `GET` returns, as is (for example `PARTIALLY_CAPTURED` or `EXPIRED`). PayPal also has a `PENDING` authorization status (`unverified`, TODO (source needed)). So a `PENDING` hold **with** an `auth_id` is PayPal's pending, not ours: ours always has an empty `auth_id`. Nothing in the code mixes the two today, because the sweep's `NOT_PLACED` step needs an empty `auth_id` (D80). Found in the review of D81, Nov 5.

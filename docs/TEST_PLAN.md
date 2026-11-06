@@ -156,3 +156,41 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 | Full pytest collection with --tb=short, database tests disabled | VERIFIED | 135 passed, 0 failed, 174 skipped in 6.65s; 309 collected. TEST_DATABASE_URL was empty only in the child process environment, so dotenv could not refill it. 173 database tests skipped; one additional skip is the absent D74 frozen dataset. This does not verify the full database-backed suite |
 
 No real PayPal, Groq, development or production database calls were made. The existing server deadline calculation and payment transitions were not changed. Review ownership: Samuel for board.js/UI wording; Malama for money.py/counted selection.
+
+## F7 Stage 1: refund storage and HTTP wrappers (Nov 5, D87)
+
+F7 as a complete feature remains NOT RUN. There is no refund lifecycle, route, UI, recovery worker or automatic migration in this stage. The migration has NOT RUN against Neon or any PostgreSQL instance; Malama's schema review and Emmanuel's separate execution approval are pending.
+
+| Check | Status | Evidence |
+|---|---|---|
+| Tests first | VERIFIED | Before implementation: 39 failed, 15 passed, 16 skipped in 1.55s. Twenty-eight failures were absent refund methods/parser; eleven were absent SQL clauses/migration. Those missing-implementation failures do not prove runtime money safety |
+| Refund POST/GET and actual-status parsing | VERIFIED | HTTP stand-ins only, tests/test_paypal_client.py: full-refund body, exact supplied request ID, GET-only reading, four real status names, unknown/malformed answers, no automatic POST retry, sandbox/ID guards and secret-free logs |
+| Focused collection after restoration | VERIFIED | 54 passed, 0 failed, 16 skipped in 0.53s. Includes 43 PayPal tests and 11 SQL source checks; the 16 PostgreSQL tests were disabled |
+| SQL constraints, trigger and migration source checks | VERIFIED | tests/test_refund_schema.py checks declarations only, not PostgreSQL execution. Fresh/upgrade trigger text matches; migration has a locked preflight, transaction, no cleanup, and UNCERTAIN evidence for pre-existing rows |
+| Actual PostgreSQL constraints/trigger; migration preservation, rollback and locking | NOT RUN | tests/test_refund_database.py prepared. No approved disposable setup or exclusive reservation was available for this run; psql/postgres/initdb/docker were not found on PATH. No database provisioning or migration execution |
+| Existing payment regression collection, database disabled | VERIFIED | 133 passed, 0 failed, 173 skipped in 6.93s across client, lifecycle, capture retry, resume, leave, sweep, money, conditions, database helpers, routes and health. Database payment behavior remains unverified in this session |
+| Full collection with --tb=short, database disabled | VERIFIED | 174 passed, 0 failed, 190 skipped in 7.88s; 364 collected. Skips: 173 existing database tests, 16 new F7 database tests, 1 missing D74 dataset. This is not a clean full database-backed suite |
+| Real sandbox refunds | NOT RUN | No PayPal or Groq calls; all wrapper tests replace HTTP/token requests |
+
+Database disabling is explicit inside the Python launcher: set os.environ['TEST_DATABASE_URL'] = '', import config, assert the configured value is empty, then call pytest.main with --tb=short and the cache provider disabled. An initial PowerShell launch removed the empty environment variable instead, encountered database-fixture setup errors, and was stopped; it has no completed summary and is excluded from the counts above. No successful database test execution was observed. Later completed runs used the checked Python launcher. The .env file was not changed.
+
+Mutation evidence (all restored before regression runs):
+
+| Deliberate change | Detecting test in this session |
+|---|---|
+| Substitute request ID; change full-refund body | test_refund_capture_uses_full_refund_contract (each: 1 failed) |
+| Add an automatic second POST | test_refund_post_never_retries_automatically (3 failed: timeout, server_error, not_json) |
+| Make refund GET a POST | test_get_refund_is_read_only (1 failed) |
+| Force COMPLETED from HTTP success | test_refund_reads_actual_status (6 failed: PENDING, FAILED, CANCELLED at HTTP 200/201) |
+| Ignore refund-ID validity; ignore HTTP error | test_refund_status_rejects_unknown_results (2 failed; 1 failed respectively) |
+| Accept blank/invalid request IDs | test_refund_requires_saved_request_id (3 failed) |
+| Bypass sandbox; remove capture-ID validation; remove refund-ID validation | test_refund_methods_refuse_live_and_bad_ids (2 failed; 1 failed; 1 failed respectively) |
+| Log a bearer token | test_refund_logs_do_not_expose_secrets (1 failed; synthetic token only) |
+| Weaken capture uniqueness; allow zero cents | test_refund_sql_declares_capture_uniqueness_and_positive_cents (each: 1 failed) |
+| Remove each immutable field comparison (capture, request ID, amount, creation time); permit assigned refund-ID replacement | test_refund_sql_declares_immutable_identity_trigger (five separate mutations, each: 1 failed) |
+| Permit an unconfirmed capture; omit amount match | test_refund_sql_checks_recorded_capture_before_insert (each: 1 failed) |
+| Remove IN_FLIGHT timestamp requirement | test_refund_sql_declares_durable_recovery_fields (1 failed) |
+| Weaken duplicate preflight; omit BEGIN | test_refund_migration_checks_conflicts_atomically_without_deleting_data (each: 1 failed) |
+| Mark legacy rows READY | test_refund_migration_preserves_uncertainty_for_existing_rows (1 failed) |
+
+Twelve PayPal behavior mutations and thirteen SQL **source-only** mutations were caught by assertions. SQL source mutations are not proof of database enforcement. Earlier malformed Python mutation patches produced syntax errors; those runs were discarded, corrected and rerun to assertion failures. An atomicity mutation patch initially failed to apply; its corrected mutation then produced the stated assertion failure. SHA-256 of paypal_client.py, schema.sql and migrations/001_f7_refund_all.sql matched their respective pre-mutation values after all restorations. Existing capture/authorization/void function bodies and lifecycle.py were unchanged.

@@ -16,6 +16,8 @@ CREATE TABLE events (
     last_call_ends  TIMESTAMPTZ,                       -- min(goal time + 1h, hard_deadline); M1: hard_deadline (D25)
     goal_cents      INTEGER,                           -- fee-adjusted goal, saved at lock
     lock_started_at TIMESTAMPTZ,                       -- saved when LAST_CALL -> LOCKING wins; resumes a stuck lock (D27)
+    refund_run_token TEXT,                             -- durable owner; never expires automatically (F7)
+    refund_revision INTEGER NOT NULL DEFAULT 0 CHECK (refund_revision >= 0),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -56,6 +58,7 @@ CREATE TABLE holds (
     status          TEXT        NOT NULL DEFAULT 'PENDING',  -- PENDING, CREATED, DENIED, CAPTURED, VOIDED, NOT_PLACED
     expires_at      TIMESTAMPTZ,                       -- from PayPal's expiration_time
     void_tried_at   TIMESTAMPTZ,                       -- the cleanup sweep's claim on this hold (D80)
+    refund_check_status TEXT CHECK (refund_check_status IN ('PENDING', 'RESOLVED', 'MANUAL_REVIEW')),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -82,5 +85,46 @@ CREATE TABLE refunds (
     refund_id       TEXT        UNIQUE,
     amount_cents    INTEGER     NOT NULL,
     status          TEXT        NOT NULL DEFAULT 'PENDING',
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    send_state TEXT NOT NULL DEFAULT 'READY',           -- separate sending evidence from PayPal outcome
+    send_started_at TIMESTAMPTZ,
+    error_code TEXT,                                  -- sanitized code only, never a response body
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT refunds_one_per_capture UNIQUE (capture_id),
+    CONSTRAINT refunds_amount_positive CHECK (amount_cents > 0),
+    CONSTRAINT refunds_request_not_blank CHECK (btrim(request_id) <> ''),
+    CONSTRAINT refunds_send_state CHECK (send_state IN ('READY', 'IN_FLIGHT', 'ANSWERED', 'UNCERTAIN')),
+    CONSTRAINT refunds_send_evidence CHECK (send_state <> 'IN_FLIGHT' OR send_started_at IS NOT NULL)
 );
+
+-- Enforce immutable refund identity even if a future caller accidentally tries to replace it.
+-- INSERT only accepts a recorded successful capture and its exact full amount; no money math.
+CREATE FUNCTION public.protect_refund_record() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+DECLARE
+    payment public.captures%ROWTYPE;
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        IF NEW.capture_id IS DISTINCT FROM OLD.capture_id
+           OR NEW.request_id IS DISTINCT FROM OLD.request_id
+           OR NEW.amount_cents IS DISTINCT FROM OLD.amount_cents
+           OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+            RAISE EXCEPTION 'Refund identity cannot change' USING ERRCODE = '23514';
+        END IF;
+        IF OLD.refund_id IS NOT NULL AND NEW.refund_id IS DISTINCT FROM OLD.refund_id THEN
+            RAISE EXCEPTION 'Assigned refund ID cannot change' USING ERRCODE = '23514';
+        END IF;
+    ELSE
+        SELECT * INTO payment FROM public.captures WHERE id = NEW.capture_id FOR SHARE;
+        IF NOT FOUND OR payment.status <> 'COMPLETED' OR payment.capture_id IS NULL
+           OR btrim(payment.capture_id) = ''
+           OR NEW.amount_cents IS DISTINCT FROM payment.amount_cents THEN
+            RAISE EXCEPTION 'Refund requires a recorded completed capture and its full amount'
+                USING ERRCODE = '23514';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER refunds_protect_record BEFORE INSERT OR UPDATE ON public.refunds
+FOR EACH ROW EXECUTE FUNCTION public.protect_refund_record();
