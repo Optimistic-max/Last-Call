@@ -115,5 +115,6 @@ def test_f7_recovery_fields_start_unsent_and_require_send_evidence(test_db, refu
     assert refund["send_started_at"] is None
     with pytest.raises(psycopg.errors.CheckViolation):
         db.run(test_db, "UPDATE refunds SET send_state = 'IN_FLIGHT' WHERE id = %s", (refund["id"],))
-    db.run(test_db, "UPDATE refunds SET send_state = 'IN_FLIGHT', send_started_at = created_at WHERE id = %s",
+    db.run(test_db, "UPDATE refunds SET send_state = 'IN_FLIGHT', send_started_at = created_at, "
+                   "first_send_started_at = created_at, operation_revision = 1 WHERE id = %s",
            (refund["id"],))

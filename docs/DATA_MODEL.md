@@ -90,12 +90,14 @@ CREATE TABLE refunds (
     status          TEXT        NOT NULL DEFAULT 'PENDING',
     send_state TEXT NOT NULL DEFAULT 'READY',
     send_started_at TIMESTAMPTZ,
+    operation_revision BIGINT NOT NULL DEFAULT 0 CHECK (operation_revision >= 0),
+    first_send_started_at TIMESTAMPTZ,
     error_code TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT refunds_one_per_capture UNIQUE (capture_id),
     CONSTRAINT refunds_amount_positive CHECK (amount_cents > 0),
     CONSTRAINT refunds_request_not_blank CHECK (btrim(request_id) <> ''),
-    CONSTRAINT refunds_send_state CHECK (send_state IN ('READY', 'IN_FLIGHT', 'ANSWERED', 'UNCERTAIN')),
+    CONSTRAINT refunds_send_state CHECK (send_state IN ('READY', 'IN_FLIGHT', 'ANSWERED', 'UNCERTAIN', 'CHECK_ONLY')),
     CONSTRAINT refunds_send_evidence CHECK (send_state <> 'IN_FLIGHT' OR send_started_at IS NOT NULL)
 );
 ```
@@ -115,3 +117,8 @@ CREATE TABLE refunds (
 - **The treasurer's real net** is `SUM(captures.net_cents) WHERE status = 'COMPLETED'`, read from PayPal's own numbers. Never compute it from the formula.
 - **No email column and no stored "hold pending" (D62).** `pledges` has no `email` column before the freeze, so the pledge form asks for a name only. "Hold pending" (D31 #6) is never saved as a pledge status: it is worked out from `holds` when the board is built (Emmanuel's `board.json`, M4).
 - **Admin and pledger tokens** are generated with `secrets.token_urlsafe(24)`. Never show one person's token to another.
+
+- **Stage 2B corrections (D89):** operation_revision distinguishes individual refund operations within the same event owner/revision. Claims and accepted results increment it; stale writes change zero rows. first_send_started_at is set before the first POST and is immutable thereafter. Existing unknown times remain NULL. CHECK_ONLY is an explicitly authorized maintenance recovery state that permits GET only; a failed/pending observation never enables a POST. New operation guards prevent revision decreases, invented historical send times, retry transitions, and completion regression. Full accounting still belongs to lifecycle.py, not a column default.
+- **Migration 003:** migrations/003_f7_refund_operation_safety.sql extends the existing schema transactionally, checks enabled prerequisite guards, and preserves historical identities, amounts, statuses and timestamps. Stop old workers before applying it on a separately approved target. It has no automatic startup caller. Migrations 001/002 are preserved. Application rollback to older refund code is unsafe after using CHECK_ONLY: stop refund processing and preserve recovery evidence instead of deleting the columns. Local validation evidence belongs in TEST_PLAN.md; no Neon execution is authorized.
+
+- **Migration 004 (D90):** replaces only the operation guard function, transactionally with bounded lock waits and prerequisite checks. No columns or existing rows change. Only a fresh READY row with no sending history may enter IN_FLIGHT; no other state may reset to READY. An IN_FLIGHT revision increment remains valid for one-use dispatch. Migrations 001–003 remain unchanged. A late response's restricted ID-only save checks immutable identity, event ownership and the observed current revision without changing that revision or any outcome. Do not roll back to refund code that can reuse dispatch claims; stop refund processing and preserve evidence instead.

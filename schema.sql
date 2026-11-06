@@ -88,12 +88,14 @@ CREATE TABLE refunds (
     status          TEXT        NOT NULL DEFAULT 'PENDING',
     send_state TEXT NOT NULL DEFAULT 'READY',           -- separate sending evidence from PayPal outcome
     send_started_at TIMESTAMPTZ,
+    operation_revision BIGINT NOT NULL DEFAULT 0 CHECK (operation_revision >= 0),
+    first_send_started_at TIMESTAMPTZ,
     error_code TEXT,                                  -- sanitized code only, never a response body
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT refunds_one_per_capture UNIQUE (capture_id),
     CONSTRAINT refunds_amount_positive CHECK (amount_cents > 0),
     CONSTRAINT refunds_request_not_blank CHECK (btrim(request_id) <> ''),
-    CONSTRAINT refunds_send_state CHECK (send_state IN ('READY', 'IN_FLIGHT', 'ANSWERED', 'UNCERTAIN')),
+    CONSTRAINT refunds_send_state CHECK (send_state IN ('READY', 'IN_FLIGHT', 'ANSWERED', 'UNCERTAIN', 'CHECK_ONLY')),
     CONSTRAINT refunds_send_evidence CHECK (send_state <> 'IN_FLIGHT' OR send_started_at IS NOT NULL)
 );
 
@@ -145,3 +147,47 @@ END;
 $$;
 CREATE TRIGGER events_protect_refund_handoff BEFORE UPDATE OF status ON public.events
 FOR EACH ROW EXECUTE FUNCTION public.protect_refund_handoff();
+
+CREATE FUNCTION public.protect_refund_operation() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+    IF NEW.operation_revision < OLD.operation_revision THEN
+        RAISE EXCEPTION 'Refund operation revision cannot decrease' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.first_send_started_at IS NOT NULL AND
+       NEW.first_send_started_at IS DISTINCT FROM OLD.first_send_started_at THEN
+        RAISE EXCEPTION 'Original refund sending time cannot change' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.first_send_started_at IS NULL AND NEW.first_send_started_at IS NOT NULL AND NOT (
+        OLD.send_state = 'READY' AND OLD.send_started_at IS NULL AND OLD.operation_revision = 0
+        AND OLD.refund_id IS NULL AND OLD.status = 'PENDING'
+        AND NEW.send_state = 'IN_FLIGHT' AND NEW.operation_revision > OLD.operation_revision
+    ) THEN
+        RAISE EXCEPTION 'Unknown original sending time cannot be invented' USING ERRCODE = '23514';
+    END IF;
+    IF NEW.send_state = 'IN_FLIGHT' AND OLD.send_state <> 'IN_FLIGHT' AND (
+        OLD.send_state <> 'READY' OR OLD.first_send_started_at IS NOT NULL
+        OR OLD.send_started_at IS NOT NULL OR OLD.operation_revision <> 0
+        OR OLD.refund_id IS NOT NULL OR OLD.status <> 'PENDING'
+        OR NEW.first_send_started_at IS NULL
+        OR NEW.operation_revision <= OLD.operation_revision
+    ) THEN
+        RAISE EXCEPTION 'Only a fresh first-send claim may POST; retries are disabled' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.send_state <> 'READY' AND NEW.send_state = 'READY' THEN
+        RAISE EXCEPTION 'Recovery cannot authorize another POST' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.send_state = 'UNCERTAIN' AND NEW.send_state = 'ANSWERED' THEN
+        RAISE EXCEPTION 'Uncertain operations require authorized CHECK_ONLY recovery' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.send_state = 'CHECK_ONLY' AND NEW.send_state = 'ANSWERED' AND NEW.status <> 'COMPLETED' THEN
+        RAISE EXCEPTION 'A recovery observation cannot enable a retry' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.status = 'COMPLETED' AND NEW.status <> 'COMPLETED' THEN
+        RAISE EXCEPTION 'Completed refund cannot regress' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER refunds_protect_operation BEFORE UPDATE ON public.refunds
+FOR EACH ROW EXECUTE FUNCTION public.protect_refund_operation();

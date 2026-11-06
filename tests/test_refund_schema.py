@@ -55,7 +55,10 @@ def test_refund_sql_declares_durable_recovery_fields(filename):
     for declaration in ("refund_run_token TEXT", "refund_revision INTEGER", "send_state TEXT",
                         "send_started_at TIMESTAMPTZ", "error_code TEXT", "refund_check_status TEXT"):
         assert declaration in text
-    assert "CHECK (send_state IN ('READY', 'IN_FLIGHT', 'ANSWERED', 'UNCERTAIN'))" in text
+    states = "'READY', 'IN_FLIGHT', 'ANSWERED', 'UNCERTAIN'"
+    if filename == "schema.sql":
+        states += ", 'CHECK_ONLY'"
+    assert "CHECK (send_state IN (" + states + "))" in text
     assert "CHECK (send_state <> 'IN_FLIGHT' OR send_started_at IS NOT NULL)" in text
 
 

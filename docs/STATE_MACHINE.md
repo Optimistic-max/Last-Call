@@ -107,3 +107,15 @@ Every way a step can go wrong, and where its handling is written down. All of it
 4. **Together, 1–3 mean the board can never flip from "goal reached" back to "short" during last call.**
 5. **Each counted pledge is captured at most once** (compare-and-set + saved request IDs + `final_capture: true`).
 6. **Every authorization ID in PayPal also exists in our `holds` table**, because we save it before doing anything else. The one gap: an authorize call whose answer never arrives (`PAYPAL_INTEGRATION.md` §5).
+
+## F7 Stage 2B safety correction (D89)
+
+Before NEEDS_ATTENTION -> REFUNDING, inspect every pledge, hold and capture attempt. CREATED holds must be resolved through Stage 2A before handoff. Unknown authorizations, active/uncertain void claims, unknown captured money and inconsistent capture records block handoff. Read back every known authorization and accept changed PayPal statuses only when the local snapshot still matches. CAPTURED/PARTIALLY_CAPTURED are never classified as voided. Missing capture discovery remains manual (D49).
+
+A READY refund becomes IN_FLIGHT with its saved request ID, original-send timestamp and a new operation revision committed before HTTP. Every accepted result advances that revision. COMPLETED updates refund/capture/pledge records in one transaction; a pledge is not fully refunded while another known capture remains unresolved. Event completion independently checks capture-to-refund coverage, not just existing refund rows. A zero-payment event still needs resolved authorizations and consistent records.
+
+Ordinary GET reconciliation accepts only recorded ANSWERED/PENDING or CHECK_ONLY rows. It cannot release IN_FLIGHT/UNCERTAIN. Explicit authorized maintenance may transfer the exact existing claim to CHECK_ONLY; this fences stale workers and permits GET only. A noncompleted observation remains CHECK_ONLY and cannot authorize another POST. Unknown refund IDs remain blocked. No claim expires. Explicit refund retries are disabled pending exact-endpoint retention verification; this supersedes the retry availability described above in D28's original design.
+
+A durable ANSWERED/PENDING resource is not an active HTTP sender. The next independent READY refund may proceed under the event lock; another IN_FLIGHT, UNCERTAIN or CHECK_ONLY row blocks it. No refund function is called by settlement or the sweep.
+
+Final audit correction (D90): a committed IN_FLIGHT claim must consume its exact operation revision once more before HTTP. Duplicate delivery of the original claim cannot send. A crash after consumption stays blocked even if HTTP never began. A maintenance fence may permit the old POST response to preserve its valid refund ID only; outcome ownership is not transferred back. Explicit GET reconciliation is still required. Refund completion rolls back if the capture update does not change exactly one COMPLETED capture; a pledge with other outstanding captures remains CHARGED. Migration 004 rejects ANSWERED -> READY and second first-send transitions without altering Stage 2A.

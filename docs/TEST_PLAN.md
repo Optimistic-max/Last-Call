@@ -208,3 +208,139 @@ This does not start refund sending. The sweep skips a hold that already has `voi
 | Full pytest `--tb=short` | VERIFIED | 393 passed, 0 failed, 1 skipped, in 48.03s. The skip is `tests/ai_test_messages.json` not written yet (D74). Real PayPal: NOT RUN |
 
 The database was PID 316, `postgres.exe`, listening on `127.0.0.1:55439`, data directory `C:/Users/Emmanuel/AppData/Local/Temp/last-call-f7-stage2a-2505cd322d704e479ee139d5889fca8d/data`, database `f7_runtime`, cluster name `f7_stage1_validation`. The runner refused any other target and refused external HTTP. No Neon connection was used. No PayPal request was sent.
+
+## F7 Stage 2B lifecycle (Nov 6)
+
+Internal refund functions only. There is no refund-all route, no treasurer button, and no fee sentence. The F7 screen row above stays `NOT RUN`. One real sandbox refund stays `NOT RUN`. PayPal's same-request-ID refund replay is `read in docs` for the 45-day window and was `NOT RUN` here. Fake PayPal only.
+
+| Check | Status | Evidence |
+|---|---|---|
+| Tests first, before the functions | VERIFIED | 26 failed, 1 warning, in 22.92s. The failures were the missing functions `begin_refund_all`, `resume_refund_all`, `reconcile_refund`, `retry_failed_refund`, `finish_refunding`, and `save_refund_check`. Two thread tests also waited out because the call never started |
+| One extra safety test, then the focused file | VERIFIED | `test_void_token_on_another_hold_blocks_handoff` was added so a missing void-token recheck is caught. Focused file: 27 passed in 4.72s |
+| Mutation checks | VERIFIED | Sixteen deliberate breaks in `lifecycle.py` were each caught, then the file was restored byte for byte before the next one. SHA-256 after the last restore: `12e1de77cd396a8a5ee1d0a99aa9fe2b8307f8b215277747421b3ca4ba3627bd` |
+| Payment regression | VERIFIED | 390 passed, 0 failed, in 51.83s. PayPal client, lifecycle, capture retry, resume, leave, sweep, money, conditions, database helpers, routes, health, void ownership, refund schema, refund database, and refund lifecycle. Fake PayPal. Same local cluster |
+| Full pytest `--tb=short` | VERIFIED | 420 passed, 0 failed, 1 skipped, in 51.06s. The skip is `tests/ai_test_messages.json` not written yet (D74). Real PayPal: NOT RUN |
+
+| Deliberate break | Detecting test |
+|---|---|
+| Handoff without the compare-and-set | test_two_overlapping_begins_send_one_refund |
+| Handoff without the void-token recheck | test_void_token_on_another_hold_blocks_handoff |
+| Insert the refund row after the POST | test_request_and_inflight_are_committed_before_post |
+| Mint a new request ID on an explicit retry | test_failed_refund_is_not_posted_again_until_explicit_retry |
+| Skip the IN_FLIGHT commit | test_request_and_inflight_are_committed_before_post |
+| Allow two IN_FLIGHT refunds | test_paused_post_blocks_the_sibling_refund |
+| Treat HTTP success as COMPLETED | test_pending_refund_keeps_the_event_refunding |
+| Treat PENDING as COMPLETED | test_pending_refund_keeps_the_event_refunding |
+| Post again after UNCERTAIN | test_lost_answer_stays_uncertain_and_is_not_posted_again |
+| Clear the owner because the claim is old | test_old_claim_is_not_cleared_or_resent |
+| Refund a capture that is not COMPLETED | test_pending_and_failed_captures_are_not_refunded |
+| Change the copied refund amount | test_pending_and_failed_captures_are_not_refunded |
+| Call capture from begin | test_refund_functions_do_not_capture_settle_or_add_a_route |
+| Keep a transaction open during the authorization GET | test_new_failed_pledge_during_get_blocks_handoff |
+| Write a check after the event has left NEEDS_ATTENTION | test_check_write_refuses_after_refunding |
+| Let a stale owner save COMPLETED | test_stale_token_cannot_save_completed |
+
+The database was the same disposable cluster as Stage 2A: PID 316, `postgres.exe`, `127.0.0.1:55439`, data directory `C:/Users/Emmanuel/AppData/Local/Temp/last-call-f7-stage2a-2505cd322d704e479ee139d5889fca8d/data`, database `f7_runtime`, cluster name `f7_stage1_validation`. The runner refused any other target and refused external HTTP. No Neon connection was used. Neither F7 migration was run. No PayPal request was sent.
+
+## F7 Stage 2B safety corrections (Nov 6, D89)
+
+All database execution in this session used the already existing, identity-verified PostgreSQL 18.3 disposable cluster: 127.0.0.1:55439, cluster_name f7_stage1_validation, data directory C:/Users/Emmanuel/AppData/Local/Temp/last-call-f7-stage2a-2505cd322d704e479ee139d5889fca8d/data. The guarded runner overrides application database configuration, refuses other database targets, and refuses external HTTP. Fake PayPal only. No Neon connection or migration; real PayPal/Groq: NOT RUN.
+
+Tests-first evidence: 10 initial assertion failures reproduced active-POST reconciliation, stale GET regression, explicit retry, non-FAILED residual holds, missing refunds, and changed authorization statuses (2.34s). Two further assertion failures demonstrated delayed hold creation and authorization eligibility races (2.00s). Five initial PostgreSQL failures established that the new columns were absent; these structural failures are not counted as money-safety mutation evidence. Follow-up regressions each failed before their correction: a READY row with a known refund resource acquiring invented first-send evidence, and completed accounting without a saved refund resource ID.
+
+| Final check | Status | Evidence |
+|---|---|---|
+| Focused refund lifecycle, safety, schema and PostgreSQL tests | VERIFIED | 105 passed, 0 failed, 0 skipped in 12.37s |
+| Payment regression selection after restoration | VERIFIED | 441 passed, 0 failed, 0 skipped in 61.92s; PayPal client, lifecycle, capture retry, resume, leave, sweep, money, conditions, db, routes, health, void ownership and all refund modules |
+| Full pytest --tb=short -q -rs after restoration | VERIFIED | 471 passed, 0 failed, 1 skipped in 63.82s; skip: tests/test_ai_accuracy.py:156, tests/ai_test_messages.json is not written (D74) |
+| Final migration 003 preservation | VERIFIED | Four synthetic historical sending states preserved across all five populated application tables. operation_revision becomes 0 and first_send_started_at stays NULL; all original fields unchanged |
+| Failed preflight and injected late-DDL rollback | VERIFIED | Both restore the prior column/default/constraint/function/trigger catalog. Late failure was injected after function/trigger creation, before COMMIT |
+| Fresh schema versus migrated Stage 2A schema | VERIFIED | Column/default, constraint, function and trigger definitions match. Local databases f7_upgrade003_62ecce69c1 and f7_fresh003_62ecce69c1 retained for inspection |
+| Lifecycle mutations | VERIFIED | 23 intended violations caught; lifecycle.py restored byte-for-byte after each, SHA-256 afb05e77cd8bdd347d515b1fb047939934d3e367a6a6f45d2b88a6360f390204 |
+| PostgreSQL function mutations | VERIFIED | 5 guard removals caught by expected exception assertions. Original pg_get_functiondef restored exactly after each; SHA-256 1f333c51f3fe02dd3474777e233f977332752378b85c7f63009a59f311a146a2 |
+
+The matrix below lists the final mutations and detecting tests. Some invalid transitions are caught by PostgreSQL before HTTP; these prove the database guard, rather than an unsafe external call occurring. An earlier partial unknown-capture mutation left a redundant classifier intact and passed; it was replaced with a full classifier bypass and then caught. Syntax errors and broken mocks are not counted.
+
+| Deliberate break | Detecting test |
+|---|---|
+| active_get | `tests/test_refund_safety.py::test_get_cannot_release_active_post` |
+| stale_get | `tests/test_refund_safety.py::test_out_of_order_get_cannot_regress_completed[PENDING]` |
+| stale_id_save | `tests/test_refund_safety.py::test_operation_revision_rejects_stale_send_result[COMPLETED]` |
+| stale_uncertain | `tests/test_refund_safety.py::test_operation_revision_rejects_stale_send_result[NO_ANSWER]` |
+| event_owner | `tests/test_refund_lifecycle.py::test_stale_token_cannot_save_completed` |
+| event_revision | `tests/test_refund_lifecycle.py::test_stale_revision_cannot_reconcile_over_a_replacement` |
+| uncertain_sibling | `tests/test_refund_safety.py::test_uncertain_post_blocks_independent_refund` |
+| enable_retry | `tests/test_refund_safety.py::test_explicit_retry_remains_disabled_with_unknown_original_time` |
+| maintenance_gate | `tests/test_refund_safety.py::test_recovery_requires_authorized_maintenance_and_exact_claim` |
+| check_only_failed | `tests/test_refund_safety.py::test_check_only_is_get_only_and_does_not_enable_retry[FAILED]` |
+| all_holds | `tests/test_refund_safety.py::test_unresolved_nonfailed_hold_blocks_completion[HELD-CREATED]` |
+| missing_refund | `tests/test_refund_safety.py::test_missing_refund_blocks_completion[REFUNDED]` |
+| unknown_capture | `tests/test_refund_safety.py::test_unknown_capture_attempt_blocks_entire_plan[PENDING-False]` |
+| wrong_authorization | `tests/test_refund_safety.py::test_unusable_authorization_read_cannot_change_hold[wrong_id]` |
+| hold_snapshot | `tests/test_refund_lifecycle.py::test_changed_hold_during_get_blocks_handoff` |
+| created_capture | `tests/test_refund_safety.py::test_changed_authorization_state_is_recorded[CAPTURED-MANUAL_REVIEW]` |
+| creation_recheck | `tests/test_refund_safety.py::test_late_authorization_eligibility_is_rechecked[start_hold]` |
+| authorization_recheck | `tests/test_refund_safety.py::test_late_authorization_eligibility_is_rechecked[authorize_hold]` |
+| post_provenance | `tests/test_refund_safety.py::test_deliver_refuses_stale_claim_before_http` |
+| atomic_completion | `tests/test_refund_safety.py::test_completion_updates_roll_back_together` |
+| first_send_evidence | `tests/test_refund_safety.py::test_first_send_evidence_commits_before_post` |
+| known_resource_first_send | `tests/test_refund_safety.py::test_ready_row_with_existing_resource_is_not_a_first_send` |
+| completed_missing_resource | `tests/test_refund_safety.py::test_completed_refund_without_resource_id_blocks_completion` |
+| immutable_original_time | `tests/test_refund_operation_database.py::test_original_send_time_is_immutable` |
+| invent_historical_time | `tests/test_refund_operation_database.py::test_historical_original_send_time_cannot_be_invented` |
+| decrease_revision | `tests/test_refund_operation_database.py::test_revision_cannot_decrease_or_be_negative` |
+| check_only_post | `tests/test_refund_operation_database.py::test_check_only_cannot_become_a_post` |
+| completed_regression | `tests/test_refund_operation_database.py::test_completed_refund_cannot_regress_in_database` |
+
+Recovery remains maintenance-only, event-token authorized, and conditional on exact owner and revisions. The application_name label is not proof that a worker died. Operators must stop original workers; CHECK_ONLY grants only GET permission even then. Failed/pending recovery observations remain CHECK_ONLY. Unknown refund IDs remain blocked. Explicit retries remain disabled while exact-endpoint retention is unverified. Known ANSWERED/PENDING refunds allow serialized independent progress; uncertain/active/recovery operations block new POSTs. The tests simulate PayPal responses and process/database failures; real process-kill/deployment recovery and real refund behavior are NOT RUN.
+
+Migrations 001 and 002 and tests/fake_paypal.py matched their pre-task SHA-256 values. AST comparisons confirmed the pre-existing void, sweep, leave, capture, settlement and resume functions were unchanged. The approved eligibility guards are limited to hold creation and authorization claim. No route, template, fee, or Stage 3 implementation was added. Original uncommitted files were backed up under the disposable cluster's stage2b-safety-cab50f65f7ed4a81ad53e06747de603f directory.
+
+Final read-only cleanup check: f7_runtime contained 0 events, 0 pledges, 0 conditions, 0 holds, 0 captures and 0 refunds. The pre-existing PostgreSQL service remained stopped. The existing disposable server and validation databases were retained; this task did not start or stop the original service.
+
+## F7 Stage 2B final audit corrections (Nov 6, D90)
+
+All database execution below used the independently reverified existing disposable PostgreSQL 18.3 cluster on loopback port 55439, cluster_name f7_stage1_validation, data directory under last-call-f7-stage2a-2505cd322d704e479ee139d5889fca8d. No Neon connection or real PayPal/Groq call. The existing run_local_tests.py restricted every psycopg connection to f7_runtime on that cluster and rejected real requests.Session HTTP sends. DATABASE_URL was empty in the child process; .env was unchanged.
+
+| Check | Status | Actual result |
+|---|---|---|
+| Tests first, original lifecycle and database guards | VERIFIED | 26 failed, 6 passed in 5.60s in test_refund_dispatch.py. Eight meaningful failures: fenced POST loses ID (IN_FLIGHT/CHECK_ONLY), duplicate deliveries (shared/copied claim), dispatch revision not consumed, capture-zero-update incorrectly commits, ANSWERED reset accepted, second IN_FLIGHT entry accepted. Eighteen additional contract failures were the absent new ID-only helper; these are not counted as demonstrated safety violations |
+| Lifecycle implemented, before installing migration 004 | VERIFIED | 2 failed, 38 passed in 5.54s. Only the two direct SQL transition regressions remained |
+| Focused final refund selection, after restoration | VERIFIED | 148 passed, 0 failed, 0 skipped in 25.93s. Refund dispatch, migration, lifecycle, safety, operation database, database and schema modules |
+| Payment regression selection | VERIFIED | 484 passed, 0 failed, 0 skipped in 72.04s. Client, lifecycle, capture retry, resume, leave, sweep, money, conditions, db, routes, health, void ownership and every refund module |
+| Full pytest --tb=short -q -rs | VERIFIED | 514 passed, 0 failed, 1 skipped in 74.48s. Expected skip: tests/test_ai_accuracy.py:156, missing tests/ai_test_messages.json (D74). The previous 471 passing cases remain green; 43 cases were added |
+| Migration 004, verified local runtime | VERIFIED | Applied transactionally only in disposable f7_runtime. No historical row updates; migrations 001–003 unchanged |
+| Migration preservation and rollback | VERIFIED | Exact migration applied in new local f7_upgrade004_c0a882a20a after HEAD schema and migration 003. All six application tables and five historical send states preserved byte-equivalent JSON values. Missing prerequisite trigger caused preflight rollback. An injected undefined-function call after function replacement, before COMMIT, rolled back the complete column/constraint/function/trigger catalog |
+| Fresh-install compatibility | VERIFIED | Actual PostgreSQL catalog in f7_fresh004_c0a882a20a, initialized from schema.sql, matched the upgraded catalog. Both disposable databases retained for inspection |
+| Migration lock behavior | VERIFIED | Independent connection held the event lock. Exact migration stopped at its configured lock timeout; rollback left the catalog unchanged. No sleep-based concurrency synchronization |
+| Concurrency and crash boundaries | VERIFIED | Paused POST fenced into CHECK_ONLY retained only its ID; authorized later GET resolved it. GET before ID stayed blocked. GET already active with the same ID retained its revision across an ID-only no-op. Shared/copied duplicate claims dispatched once. Interruption after dispatch commit, both before and at fake HTTP, could not resend |
+| Atomic completion and multiple captures | VERIFIED | Capture state changed through a second connection: zero-row capture update raised and rolled back refund outcome while retaining the separately committed refund ID. A pledge with two captures remained CHARGED until the last refund completed |
+| Safety mutation checks | VERIFIED | 14 detected; each mutation restored. See mapping below. Assertions checked the intended behavior; no syntax/signature/mock failures counted |
+| Final integrity and cleanup | VERIFIED | Migrations 001–003 byte-for-byte equal to pre-task backups. AST comparison: only claim_ready_refund, record_refund_answer and deliver_refund changed; read-only refund_post_is_owned replaced by consume_refund_dispatch; two identity helpers added. Capture, void, leave, sweep, settlement and authorization functions unchanged by D90. f7_runtime ended with zero rows in all six application tables. Final database guard matched source. Original PostgreSQL service stayed stopped |
+
+Two existing assertions were updated for the approved behavior: stale COMPLETED responses preserve their ID while leaving outcome PENDING/IN_FLIGHT, and first-send evidence has revision 2 at HTTP (initial claim plus one-use dispatch). No existing test was skipped or removed.
+
+Commands used the existing guarded runner with .venv/Scripts/python.exe: focused selection was tests/test_refund_dispatch.py tests/test_refund_dispatch_migration.py tests/test_refund_lifecycle.py tests/test_refund_safety.py tests/test_refund_operation_database.py tests/test_refund_database.py tests/test_refund_schema.py --tb=short -q. Payment selection added tests/test_paypal_client.py tests/test_lifecycle.py tests/test_capture_retry.py tests/test_resume.py tests/test_leave.py tests/test_sweep.py tests/test_money.py tests/test_conditions.py tests/test_db.py tests/test_routes.py tests/test_health.py tests/test_void_ownership.py. Full selection had only --tb=short -q -rs. Cacheprovider was disabled by that runner.
+
+| Deliberate mutation | Detecting test in tests/test_refund_dispatch.py |
+|---|---|
+| Remove request-ID identity check | test_late_id_checks_every_identity[request_id-different-request] |
+| Remove refund amount identity check | test_late_id_checks_every_identity[amount_cents-641] |
+| Remove PayPal capture identity check | test_late_id_checks_every_identity[paypal_capture_id-DIFFERENTCAPTURE] |
+| Remove capture-row identity check | test_late_id_checks_every_identity[capture_row_id--1] |
+| Remove pledge identity check | test_late_id_checks_every_identity[pledge_id--1] |
+| Accept an existing conflicting refund ID | test_late_id_never_overwrites_conflict_or_changes_revision |
+| ID-only path writes a stale COMPLETED outcome | test_fenced_post_preserves_id_only[CHECK_ONLY] |
+| Replace dispatch CAS with read-only validation | test_same_claim_dispatches_once[True] |
+| Mutate caller's shared claim | test_same_claim_dispatches_once[True] |
+| Dispatch ignores original revision after interruption | test_crash_between_dispatch_commit_and_http_stays_blocked |
+| Ignore capture-update row count | test_capture_zero_update_rolls_back_completion |
+| Allow ANSWERED -> READY | test_nonready_cannot_reset_to_ready[ANSWERED] |
+| Permit second IN_FLIGHT entry with original evidence | test_second_inflight_entry_with_original_evidence_is_rejected |
+| Reject legitimate IN_FLIGHT revision increment | test_inplace_dispatch_revision_increment_is_allowed |
+
+The conflicting-ID mutation accepted the conflicting value at the application boundary; the independent immutable-ID database guard was retained. The in-place-increment mutation deliberately made the database reject a legal operation; its CheckViolation is the intended compatibility failure. The other mutations failed safety assertions or expected rejection checks. Every lifecycle mutation restored original bytes after its test, with final SHA-256 269a8baf3b3c039e9b9408e59e2fb1b528c9cde3c906544f57aead1251c96593. Database-only mutations restored the function after each test and the final function was compared with schema.sql.
+
+Backups, mutation logs, scripts and migration evidence are outside the repository in last-call-f7-final-74f07205e7f14c4784b8b07338ff7224 under the temporary directory. No validation artifacts are proposed for commit.
+
+Limits: real refund HTTP and real process-kill recovery are NOT RUN. Unknown/lost refund IDs, conflicting identities, event-owner changes and unavailable database writes remain investigation blocks. Explicit retries remain disabled. D47 missing capture records are never invented. Stage 3 routes, browser confirmation and UI remain NOT RUN/unimplemented; F7's overall screen/sandbox row above remains NOT RUN. This work did not alter Stage 2A or the existing independent progression policy for known ANSWERED results. No Neon migration, deployment or Git write command ran.
