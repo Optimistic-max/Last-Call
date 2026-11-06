@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import icon, nav_item, share_button %}
+{% from "macros.html" import icon, nav_item, share_button, share_panel %}
 {# S2, the treasurer view (docs/UI_DESIGN.md sections 3 and 10). A bare page from Emmanuel's step 5b,
    for Samuel to restyle. This page's address holds the treasurer's private token (D18), and so does
    open_url: never put either on another page. The board below is the same one S3 shows
@@ -50,6 +50,7 @@
 {% set pledge_new_tab = true %}
 {% include "board_panel.html" %}
 </main>
+{{ share_panel(title) }}
 {% endblock %}
 
 {% block scripts %}

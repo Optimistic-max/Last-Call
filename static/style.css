@@ -2036,6 +2036,230 @@ input.ai-filled {
 }
 
 
+/* ---------- The share panel (S2, S3) ---------- */
+
+/* A native dialog: it traps focus, Esc closes it, and focus goes back to the button that opened it.
+   On a phone it is a sheet along the bottom of the screen. */
+.share-panel {
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(100dvh - 24px);
+  margin: auto 0 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+}
+
+/* The page behind the panel stays still. share.js measures the scrollbar that goes away, and the
+   padding fills its place, so the page doesn't jump sideways. */
+html:has(.share-panel[open]) {
+  padding-right: var(--scrollbar-width, 0);
+  overflow: hidden;
+}
+
+.share-panel::backdrop {
+  background: rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  animation: fade-in 300ms ease;
+}
+
+.share-sheet {
+  position: relative;
+  max-height: calc(100dvh - 24px);
+  padding: 0 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  border-radius: 24px 24px 0 0;
+  background: linear-gradient(180deg, var(--card), var(--grey-50));
+  box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: transform 200ms var(--ease-out);
+}
+
+.share-sheet.is-dragging {
+  transition: none;
+}
+
+.share-panel[open] .share-sheet {
+  animation: sheet-up 300ms var(--ease-out);
+}
+
+.share-panel.is-closing .share-sheet {
+  animation: sheet-down 200ms ease-in forwards;
+}
+
+.share-panel.is-closing::backdrop {
+  animation: fade-away-now 200ms ease forwards;
+}
+
+/* The grab handle's area is 44px tall, and touch-action hands its drags to share.js. */
+.share-grab {
+  display: flex;
+  justify-content: center;
+  height: 44px;
+  margin: 0 -20px;
+  padding-top: 10px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.share-grab::before {
+  content: "";
+  flex: none;
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--grey-300);
+}
+
+.share-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.share-title {
+  margin: 0 48px 4px 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.share-note {
+  margin: 0 0 16px;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+}
+
+.share-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+/* The link with its dots in the middle: the start gives way, and the end always shows. */
+.share-link-field {
+  display: flex;
+  flex: 1 1 8rem;
+  align-items: center;
+  min-width: 0;
+  min-height: 48px;
+  margin: 0;
+  padding: 0 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-field);
+  background: var(--grey-100);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.share-link-start {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.share-link-end {
+  flex: none;
+}
+
+.share-link-row button {
+  flex: none;
+}
+
+.share-with {
+  margin: 0 0 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* The row scrolls sideways if it doesn't fit, with no visible scrollbar. */
+.share-tiles {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 -20px 16px;
+  padding: 4px 20px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-padding: 0 20px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.share-tiles::-webkit-scrollbar {
+  display: none;
+}
+
+.share-tile {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 64px;
+  border-radius: var(--radius-field);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  text-decoration: none;
+  scroll-snap-align: start;
+  touch-action: manipulation;
+  animation: card-enter 300ms var(--ease-out) backwards;
+  animation-delay: calc(var(--tile, 0) * 30ms);
+}
+
+.share-tile:nth-child(2) { --tile: 1; }
+.share-tile:nth-child(3) { --tile: 2; }
+.share-tile:nth-child(4) { --tile: 3; }
+
+.share-tile-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 50%;
+  background: var(--grey-100);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: transform 120ms var(--ease-out);
+}
+
+.share-tile:active .share-tile-icon {
+  transform: scale(0.95);
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+}
+
+@keyframes sheet-down {
+  to { transform: translateY(100%); }
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+
+@keyframes dialog-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .share-tile:hover .share-tile-icon {
+    transform: translateY(-2px);
+  }
+}
+
+
 /* ---------- Depth, hover and wiggle, site-wide ---------- */
 
 /* A card's bigger shadow lives on a layer that only fades. Animating box-shadow itself
@@ -2314,6 +2538,37 @@ button:active:not(:disabled),
 }
 
 
+/* From a tablet up, the panel is a centered dialog. It has no bottom edge to slide from, so it rises
+   a little and fades, and the grab handle isn't needed. */
+@media (min-width: 768px) {
+  .share-panel {
+    width: 420px;
+    margin: auto;
+  }
+
+  .share-sheet {
+    padding: 24px;
+    border-radius: var(--radius-card);
+  }
+
+  .share-panel[open] .share-sheet {
+    animation: dialog-in 200ms var(--ease-out);
+  }
+
+  .share-panel.is-closing .share-sheet {
+    animation: dialog-out 200ms ease-in forwards;
+  }
+
+  .share-grab {
+    display: none;
+  }
+
+  .share-tiles {
+    justify-content: flex-start;
+  }
+}
+
+
 /* ---------- Wide laptops: the full dashboard ---------- */
 
 @media (min-width: 1200px) {
@@ -2349,5 +2604,14 @@ button:active:not(:disabled),
   *::after {
     animation: none !important;
     transition: none !important;
+  }
+
+  /* The share panel still needs to arrive and leave, so it fades instead of sliding. */
+  .share-panel[open] .share-sheet {
+    animation: fade-in 150ms ease !important;
+  }
+
+  .share-panel.is-closing .share-sheet {
+    animation: fade-away-now 150ms ease forwards !important;
   }
 }
