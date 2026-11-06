@@ -29,11 +29,11 @@
   {%- if board.pledging_open %} href="{{ url }}"{% else %} hidden{% endif %}>{{ icon("hand-coins") }}<span>Pledge</span></a>
 {%- endmacro %}
 
-{# A button that shares a link: the phone's share menu, or a plain copy on a laptop (static/js/share.js).
-   url is share_link on S2 and the public pledge path on S3. It is never this page's own address.
-   phone_label is what the button says on a phone, when that differs from label. #}
+{# A button that opens the share panel (static/js/share.js). url is share_link on S2 and the public
+   pledge path on S3. It is never this page's own address. phone_label is what the button says on a
+   phone, when that differs from label. #}
 {% macro share_button(url, label, class_name="button-secondary", phone_label="", button_id="", hidden=false, icon_name="") -%}
-<button class="share-button {{ class_name }}" type="button" data-share-url="{{ url }}" data-copied-label="Copied ✓"
+<button class="share-button {{ class_name }}" type="button" data-share-url="{{ url }}"
   {%- if phone_label %} data-phone-label="{{ phone_label }}"{% endif %}
   {%- if button_id %} id="{{ button_id }}"{% endif %}
   {%- if hidden %} hidden{% endif %}>{% if icon_name %}{{ icon(icon_name) }}{% endif %}<span class="button-label">{{ label }}</span></button>
@@ -43,6 +43,7 @@
    the id of the card the arrow scrolls to. #}
 {% macro stat_card(title, number_class, number, caption_class, caption, target, target_label, extra_class="") -%}
 <div class="card stat-card {{ extra_class }}">
+  {%- if extra_class %}<span class="card-bloom" aria-hidden="true"></span>{% endif %}
   <div class="stat-top">
     <h2 class="card-title">{{ title }}</h2>
     <a class="icon-button" href="#{{ target }}" aria-label="{{ target_label }}">{{ icon("arrow-up-right") }}</a>
@@ -50,4 +51,44 @@
   <p class="display-number stat-number {{ number_class }}">{{ number }}</p>
   <p class="stat-caption {{ caption_class }}">{{ caption }}</p>
 </div>
+{%- endmacro %}
+
+{# One round tile in the share panel. share.js gives it its address. A new tab keeps this page open
+   when a tile lands on a website, including webmail. Messages only ever hands over to a phone's app,
+   and on a phone a new tab could stay behind empty. #}
+{% macro share_tile(target, label, icon_name, screen_reader_label) -%}
+<a class="share-tile" data-target="{{ target }}" aria-label="{{ screen_reader_label }}"
+  {%- if target != "messages" %} target="_blank" rel="noopener"{% endif %}>
+  <span class="share-tile-icon">{{ icon(icon_name) }}</span>
+  <span>{{ label }}</span>
+</a>
+{%- endmacro %}
+
+{# The share panel, a native dialog: it traps focus, and Esc closes it. S2 and S3 include it once, and
+   static/js/share.js fills it in when a share button opens it. It only ever holds share_link or the
+   public pledge link, never this page's own address. title is the event's title, as text. #}
+{% macro share_panel(title) -%}
+<dialog id="share-panel" class="share-panel" aria-labelledby="share-panel-title"
+  data-intro="Join our pledge for {{ title }}. Nobody pays unless we reach the goal."
+  data-subject="Pledge for {{ title }}">
+  <div class="share-sheet">
+    <div class="share-grab" aria-hidden="true"></div>
+    <button id="share-panel-close" class="icon-button share-close" type="button" aria-label="Close">{{ icon("x") }}</button>
+    <h2 id="share-panel-title" class="share-title">Invite friends</h2>
+    <p class="share-note">They pledge with this link. Nobody pays unless the goal is reached.</p>
+    <div class="share-link-row">
+      <p class="share-link-field"><span class="share-link-start"></span><span class="share-link-end"></span></p>
+      <button id="share-panel-copy" type="button" autofocus data-copied-label="Copied ✓"
+        data-manual-label="Press and hold to copy"><span class="button-label">Copy link</span></button>
+    </div>
+    <p class="share-with">Send with</p>
+    <div class="share-tiles">
+      {{ share_tile("messages", "Messages", "message-square", "Share on Messages") }}
+      {{ share_tile("whatsapp", "WhatsApp", "message-circle", "Share on WhatsApp") }}
+      {{ share_tile("telegram", "Telegram", "send", "Share on Telegram") }}
+      {{ share_tile("email", "Email", "mail", "Share by email") }}
+    </div>
+    <button id="share-panel-more" class="button-secondary button-full" type="button" hidden>More apps</button>
+  </div>
+</dialog>
 {%- endmacro %}

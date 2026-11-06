@@ -9,8 +9,6 @@
    The floating pieces are drawings made of our own components, so they are aria-hidden and every name
    and amount in them is made up. #}
 
-{% block title %}Last Call: nobody pays unless the goal is reached{% endblock %}
-
 {% block shell %}
 <header class="landing-header">
   <a class="landing-brand" href="#top">
@@ -29,7 +27,7 @@
     <div class="hero-canvas">
 
       <div class="piece piece-pledge" aria-hidden="true">
-        <div class="piece-body glass">
+        <div class="piece-body">
           <div class="piece-line">
             <span class="avatar avatar-counted">AN</span>
             <span class="piece-name">Ana</span>
@@ -63,7 +61,7 @@
       </div>
 
       <div class="piece piece-ring" aria-hidden="true">
-        <div class="piece-body glass">
+        <div class="piece-body">
           <p class="piece-caption">Progress</p>
           <svg class="mini-ring" viewBox="0 0 160 92">
             <defs>
@@ -78,7 +76,7 @@
       </div>
 
       <div class="piece piece-waiting" aria-hidden="true">
-        <div class="piece-body glass">
+        <div class="piece-body">
           <div class="piece-avatars">
             <span class="avatar">JA</span>
             <span class="avatar">AN</span>
@@ -95,7 +93,7 @@
       </div>
 
       <div class="piece piece-hold" aria-hidden="true">
-        <div class="piece-body glass">
+        <div class="piece-body">
           <p class="piece-title">{{ icon("lock") }}<span>Hold</span></p>
           <p class="piece-caption">PayPal holds up to $40.00</p>
           <p class="piece-caption">Charged only your share</p>
