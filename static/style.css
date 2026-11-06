@@ -41,7 +41,7 @@
   --gutter: 16px;
   --card-padding: 20px;
   --card-gap: 12px;
-  --banner-height: 32px;
+  --banner-height: 28px;
   --button-height: 48px;
 
   --radius-card: 24px;
@@ -101,7 +101,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* The page's light: two soft blooms, the dot grid and the grain, on one layer fixed to the screen.
+/* The page's light: two soft blooms and the grain, on one layer fixed to the screen.
    A fixed layer works on iPhones, which ignore background-attachment: fixed, and it only has to
    be drawn once, while a fixed background is repainted on every scroll. */
 body::before {
@@ -110,10 +110,9 @@ body::before {
   inset: 0;
   z-index: -1;
   background-image: var(--grain),
-    radial-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px),
     radial-gradient(70% 70% at 8% 0%, rgba(255, 255, 255, 0.9), transparent),
     radial-gradient(70% 70% at 95% 100%, rgba(217, 217, 213, 0.5), transparent);
-  background-size: 200px 200px, 20px 20px, auto, auto;
+  background-size: 200px 200px, auto, auto;
   pointer-events: none;
 }
 
@@ -191,20 +190,18 @@ a {
 
 /* ---------- Sandbox banner (top of every page) ---------- */
 
-/* It stays on screen while the page scrolls, so the video always shows it. */
+/* The page's one sandbox notice. It is quiet, and it scrolls away with the page. */
 .sandbox-banner {
-  position: sticky;
-  top: 0;
-  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: var(--banner-height);
   margin: 0;
   padding: env(safe-area-inset-top, 0px) var(--gutter) 0;
-  background: var(--ink);
-  color: var(--on-ink);
-  font-size: var(--text-caption);
+  background: var(--grey-100);
+  color: var(--ink-2);
+  font-size: 0.75rem;
+  font-weight: 500;
   text-align: center;
 }
 
@@ -273,23 +270,6 @@ a {
 /* The pills stay short on a phone, so all three fit without scrolling. */
 .nav-item .icon {
   display: none;
-}
-
-/* The sidebar's black card is for laptops. Phones have the banner. */
-.sandbox-card {
-  display: none;
-}
-
-.sandbox-card-title {
-  margin: 0 0 4px;
-  font-size: var(--text-card);
-  font-weight: 500;
-}
-
-.sandbox-card-text {
-  margin: 0;
-  color: var(--on-ink-2);
-  font-size: var(--text-caption);
 }
 
 .shell-content {
@@ -848,9 +828,9 @@ input.ai-filled {
   gap: var(--card-gap);
 }
 
-/* Anchored cards stop clear of the sticky banner. */
+/* Anchored cards stop a little below the top of the screen. */
 .board [id] {
-  scroll-margin-top: calc(var(--banner-height) + 12px);
+  scroll-margin-top: 12px;
 }
 
 .card-head {
@@ -899,12 +879,11 @@ input.ai-filled {
   container-type: inline-size;
 }
 
-/* Ribbed light, as if it comes through fluted glass. The layer is bigger than the card, so its
-   light can drift during last call without showing an edge. */
+/* Soft light and grain. The layer is bigger than the card, so its light can drift during last call
+   without showing an edge. */
 .countdown-card .card-bloom::before {
   inset: -15%;
   background-image: var(--grain),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 6px),
     radial-gradient(circle farthest-corner at 15% 10%, rgba(255, 255, 255, 0.08), transparent 60%);
 }
 
@@ -912,6 +891,19 @@ input.ai-filled {
 .board-time {
   margin: auto 0;
   font-size: min(var(--text-display), 24cqi);
+}
+
+/* It sits with the time it explains. The rounded corners suit one line or two, because a narrow
+   card on a laptop wraps these words. */
+.demo-badge {
+  align-self: flex-start;
+  margin: 12px 0 0;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+  color: var(--on-ink-2);
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 /* The totals: a swipeable row on a phone. Each card is 78% wide so the next one peeks in.
@@ -1400,16 +1392,16 @@ input.ai-filled {
 
 /* ---------- Landing page (top of S1) ---------- */
 
-/* Anchored sections stop clear of the sticky banner and header. */
+/* Anchored sections stop clear of the sticky header. */
 .landing section[id] {
-  scroll-margin-top: calc(var(--banner-height) + var(--landing-header-height) + 16px);
+  scroll-margin-top: calc(var(--landing-header-height) + 16px);
 }
 
 /* Glass: the bar stays readable because 72% white sits behind its text. Where a browser
    has no backdrop-filter, the @supports rule further down makes it solid white. */
 .landing-header {
   position: sticky;
-  top: var(--banner-height);
+  top: 0;
   z-index: 18;
   display: flex;
   align-items: center;
@@ -1463,8 +1455,8 @@ input.ai-filled {
   padding: 0 16px;
 }
 
-/* The canvas: a big rounded panel on the page's own light, a little brighter behind the logo, with
-   faint grey ribs. Its ::before holds that behind everything. overflow keeps the pieces inside it. */
+/* The canvas: a big rounded panel on the page's own light, a little brighter behind the logo. Its
+   ::before holds that behind everything. overflow keeps the pieces inside it. */
 .hero {
   padding: 16px 16px 0;
 }
@@ -1491,7 +1483,6 @@ input.ai-filled {
   inset: 0;
   z-index: -1;
   background-image: var(--grain),
-    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.025) 0 1px, transparent 1px 6px),
     radial-gradient(45% 55% at 50% 35%, #FFFFFF, transparent);
 }
 
@@ -1526,33 +1517,18 @@ input.ai-filled {
 }
 
 /* Two lines at every width: below 580px the size follows the screen, because 44px
-   "unless everyone's in." would need a third line on a phone. */
+   "unless the goal is met." would not fit a phone on one line. */
 .hero-title {
+  margin: 0 0 32px;
   font-size: min(2.75rem, 7.6vw);
-  letter-spacing: -0.04em;
+  font-weight: 800;
+  letter-spacing: -0.045em;
   line-height: 1;
 }
 
 .hero-line {
   display: block;
   white-space: nowrap;
-}
-
-.hero-line-soft {
-  color: var(--ink-3);
-}
-
-.hero-lead {
-  max-width: 46ch;
-  margin: 16px 0 20px;
-  color: var(--ink-2);
-  font-size: 1rem;
-}
-
-.hero-note {
-  margin: 8px 0 0;
-  color: var(--ink-2);
-  font-size: var(--text-caption);
 }
 
 /* The floating pieces. .piece is where it sits and what scrolling moves. .piece-body tilts
@@ -1902,10 +1878,6 @@ input.ai-filled {
     font-size: 3.5rem;
   }
 
-  .hero-lead {
-    font-size: 1.125rem;
-  }
-
   .landing-nav {
     display: flex;
     position: absolute;
@@ -1927,7 +1899,10 @@ input.ai-filled {
   .hero-title {
     font-size: 4.5rem;
   }
+}
 
+/* The 72px headline needs the ring and the waiting card near the edges until here. */
+@media (min-width: 1366px) {
   .piece-ring { left: 5%; }
   .piece-waiting { right: 6%; }
 }
@@ -2411,11 +2386,10 @@ button:active:not(:disabled),
 
   .shell-side {
     position: sticky;
-    top: var(--banner-height);
+    top: 0;
     flex: none;
     width: 248px;
-    height: calc(100dvh - var(--banner-height));
-    padding-bottom: 24px;
+    height: 100dvh;
   }
 
   .wordmark {
@@ -2441,13 +2415,6 @@ button:active:not(:disabled),
     padding: 0 16px;
     border-radius: 16px;
     margin: 0 16px;
-  }
-
-  .sandbox-card {
-    display: block;
-    margin: auto 16px 0;
-    padding: 20px;
-    border-radius: var(--radius-card);
   }
 
   .page {
@@ -2587,7 +2554,7 @@ button:active:not(:disabled),
   /* The status card keeps its own height and stays in view beside a long list. */
   .board .status-card {
     position: sticky;
-    top: calc(var(--banner-height) + 12px);
+    top: 12px;
     align-self: start;
   }
 }

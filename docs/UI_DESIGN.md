@@ -66,8 +66,7 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | S4 steps | **Say it your way**, **Check it**, **Hold it** |
 | S4 box the AI filled | **Filled by AI, edit if wrong** |
 | Landing headline | **Nobody pays** / **unless the goal is met.** (D85) |
-| Landing supporting line | **Friends pledge the most they'd pay. PayPal holds it. If the group reaches the goal, everyone pays their share once. If not, every hold is cancelled.** |
-| Landing button and note | **Start a pledge**, then **Sandbox demo. Fake money, no real charges.** |
+| Landing button | **Start a pledge** |
 | Landing "How it works" | **Pledge your max** · **You say the most you'd pay, even 'only if Jay's in'.** **PayPal holds it** · **Nothing is charged while the group fills up.** **Pay your share, once** · **If the goal is reached, you pay your part. If not, every hold is cancelled.** |
 | Landing footer | **Built for the PayPal AI Hackathon. Sandbox only.** |
 | S1 intro | **Start a pledge**, then **Get your group to actually chip in.** then **Friends pledge with their card. Nobody is charged unless the group reaches the goal; if it doesn't, every hold is cancelled.** then **PayPal holds each friend's max. AI turns 'I'm in for $40 if Jay's in' into a pledge, and they confirm it.** |
@@ -94,7 +93,7 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | Needs attention (treasurer) | **[Name]'s charge didn't go through. The others were charged. Choose what to do:** [Refund everyone] |
 | Refund-all confirm | **Refunding returns everyone's money, but PayPal keeps its fees ($[fees]). This can't be undone.** |
 | Slow first load | **Waking up the app… (free hosting can take up to a minute)** |
-| Demo mode badge | **Demo mode: timers are minutes, not hours** |
+| Demo mode badge | **Demo mode: timers are minutes, not hours**, in the countdown card on S2 and S3, only where `board.demo_mode` is true |
 | S4 own-words box (D31) | **AI reads. You confirm. Plain code handles the money.** and **What you type here is sent to Groq to read it. Don't type anything private.** (D75) |
 
 The [Send [Name] a new pay link] button moved to `docs/LATER.md` (D49), so [Refund everyone] is the only button in the "Needs attention" wording.
@@ -148,7 +147,7 @@ The hero's idle float and scroll zoom are extra to these three moments, and they
 | `--card` | `#FFFFFF` | Cards |
 | `--ink` | `#0B0B0B` | Main text, counted |
 | `--ink-2` | `#5C5C5C` | Secondary text, captions, placeholders |
-| `--ink-3` | `#8A8A8A` | The hero's second headline line only: too faint for smaller text |
+| `--ink-3` | `#8A8A8A` | Reserved. No text uses it, because it is too faint for small text |
 | `--line` | `#E5E5E2` | Borders and dividers |
 | `--held` | `#9A9A9A` | Held but not counted in the half ring, and the EXPIRED ring |
 | `--on-ink` | `#FFFFFF` | Text on black |
@@ -157,7 +156,7 @@ The hero's idle float and scroll zoom are extra to these three moments, and they
 | `--grey-50` to `--grey-300` | `#FAFAF9`, `#F3F3F1`, `#E8E8E5`, `#D9D9D5` | The light steps of the gradients |
 | `--grey-800` / `--grey-900` | `#2A2A2A` / `#161616` | The dark steps of the gradients |
 
-**Font:** Inter from Google Fonts, weights 400, 500 and 600, with system-ui as the fallback. `tabular-nums` is on for the whole page, so money and times never jump.
+**Font:** Inter from Google Fonts, weights 400, 500, 600 and 800, with system-ui as the fallback. `tabular-nums` is on for the whole page, so money and times never jump.
 
 | Style | Phone / laptop | Used for |
 |---|---|---|
@@ -167,7 +166,7 @@ The hero's idle float and scroll zoom are extra to these three moments, and they
 | Body | 15 / 16px, 400, line height 1.5 | Text |
 | Caption | 13px, 500 | Captions and chips |
 
-Two sizes sit outside that scale on purpose: form labels (14px) and the status card's banner (24px, 600).
+Two sizes sit outside that scale on purpose: form labels (14px) and the status card's banner (24px, 600). The landing headline is the only style heavier than 600: 800, -0.045em, both lines in `--ink`, at most 72px (D87).
 
 **Spacing and shape:** a 4px scale (4, 8, 12, 16, 20, 24, 32, 48, 64). Gutter 16 / 32px, card padding 20 / 24px, card gap 12 / 20px, content max-width 1280px. Cards are 24px round. Fields are 48px tall, 14px round, with 16px text so iPhones don't zoom. Buttons and chips are pills: 48px tall on phones, 44px on laptops. The 40px icon buttons have an invisible ring that makes the tap target 46px. Layout breakpoints are 768, 1024 and 1200px.
 
@@ -177,9 +176,9 @@ Two sizes sit outside that scale on purpose: form labels (14px) and the status c
 - Big, soft, off-center radial light. The two exceptions run straight down: a white card's very slight fade, and the primary button.
 - Grain on every gradient, so it doesn't band: a noise SVG in `--grain`, at 3.5%. A white card fades by only five steps of grey, too little to band, so it skips the grain.
 - No small text on the bright part of a gradient.
-- **The page:** `--grey-100` with a white bloom from the top left, a light grey bloom toward the bottom right, a faint dot grid and grain. All of it sits on one fixed layer, `body::before`, on every screen. iPhones ignore `background-attachment: fixed`, and one layer means one thing to get right.
-- **Black cards** ("Held so far", the countdown, the status card in last call, the sidebar's sandbox card): `--grey-800` at the top left to `#0B0B0B` at the bottom right, with white light at 7% and grain.
-- **Ribbed light:** thin vertical ribs, 6px apart, white at 5%. Used on the landing hero and the countdown card only, in grey. In last call the countdown's light drifts on an 8-second loop.
+- **The page:** `--grey-100` with a white bloom from the top left, a light grey bloom toward the bottom right, and grain. All of it sits on one fixed layer, `body::before`, on every screen. iPhones ignore `background-attachment: fixed`, and one layer means one thing to get right.
+- **Black cards** ("Held so far", the countdown, the status card in last call): `--grey-800` at the top left to `#0B0B0B` at the bottom right, with white light at 7% and grain. In last call the countdown's light drifts on an 8-second loop.
+- **No grid or line textures (D87):** no dot grid and no ribbed lines, on the page, the hero or the countdown card. The blooms and the grain keep the background from looking flat. The half ring's still-needed stripes stay, because they carry meaning.
 
 The black cards' light sits on `.card-bloom`, an empty element inside the card. It is a separate layer, so it can move without repainting the card.
 
@@ -197,7 +196,11 @@ The black cards' light sits on `.card-bloom`, an empty element inside the card. 
 
 **Hover, press and wiggle (D85):** hover effects apply only under `@media (hover: hover) and (pointer: fine)`. Cards lift 2px, buttons lift 1px, "Who's in" rows lighten and the avatar grows slightly, arrows lean 2px the way they point, and `.text-link` underlines slide in from the left. A press is `scale(0.97)` over 120ms. The wiggle (rotate -3, 3, -2, 1, 0 degrees over 450ms) is for the logo on hover, "Copied ✓", "Just pledged", and Invite once, 8 seconds after an empty board loads. A refused field shakes instead. Money, the countdown and status chips never wiggle.
 
-**Landing page (D85):** it sits at the top of S1, on `GET /`. A sticky glass header, then a hero canvas with ribbed light, the logo tile, the headline, the supporting line, one button, and six floating pieces (four on tablets, two on phones). Then `#how`, `#create` (the form) and the footer. The pieces are aria-hidden drawings of our own components, and every name and amount in them is made up. Scrolling the first 600px zooms past them. The tile reaches the header at 280px, because any later and the headline would scroll through it.
+**Sandbox banner (D87):** the one sandbox notice, at the very top of every page: 28px tall, `--grey-100`, 12px `--ink-2`, weight 500. It isn't sticky, so it scrolls away with the page, and only the landing's glass header stays at the top. There is no second notice under the hero button or in the sidebar. The browser's `theme-color` matches the banner.
+
+**Demo mode badge (D87):** an outlined label on the countdown card, under the time it explains: white at 25% for the border, 12px `--on-ink-2`, weight 500. Its corners are 12px, not a pill, because the words wrap to two lines on a narrow card. It appears from `board.demo_mode` in the template. That value never changes once an event exists, so `board.js` doesn't touch it.
+
+**Landing page (D85):** it sits at the top of S1, on `GET /`. A sticky glass header, then a hero canvas with soft grey light, the logo tile, the headline, one button 32px under it, and six floating pieces (four on tablets, two on phones). Then `#how`, `#create` (the form) and the footer. The pieces are aria-hidden drawings of our own components, and every name and amount in them is made up. Scrolling the first 600px zooms past them. The tile reaches the header at 280px, because any later and the headline would scroll through it.
 
 **Share panel (D87):** every Share, Invite and Copy link button opens one native `<dialog>`, so focus stays inside, Esc closes it, and focus returns to the button that opened it. It only ever holds `share_link` or the public pledge link, never the admin page's own address. On a phone it is a bottom sheet: it slides up in 300ms with a grab handle, and a drag down, a tap on the dim area or the close button closes it. From 768px it is a centered 420px dialog that rises 8px and fades in over 200ms. The dim area is black at 35% with a 2px blur. The tiles are 56px frosted circles with a line icon and a word, never a brand's logo or color, and they fade in 30ms apart. Messages shows only on touch screens, and More apps only where the browser has `navigator.share`. WhatsApp, Telegram and Email open in a new tab, so a web service can't replace the page. Messages doesn't, because it only hands over to a phone's app. Under reduced motion the panel fades instead of sliding. The page behind it stays still while it is open.
 
@@ -205,17 +208,18 @@ The black cards' light sits on `.card-bloom`, an empty element inside the card. 
 
 | Text on background | Lowest ratio | Used for |
 |---|---|---|
-| White on a black card's lightest part | 10.05 | Titles and numbers on black cards, last call status |
-| `--on-ink-2` on a black card | 7.23 | Captions on black cards |
+| White on a black card's lightest part | 11.37 | Titles and numbers on black cards, last call status |
+| `--on-ink-2` on a black card | 7.64 | Captions on black cards, the demo mode badge |
 | White on the primary button | 13.77 | Primary buttons |
 | `--ink` on frosted glass | 18.53 | Secondary buttons, also with a black card under the phone's action bar |
-| `--ink-2` on the page's darkest part | 5.45 | The line under the page title |
+| `--ink-2` on the page's darkest part | 5.86 | The line under the page title |
+| `--ink-2` on `--grey-100` | 6.02 | The sandbox banner |
 | `--ink-2` on a white card | 6.40 | Captions, placeholders |
 | `--ink-2` on the share panel | 6.57 | The panel's note |
 | `--danger` on `--danger-bg` | 5.75 | Declined, Charge failed |
 | `--ink` or white on a chip | 19.68 | The black and outlined chips |
 
-Worked out from the values, not measured: `--ink-3` on `--page` is 3.11, for the hero's second line, which is large text. Below the 3:1 for graphics: `--line` on white is 1.26:1 and `--held` on white 2.81:1, so a field's label and the ring's words and number carry the meaning.
+Worked out from the values, not measured, and below the 3:1 for graphics: `--line` on white is 1.26:1 and `--held` on white 2.81:1, so a field's label and the ring's words and number carry the meaning.
 
 ## 9. Sharing the link (D31)
 
@@ -271,6 +275,7 @@ Both get the same `board` object, and `board.json` is exactly this object, so th
 | `held_total_text` | text: HELD money only (D31, D43). It is `$0.00` after lock, because holds become charges | `"$120.00"` |
 | `counted_total_text` | finished money text: the sum of eligible counted held maximums during OPEN and LAST_CALL (D86). Waiting, unpaid, declined, dropped and ineligible holds add nothing. `""` at every other status, preserving the existing people-count fallback; it is not a confirmed-payment total | `"$45.00"` |
 | `progress_percent` | a whole number from 0 to 100. It is 100 only when the goal is reached (D54), and 100 from `LAST_CALL` on (§5) | `39` |
+| `demo_mode` | true while the event runs on minute timers. Shows the demo mode badge. **Not sent yet** (`TEAM.md`); with no key, the badge stays off | `true` |
 | `pledging_open` | true or false: whether to show the link to `/e/<id>/pledge` | `true` |
 | `rows` | a list in join order, with DROPPED pledges left out (D56) | |
 | `rows[].name` | text | `"Ana"` |
