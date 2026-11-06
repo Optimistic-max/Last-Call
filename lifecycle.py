@@ -321,10 +321,13 @@ def mark_held(conn, hold, now):
 def give_back_hold(conn, hold, now, paypal):
     void_hold(conn, hold["id"], paypal)
     logger.info("hold %d placed but not kept, so it was voided", hold["id"])
-    if not pledging_is_open(find_event(conn, hold["event_id"]), now):
-        db.run(conn, "UPDATE pledges SET status = 'DROPPED' WHERE id = %s AND status = 'PENDING_PAY'",
-               (hold["pledge_id"],))
-        return {"outcome": "CLOSED_AND_VOIDED"}
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT * FROM events WHERE id = %s FOR UPDATE", (hold["event_id"],))
+        if not pledging_is_open(event, now):
+            if event is not None and event["status"] not in ("REFUNDING", "REFUNDED"):
+                db.run(conn, "UPDATE pledges SET status = 'DROPPED' WHERE id = %s AND status = 'PENDING_PAY'",
+                       (hold["pledge_id"],))
+            return {"outcome": "CLOSED_AND_VOIDED"}
     pledge = db.fetch_one(conn, "SELECT name, status FROM pledges WHERE id = %s", (hold["pledge_id"],))
     if pledge["status"] == "HELD":
         return {"outcome": "ALREADY_PLEDGED", "name": pledge["name"]}
@@ -348,19 +351,121 @@ def saved_answer(conn, hold_id):
 # any later try reuses the saved one (rules 3 and 4). A void answers 204 with no body, so the hold is
 # read back with a GET, and PayPal's real status is saved whatever the void answered.
 # Returns that status, or None if there was nothing to void or no answer.
-def void_hold(conn, hold_id, paypal):
-    db.run(conn, "UPDATE holds SET void_request_id = %s "
-                 "WHERE id = %s AND auth_id IS NOT NULL AND void_request_id IS NULL",
-           (new_request_id(), hold_id))
-    hold = db.fetch_one(conn, "SELECT auth_id, void_request_id FROM holds WHERE id = %s", (hold_id,))
-    if hold["auth_id"] is None:
+def void_hold(conn, hold_id, paypal, sweep=False):
+    if not conn.autocommit or conn.info.transaction_status != psycopg.pq.TransactionStatus.IDLE:
+        raise RuntimeError("A void requires an idle autocommit connection")
+    claim = claim_void_operation(conn, hold_id, sweep)
+    if claim is None:
         return None
-    paypal.void_authorization(hold["auth_id"], hold["void_request_id"])
-    check = paypal.get_authorization(hold["auth_id"])
-    status = check["data"].get("status")
-    if check["http_status"] == 200 and status is not None:
-        db.run(conn, "UPDATE holds SET status = %s WHERE id = %s", (status, hold_id))
-    logger.info("void hold %d: PayPal now says %s", hold_id, status)
+    void_answer = paypal.void_authorization(claim["auth_id"], claim["void_request_id"])
+    check = paypal.get_authorization(claim["auth_id"])
+    return finish_void_operation(conn, claim, void_answer, check, sweep)
+
+
+# Commit the owner and request ID together while locking event first, then hold.
+def claim_void_operation(conn, hold_id, sweep):
+    owner = new_token()
+    row = db.fetch_one(conn, "SELECT pledges.event_id FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
+                             "WHERE holds.id = %s", (hold_id,))
+    if row is None:
+        return None
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT status FROM events WHERE id = %s FOR UPDATE", (row["event_id"],))
+        hold = db.fetch_one(conn, "SELECT holds.*, pledges.status AS pledge_status FROM holds "
+                                  "JOIN pledges ON pledges.id = holds.pledge_id "
+                                  "WHERE holds.id = %s FOR UPDATE OF holds", (hold_id,))
+        if event is None or hold is None or event["status"] in ("REFUNDING", "REFUNDED"):
+            return None
+        if hold["auth_id"] is None or hold["void_run_token"] is not None:
+            return None
+        if sweep and not sweep_void_is_eligible(event["status"], hold):
+            return None
+        request_id = hold["void_request_id"] or new_request_id()
+        changed = db.run(conn, "UPDATE holds SET void_run_token = %s, void_request_id = %s "
+                               "WHERE id = %s AND void_run_token IS NULL", (owner, request_id, hold_id))
+        if changed != 1:
+            return None
+    return {"id": hold_id, "event_id": row["event_id"], "pledge_id": hold["pledge_id"],
+            "auth_id": hold["auth_id"], "void_request_id": request_id, "owner": owner}
+
+
+# The sweep's candidate list can be stale by the time its hold is claimed.
+def sweep_void_is_eligible(event_status, hold):
+    if hold["status"] != "CREATED" or hold["pledge_status"] == "FAILED":
+        return False
+    if event_status in ("EXPIRED", "SETTLED", "NEEDS_ATTENTION"):
+        return True
+    return hold["pledge_status"] == "DROPPED" and event_status not in ("LOCKING", "CHARGING")
+
+
+# Save only an owned result. Unknown or still-open holds retain the durable claim.
+def finish_void_operation(conn, claim, void_answer, answer, sweep):
+    data = answer.get("data")
+    if not isinstance(data, dict) or answer.get("http_status") != 200:
+        return None
+    if data.get("id") != claim["auth_id"]:
+        return None
+    status = data.get("status")
+    terminal = ("VOIDED", "EXPIRED", "DENIED", "CAPTURED", "PARTIALLY_CAPTURED")
+    refusal = void_answer.get("data")
+    definitely_refused = (void_answer.get("http_status") == 401 and isinstance(refusal, dict)
+                          and refusal.get("name") == "AUTHENTICATION_FAILURE" and status == "CREATED")
+    if status not in terminal and not definitely_refused:
+        return status
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT status FROM events WHERE id = %s FOR UPDATE", (claim["event_id"],))
+        hold = db.fetch_one(conn, "SELECT void_run_token FROM holds WHERE id = %s FOR UPDATE", (claim["id"],))
+        if event is None or hold is None or hold["void_run_token"] != claim["owner"]:
+            return None
+        changed = db.run(conn, "UPDATE holds SET status = %s, void_run_token = NULL "
+                               "WHERE id = %s AND void_run_token = %s", (status, claim["id"], claim["owner"]))
+        if changed != 1:
+            return None
+        if sweep and status in ("CAPTURED", "PARTIALLY_CAPTURED"):
+            db.run(conn, "UPDATE pledges SET status = 'FAILED' WHERE id = %s AND status IN ('HELD', 'DROPPED')",
+                   (claim["pledge_id"],))
+        elif sweep and status in ("VOIDED", "EXPIRED", "DENIED") and event["status"] in ("EXPIRED", "SETTLED", "NEEDS_ATTENTION"):
+            drop_pledges_without_a_hold(conn, claim["event_id"])
+    logger.info("void hold %d: PayPal now says %s", claim["id"], status)
+    return status
+
+
+# Read a void claim that is already owned. Locks are released before any PayPal call.
+# Nothing is written: a GET must not become permission to send the void again (D88).
+def read_uncertain_void_claim(conn, hold_id):
+    row = db.fetch_one(conn, "SELECT pledges.event_id FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
+                             "WHERE holds.id = %s", (hold_id,))
+    if row is None:
+        return None
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT status FROM events WHERE id = %s FOR UPDATE", (row["event_id"],))
+        hold = db.fetch_one(conn, "SELECT holds.*, pledges.status AS pledge_status FROM holds "
+                                  "JOIN pledges ON pledges.id = holds.pledge_id "
+                                  "WHERE holds.id = %s FOR UPDATE OF holds", (hold_id,))
+        if event is None or hold is None or event["status"] in ("REFUNDING", "REFUNDED"):
+            return None
+        if hold["status"] != "CREATED" or hold["auth_id"] is None or hold["void_run_token"] is None:
+            return None
+        return {"id": hold_id, "event_id": row["event_id"], "pledge_id": hold["pledge_id"],
+                "auth_id": hold["auth_id"], "void_request_id": hold["void_request_id"],
+                "owner": hold["void_run_token"], "sweep": sweep_void_is_eligible(event["status"], hold)}
+
+
+# Recheck one uncertain void with a GET only. The sweep does not call this.
+# A CREATED, missing, mismatched or unknown answer leaves the owner in place.
+# A terminal answer is saved only while that same owner still holds the claim.
+def reconcile_uncertain_void(conn, hold_id, paypal):
+    if not conn.autocommit or conn.info.transaction_status != psycopg.pq.TransactionStatus.IDLE:
+        raise RuntimeError("A void recheck requires an idle autocommit connection")
+    claim = read_uncertain_void_claim(conn, hold_id)
+    if claim is None:
+        return None
+    check = paypal.get_authorization(claim["auth_id"])
+    # This is not a void answer. A GET must not look like a definite authentication refusal.
+    status = finish_void_operation(conn, claim, {"http_status": None, "data": None}, check, claim["sweep"])
+    if status in MONEY_MOVED_HOLD_STATUSES:
+        logger.error("hold %d: PayPal says %s but we never captured it. Pledge %d marked FAILED: "
+                     "look at it by hand", claim["id"], status, claim["pledge_id"])
     return status
 
 
@@ -528,8 +633,9 @@ def lock_and_charge(conn, event_id, now, paypal):
 # D70: at lock, a HELD pledge that isn't counted (its condition never came true) is never charged. Each
 # of its CREATED holds is voided by void_hold, which saves the void's PayPal-Request-Id first and reads
 # the hold back with a GET (rules 3 and 4); drop_pledges_without_a_hold then makes the pledge DROPPED.
-# A void that doesn't read back VOIDED is logged, and its pledge stays HELD with the hold CREATED for
-# M2's cleanup sweep (D45). It still can't be charged, because only `counted` is charged.
+# A void that doesn't read back VOIDED is logged, and its pledge stays HELD with the hold CREATED.
+# An uncertain void keeps its owner; the sweep does not send it again (D88). It still can't be charged,
+# because only `counted` is charged.
 # The log shows pledge and hold IDs only, never a name (docs/SECURITY.md).
 def void_uncounted_holds(conn, held, counted, paypal):
     counted_ids = []
@@ -544,7 +650,7 @@ def void_uncounted_holds(conn, held, counted, paypal):
         for hold in holds:
             status = void_hold(conn, hold["id"], paypal)
             if status != "VOIDED":
-                logger.warning("pledge %d: hold %d did not read back VOIDED (%s); left for the cleanup sweep",
+                logger.warning("pledge %d: hold %d did not read back VOIDED (%s); an uncertain void stays claimed",
                                pledge["id"], hold["id"], status)
 
 
@@ -717,8 +823,8 @@ def expire_event(conn, event_id, now, paypal):
 
 # Cancel every hold still CREATED on this event, then drop the pledges that have no hold left (D45).
 # void_hold saves each void's request ID before the call and reads the hold back with a GET. A void that
-# doesn't read back VOIDED is logged and left for M2's cleanup sweep (PAYPAL_INTEGRATION.md section 4):
-# its hold stays CREATED, so its pledge stays HELD.
+# doesn't read back VOIDED is logged and left as PayPal reported it (D88): an uncertain void keeps its
+# owner, and the cleanup sweep does not send that void again. Its hold stays CREATED, so its pledge stays HELD.
 def release_holds(conn, event_id, paypal):
     holds = db.fetch_all(conn, "SELECT holds.id FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
                                "WHERE pledges.event_id = %s AND holds.status = 'CREATED' ORDER BY holds.id",
@@ -726,7 +832,7 @@ def release_holds(conn, event_id, paypal):
     for hold in holds:
         status = void_hold(conn, hold["id"], paypal)
         if status != "VOIDED":
-            logger.warning("event %d: hold %d did not read back VOIDED (%s); left for the cleanup sweep",
+            logger.warning("event %d: hold %d did not read back VOIDED (%s); an uncertain void stays claimed",
                            event_id, hold["id"], status)
     drop_pledges_without_a_hold(conn, event_id)
 
@@ -736,11 +842,15 @@ def release_holds(conn, event_id, paypal):
 # and an unpaid pledge with no hold at all. A pledge whose void failed still has a CREATED hold, so it
 # stays HELD. "NOT EXISTS (...)" is true when the inner SELECT finds no row.
 def drop_pledges_without_a_hold(conn, event_id):
-    return db.run(conn, "UPDATE pledges SET status = 'DROPPED' "
-                        "WHERE event_id = %s AND status IN ('HELD', 'PENDING_PAY') "
-                        "AND NOT EXISTS (SELECT 1 FROM holds "
-                        "WHERE holds.pledge_id = pledges.id AND holds.status = 'CREATED')",
-                  (event_id,))
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT status FROM events WHERE id = %s FOR UPDATE", (event_id,))
+        if event is None or event["status"] in ("REFUNDING", "REFUNDED"):
+            return 0
+        return db.run(conn, "UPDATE pledges SET status = 'DROPPED' "
+                            "WHERE event_id = %s AND status IN ('HELD', 'PENDING_PAY') "
+                            "AND NOT EXISTS (SELECT 1 FROM holds "
+                            "WHERE holds.pledge_id = pledges.id AND holds.status = 'CREATED')",
+                      (event_id,))
 
 
 # ---------- M2: a friend leaves (E3, E6, D82) ----------
@@ -751,7 +861,8 @@ def drop_pledges_without_a_hold(conn, event_id):
 # 2. cancel_holds_after_leave: only the request that won step 1 cancels the pledge's holds.
 # The pledge is DROPPED BEFORE the void goes out: a lock that starts during the void then no longer sees
 # the pledge as HELD, so it can never be counted or charged. If the void doesn't read back VOIDED, the
-# pledge stays DROPPED with its hold CREATED and the cleanup sweep finishes it (D80). Nothing here ever
+# pledge stays DROPPED with its hold CREATED. An uncertain void stays claimed; the sweep does not send
+# it again (D88). Nothing here ever
 # captures (rule 6). Returns {"outcome": ...}: LEFT (with pledge_id), ALREADY_LEFT, CLOSED, COUNTED,
 # NOT_LEFT (the pledge changed under us) or NOT_FOUND.
 def leave_pledge(conn, pledger_token, now, paypal):
@@ -806,6 +917,7 @@ def drop_for_leave(conn, pledger_token, now):
 # Step 2. Cancel every CREATED hold of the pledge the normal way: claim_hold first (so the sweep stays off
 # it for VOID_RETRY_AFTER, D80), then void_hold, which saves the void's request ID before the call and
 # saves the status the GET reads back (rules 3, 4 and 5). Returns True if every hold read back VOIDED.
+# An uncertain void keeps its owner. The sweep does not send it again (D88).
 # A pledge with no CREATED hold (unpaid, declined, or a hold still being placed) needs no PayPal call; a
 # hold that comes back later is voided by give_back_hold (F11). Logs IDs only.
 def cancel_holds_after_leave(conn, pledge_id, now, paypal):
@@ -819,7 +931,7 @@ def cancel_holds_after_leave(conn, pledge_id, now, paypal):
         status = void_hold(conn, hold["id"], paypal)
         if status != "VOIDED":
             all_voided = False
-            logger.warning("pledge %d left, but hold %d did not read back VOIDED (%s); left for the cleanup sweep",
+            logger.warning("pledge %d left, but hold %d did not read back VOIDED (%s); an uncertain void stays claimed",
                            pledge_id, hold["id"], status)
     return all_voided
 
@@ -1049,14 +1161,17 @@ def warn_about_lost_authorizations(conn, now):
 
 # CREATED holds that should be cancelled, oldest first, at most SWEEP_MAX_HOLDS. A hold qualifies when:
 # its event is finished, or its pledge is DROPPED (and the event is not mid-lock: LOCKING and CHARGING
-# belong to the lock and its D27 resume). A FAILED pledge's hold is never listed (D28 c). A hold the sweep
-# tried less than VOID_RETRY_AFTER ago is skipped, so one stubborn hold can't use up every sweep.
+# belong to the lock and its D27 resume). A FAILED pledge's hold is never listed (D28 c). A hold that
+# already has a void_run_token is not listed: an uncertain void must not take the one slot (D88).
+# A hold the sweep tried less than VOID_RETRY_AFTER ago is also skipped. That wait still spaces a
+# definite authentication-refusal retry. It does not retry an uncertain void.
 def stranded_created_holds(conn, now):
     return db.fetch_all(conn, "SELECT holds.id, pledges.id AS pledge_id, pledges.event_id, "
                               "events.status AS event_status "
                               "FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
                               "JOIN events ON events.id = pledges.event_id "
                               "WHERE holds.status = 'CREATED' AND holds.auth_id IS NOT NULL "
+                              "AND holds.void_run_token IS NULL "
                               "AND pledges.status <> 'FAILED' "
                               "AND (holds.void_tried_at IS NULL OR holds.void_tried_at < %s) "
                               "AND (events.status IN " + FINISHED_EVENT_SQL + " OR (pledges.status = 'DROPPED' "
@@ -1080,22 +1195,19 @@ def claim_hold(conn, hold_id, now):
 # saves what the GET says, not what the void answered (rules 3, 4 and 5). Then:
 # - closed (VOIDED, EXPIRED, DENIED): on a finished event, drop the pledges left with no open hold;
 # - money moved (CAPTURED): we never captured it, so a person did. The pledge is FAILED and it's logged;
-# - still CREATED, or no answer: nothing changes, and the next sweep after VOID_RETRY_AFTER tries again.
+# - still CREATED, or no answer: the owner stays. The next sweep does not send this void again (D88).
+#   A definite authentication refusal is the exception: its owner is cleared and a later sweep may retry.
 def sweep_one_hold(conn, hold, now, paypal):
     if not claim_hold(conn, hold["id"], now):
         return
-    status = void_hold(conn, hold["id"], paypal)
+    status = void_hold(conn, hold["id"], paypal, sweep=True)
     if status in MONEY_MOVED_HOLD_STATUSES:
-        db.run(conn, "UPDATE pledges SET status = 'FAILED' WHERE id = %s AND status IN ('HELD', 'DROPPED')",
-               (hold["pledge_id"],))
         logger.error("hold %d: PayPal says %s but we never captured it. Pledge %d marked FAILED: "
                      "look at it by hand", hold["id"], status, hold["pledge_id"])
     elif status in CLOSED_HOLD_STATUSES:
         logger.info("the sweep closed hold %d (PayPal says %s)", hold["id"], status)
-        if hold["event_status"] in ("EXPIRED", "SETTLED", "NEEDS_ATTENTION"):
-            drop_pledges_without_a_hold(conn, hold["event_id"])
     else:
-        logger.warning("the sweep could not close hold %d (PayPal says %s); it will try again later",
+        logger.warning("the sweep could not close hold %d (PayPal says %s); review may be needed",
                        hold["id"], status)
 
 

@@ -241,9 +241,8 @@ def test_e3_an_uncounted_pledger_can_leave_without_changing_anyone_else(test_db)
 
 
 # E3 / D80: Ana leaves in LAST_CALL but her void is not confirmed (the GET says CREATED). She is DROPPED
-# anyway, so the lock never counts or charges her. After the event is SETTLED, the cleanup sweep voids
-# her hold.
-def test_e3_a_leave_whose_void_failed_is_never_charged_and_the_sweep_finishes_it(test_db):
+# anyway, so the lock never counts or charges her. The uncertain void stays blocked for review.
+def test_e3_a_leave_with_an_uncertain_void_is_never_charged(test_db):
     fake_paypal.reset()
     event_id = event_where_ana_waits_for_kim(test_db)
     try:
@@ -260,7 +259,10 @@ def test_e3_a_leave_whose_void_failed_is_never_charged_and_the_sweep_finishes_it
         assert pledge_status(test_db, event_id, "Ana") == "DROPPED"
 
         lifecycle.sweep_stranded_holds(test_db, AFTER_DEADLINE + timedelta(minutes=10), fake_paypal)
-        assert db.fetch_one(test_db, "SELECT status FROM holds WHERE auth_id = %s", (ana_auth,))["status"] == "VOIDED"
+        hold = db.fetch_one(test_db, "SELECT status, void_run_token FROM holds WHERE auth_id = %s", (ana_auth,))
+        assert hold["status"] == "CREATED"
+        assert hold["void_run_token"] is not None
+        assert len(calls_for("void_authorization", [ana_auth])) == 1
         assert calls_for("capture_authorization", [ana_auth]) == []
     finally:
         delete_event(test_db, event_id)
@@ -268,8 +270,8 @@ def test_e3_a_leave_whose_void_failed_is_never_charged_and_the_sweep_finishes_it
 
 # E6, rule 5 and D80: the void answers 204 but the GET still says CREATED. The pledge is DROPPED all the
 # same, and S6 says the hold is being cancelled. A sweep inside VOID_RETRY_AFTER makes no PayPal call
-# (the leave claimed the hold); one after it voids again with the SAME saved request ID.
-def test_e6_a_void_that_is_not_confirmed_is_finished_by_the_sweep_later(test_db):
+# (the leave claimed the hold); the uncertain operation remains blocked after that interval too.
+def test_e6_an_uncertain_void_stays_blocked_for_review(test_db):
     fake_paypal.reset()
     event_id = make_open_event(test_db)
     try:
@@ -288,10 +290,10 @@ def test_e6_a_void_that_is_not_confirmed_is_finished_by_the_sweep_later(test_db)
 
         lifecycle.sweep_stranded_holds(test_db, NOW + config.VOID_RETRY_AFTER + timedelta(minutes=1), fake_paypal)
         voids = calls_for("void_authorization", [auth_id])
-        assert len(voids) == 1
-        assert voids[0]["request_id"] == hold["void_request_id"]
-        assert hold_for_order(test_db, order_id)["status"] == "VOIDED"
-        assert lifecycle.leave_page_state(test_db, token, NOW)["state"] == "LEFT"
+        assert len(voids) == 0
+        assert hold_for_order(test_db, order_id)["void_run_token"] is not None
+        assert hold_for_order(test_db, order_id)["status"] == "CREATED"
+        assert lifecycle.leave_page_state(test_db, token, NOW)["state"] == "LEFT_CANCELLING"
         assert_nothing_was_captured()
     finally:
         delete_event(test_db, event_id)

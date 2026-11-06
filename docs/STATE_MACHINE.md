@@ -72,7 +72,7 @@ Webhooks are not used. Nothing in any milestone needs them, so they moved to `do
 ## Rules for "leaving"
 
 - Only with the pledger's own `pledger_token`, and only while the event is `OPEN` or `LAST_CALL` and its time is not up. `LOCKING`, `CHARGING` and every later status refuse a leave (D81 case 1, D82).
-- Before last call: anyone can leave. The pledge becomes `DROPPED` first (compare-and-set, with the event row locked), then its hold is voided (void request ID saved first, `GET` shows `VOIDED`). A void that isn't confirmed leaves the pledge `DROPPED` with its hold `CREATED`, and the cleanup sweep finishes it.
+- Before last call: anyone can leave. The pledge becomes `DROPPED` first (compare-and-set, with the event row locked), then its hold is voided (void request ID saved first, `GET` shows `VOIDED`). A void that isn't confirmed leaves the pledge `DROPPED` with its hold `CREATED`. An uncertain void keeps its owner, and the cleanup sweep does not send it again (D88).
 - During last call: a `COUNTED` pledger **cannot** leave. Show: "You're counted, so you can't leave during last call." A `HELD` pledger who isn't counted can still leave, and that never changes who is counted (invariant 2).
 - A name that left can't pledge again before the freeze (`docs/LATER.md`).
 
@@ -86,7 +86,7 @@ Every way a step can go wrong, and where its handling is written down. All of it
 | The same person tries again (after a decline, a closed tab or a reload) | Reuse that person's unpaid pledge with a new hold row and order; refuse if they already hold ("[Name] has already pledged.") | `DECISIONS.md` D26 |
 | Authorize times out or returns something unexpected | Retry once with the same request ID, then a generic error. Never treated as held | `PAYPAL_INTEGRATION.md` §4–5 |
 | A hold comes back after the event left `OPEN`/`LAST_CALL` | Void it at once, pledge `DROPPED`, show the "pledging closed" message (F11). The sweep catches any that slip through | `SYSTEM_DESIGN.md` §5A |
-| A void doesn't return 204 | `GET` the authorization and save its real status. Still `CREATED`: the sweep retries on the next wake (F12) | `PAYPAL_INTEGRATION.md` §4 |
+| A void doesn't return a confirmed close | `GET` the authorization. A terminal status is saved when the id matches. Still `CREATED`, or no usable answer: the claim stays and the sweep does not send another void (D88, F12). A later explicit GET-only recheck can record a terminal status. A definite authentication refusal may be retried by the sweep with the same request id | `PAYPAL_INTEGRATION.md` §4 |
 | The sweep finds a hold PayPal already closed (void refused, `GET` shows `VOIDED` or `EXPIRED`) | Save the real status; on a finished event the pledge becomes `DROPPED`. If the `GET` shows `CAPTURED`, the pledge is `FAILED` and an error is logged; the sweep never captures (D80) | `DECISIONS.md` D80 |
 | A friend leaves while the lock starts, or twice at once (double click) | The leave locks the event row, so it either runs first (and the lock never sees the pledge as `HELD`) or sees `LOCKING` and is refused. A second click gets `ALREADY_LEFT` with no PayPal call (D82) | `DECISIONS.md` D82 |
 | Two requests try the same status change | Compare-and-set: only one wins (E8) | `SYSTEM_DESIGN.md` §4 |

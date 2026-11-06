@@ -58,6 +58,7 @@ CREATE TABLE holds (
     status          TEXT        NOT NULL DEFAULT 'PENDING',  -- PENDING, CREATED, DENIED, CAPTURED, VOIDED, NOT_PLACED
     expires_at      TIMESTAMPTZ,                       -- from PayPal's expiration_time
     void_tried_at   TIMESTAMPTZ,                       -- the cleanup sweep's claim on this hold (D80)
+    void_run_token  TEXT,                              -- durable owner; uncertain calls need review (F7)
     refund_check_status TEXT CHECK (refund_check_status IN ('PENDING', 'RESOLVED', 'MANUAL_REVIEW')),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -128,3 +129,19 @@ $$;
 
 CREATE TRIGGER refunds_protect_record BEFORE INSERT OR UPDATE ON public.refunds
 FOR EACH ROW EXECUTE FUNCTION public.protect_refund_record();
+
+-- The event row serializes this check with the event-then-hold void claim.
+CREATE FUNCTION public.protect_refund_handoff() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+    IF NEW.status = 'REFUNDING' AND OLD.status IS DISTINCT FROM NEW.status AND EXISTS (
+        SELECT 1 FROM public.holds JOIN public.pledges ON pledges.id = holds.pledge_id
+        WHERE pledges.event_id = NEW.id AND holds.void_run_token IS NOT NULL
+    ) THEN
+        RAISE EXCEPTION 'Refund handoff blocked by unresolved void' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER events_protect_refund_handoff BEFORE UPDATE OF status ON public.events
+FOR EACH ROW EXECUTE FUNCTION public.protect_refund_handoff();

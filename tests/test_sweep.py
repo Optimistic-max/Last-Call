@@ -104,12 +104,10 @@ def test_f2_a_dropped_pledges_hold_is_voided_on_a_live_event(test_db):
         delete_event(test_db, event_id)
 
 
-# ---------- F12: a void that is not confirmed is tried again later ----------
+# ---------- F12: an uncertain void stays claimed; the sweep does not resend it (D88) ----------
 
-# F12: the void answers 204 but the GET still says CREATED. The sweep doesn't trust the 204 (rule 5): the
-# hold stays CREATED and the pledge HELD. A sweep a minute later makes no PayPal call at all. A sweep
-# after VOID_RETRY_AFTER voids again with the SAME saved request ID (rule 4), and now it works.
-def test_f12_a_void_that_is_not_confirmed_is_retried_with_the_same_request_id(test_db):
+# F12: a 204 followed by CREATED is uncertain; a later sweep must not resend the void.
+def test_f12_an_unconfirmed_void_is_blocked_for_review(test_db):
     fake_paypal.reset()
     event_id, order_id = held_pledge_on_event(test_db, "EXPIRED")
     try:
@@ -127,16 +125,16 @@ def test_f12_a_void_that_is_not_confirmed_is_retried_with_the_same_request_id(te
 
         sweep(test_db, SWEEP_NOW + config.VOID_RETRY_AFTER + timedelta(minutes=1))
         voids = calls_for("void_authorization", [auth_id])
-        assert len(voids) == 1
-        assert voids[0]["request_id"] == hold["void_request_id"]
-        assert hold_for_order(test_db, order_id)["status"] == "VOIDED"
-        assert pledge_status(test_db, event_id, "Ana") == "DROPPED"
+        assert len(voids) == 0
+        assert hold_for_order(test_db, order_id)["void_run_token"] is not None
+        assert hold_for_order(test_db, order_id)["status"] == "CREATED"
+        assert pledge_status(test_db, event_id, "Ana") == "HELD"
         assert_nothing_was_captured()
     finally:
         delete_event(test_db, event_id)
 
 
-# F12: the void is refused (422) and the GET says CREATED: same result, the hold waits for the next try.
+# F12: the void is refused (422) and the GET says CREATED. The hold stays CREATED for a later GET-only check.
 def test_f12_a_refused_void_leaves_the_hold_for_the_next_sweep(test_db):
     fake_paypal.reset()
     event_id, order_id = held_pledge_on_event(test_db, "EXPIRED")
@@ -183,11 +181,58 @@ def test_f12_one_sweep_voids_at_most_sweep_max_holds(test_db):
         delete_event(test_db, event_id)
 
 
+# F12: the older hold is already claimed. It must not take the one slot or refresh its lease.
+# The younger hold is still eligible, so this sweep voids that one.
+def test_f12_a_claimed_hold_does_not_consume_the_sweep_slot(test_db):
+    fake_paypal.reset()
+    event_id, older_order = held_pledge_on_event(test_db, "OPEN")
+    try:
+        token, younger_order, result = pledge_and_authorize(test_db, event_id, "Bo", 2500)
+        assert result["outcome"] == "HELD"
+        set_event_status(test_db, event_id, "EXPIRED")
+        older = hold_for_order(test_db, older_order)
+        younger = hold_for_order(test_db, younger_order)
+        db.run(test_db, "UPDATE holds SET void_run_token = %s, void_request_id = %s WHERE id = %s",
+               ("claimed-owner", "saved-void-request", older["id"]))
+        fake_paypal.calls.clear()
+        sweep(test_db)
+        older_after = hold_for_order(test_db, older_order)
+        assert older_after["status"] == "CREATED"
+        assert older_after["void_run_token"] == "claimed-owner"
+        assert older_after["void_tried_at"] is None
+        assert calls_for("void_authorization", [older["auth_id"]]) == []
+        assert len(calls_for("void_authorization", [younger["auth_id"]])) == 1
+        assert hold_for_order(test_db, younger_order)["status"] == "VOIDED"
+        assert_nothing_was_captured()
+    finally:
+        delete_event(test_db, event_id)
+
+
+# F12: a claimed hold is the only stranded hold. After the retry interval the sweep still leaves it alone.
+def test_f12_a_claimed_hold_alone_is_not_selected(test_db):
+    fake_paypal.reset()
+    event_id, order_id = held_pledge_on_event(test_db, "EXPIRED")
+    try:
+        hold = hold_for_order(test_db, order_id)
+        tried_at = SWEEP_NOW - timedelta(hours=1)
+        db.run(test_db, "UPDATE holds SET void_run_token = %s, void_request_id = %s, void_tried_at = %s "
+                       "WHERE id = %s", ("claimed-owner", "saved-void-request", tried_at, hold["id"]))
+        fake_paypal.calls.clear()
+        sweep(test_db)
+        after = hold_for_order(test_db, order_id)
+        assert fake_paypal.calls == []
+        assert after["status"] == "CREATED"
+        assert after["void_run_token"] == "claimed-owner"
+        assert after["void_tried_at"] == tried_at
+        assert_nothing_was_captured()
+    finally:
+        delete_event(test_db, event_id)
+
+
 # ---------- F16: the D70 case ----------
 
-# F16: at lock, the uncounted pledge's void fails (D70, D45), so she stays HELD with her hold CREATED while
-# the event settles. The sweep then voids her hold and drops her, and leaves the CAPTURED holds alone.
-def test_f16_the_sweep_finishes_a_void_that_failed_at_lock(test_db):
+# F16: an uncertain void at lock stays blocked while the other pledges are charged normally.
+def test_f16_an_uncertain_void_at_lock_stays_blocked(test_db):
     fake_paypal.reset()
     event_id = event_where_ana_waits_for_kim(test_db)
     try:
@@ -199,9 +244,10 @@ def test_f16_the_sweep_finishes_a_void_that_failed_at_lock(test_db):
         captures_before = len(calls_to("capture_authorization"))
         fake_paypal.calls.clear()
         sweep(test_db)
-        assert pledges_of(test_db, event_id)[0]["status"] == "DROPPED"
-        assert len(calls_for("void_authorization", [ana_auth])) == 1
-        assert len(calls_to("void_authorization")) == 1
+        assert pledges_of(test_db, event_id)[0]["status"] == "HELD"
+        assert len(calls_for("void_authorization", [ana_auth])) == 0
+        assert len(calls_to("void_authorization")) == 0
+        assert db.fetch_one(test_db, "SELECT void_run_token FROM holds WHERE auth_id = %s", (ana_auth,))["void_run_token"] is not None
         assert captures_before == 3
         assert_nothing_was_captured()
         for pledge in pledges_of(test_db, event_id)[1:]:
@@ -474,6 +520,20 @@ def test_f20_no_sweep_function_can_capture():
                      lifecycle.claim_hold, lifecycle.sweep_one_hold):
         source = inspect.getsource(function)
         assert "capture_authorization" not in source
+        assert "get_capture" not in source
+
+
+# The GET-only recheck must not be able to void, capture, refund, or start a void.
+def test_f20_reconcile_cannot_send_a_void_or_capture():
+    for function in (lifecycle.reconcile_uncertain_void, lifecycle.read_uncertain_void_claim,
+                     lifecycle.finish_void_operation, lifecycle.drop_pledges_without_a_hold,
+                     lifecycle.sweep_void_is_eligible):
+        source = inspect.getsource(function)
+        assert "void_authorization" not in source
+        assert "capture_authorization" not in source
+        assert "refund_capture" not in source
+        assert "void_hold(" not in source
+        assert "send_capture(" not in source
         assert "get_capture" not in source
 
 
