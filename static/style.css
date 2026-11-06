@@ -101,7 +101,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* The page's light: two soft blooms, the dot grid and the grain, on one layer fixed to the screen.
+/* The page's light: two soft blooms and the grain, on one layer fixed to the screen.
    A fixed layer works on iPhones, which ignore background-attachment: fixed, and it only has to
    be drawn once, while a fixed background is repainted on every scroll. */
 body::before {
@@ -110,10 +110,9 @@ body::before {
   inset: 0;
   z-index: -1;
   background-image: var(--grain),
-    radial-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px),
     radial-gradient(70% 70% at 8% 0%, rgba(255, 255, 255, 0.9), transparent),
     radial-gradient(70% 70% at 95% 100%, rgba(217, 217, 213, 0.5), transparent);
-  background-size: 200px 200px, 20px 20px, auto, auto;
+  background-size: 200px 200px, auto, auto;
   pointer-events: none;
 }
 
@@ -899,12 +898,11 @@ input.ai-filled {
   container-type: inline-size;
 }
 
-/* Ribbed light, as if it comes through fluted glass. The layer is bigger than the card, so its
-   light can drift during last call without showing an edge. */
+/* Soft light and grain. The layer is bigger than the card, so its light can drift during last call
+   without showing an edge. */
 .countdown-card .card-bloom::before {
   inset: -15%;
   background-image: var(--grain),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 6px),
     radial-gradient(circle farthest-corner at 15% 10%, rgba(255, 255, 255, 0.08), transparent 60%);
 }
 
@@ -1463,8 +1461,8 @@ input.ai-filled {
   padding: 0 16px;
 }
 
-/* The canvas: a big rounded panel on the page's own light, a little brighter behind the logo, with
-   faint grey ribs. Its ::before holds that behind everything. overflow keeps the pieces inside it. */
+/* The canvas: a big rounded panel on the page's own light, a little brighter behind the logo. Its
+   ::before holds that behind everything. overflow keeps the pieces inside it. */
 .hero {
   padding: 16px 16px 0;
 }
@@ -1491,7 +1489,6 @@ input.ai-filled {
   inset: 0;
   z-index: -1;
   background-image: var(--grain),
-    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.025) 0 1px, transparent 1px 6px),
     radial-gradient(45% 55% at 50% 35%, #FFFFFF, transparent);
 }
 
@@ -1526,27 +1523,18 @@ input.ai-filled {
 }
 
 /* Two lines at every width: below 580px the size follows the screen, because 44px
-   "unless everyone's in." would need a third line on a phone. */
+   "unless the goal is met." would not fit a phone on one line. */
 .hero-title {
+  margin: 0 0 32px;
   font-size: min(2.75rem, 7.6vw);
-  letter-spacing: -0.04em;
+  font-weight: 800;
+  letter-spacing: -0.045em;
   line-height: 1;
 }
 
 .hero-line {
   display: block;
   white-space: nowrap;
-}
-
-.hero-line-soft {
-  color: var(--ink-3);
-}
-
-.hero-lead {
-  max-width: 46ch;
-  margin: 16px 0 20px;
-  color: var(--ink-2);
-  font-size: 1rem;
 }
 
 .hero-note {
@@ -1902,10 +1890,6 @@ input.ai-filled {
     font-size: 3.5rem;
   }
 
-  .hero-lead {
-    font-size: 1.125rem;
-  }
-
   .landing-nav {
     display: flex;
     position: absolute;
@@ -1927,7 +1911,10 @@ input.ai-filled {
   .hero-title {
     font-size: 4.5rem;
   }
+}
 
+/* The 72px headline needs the ring and the waiting card near the edges until here. */
+@media (min-width: 1366px) {
   .piece-ring { left: 5%; }
   .piece-waiting { right: 6%; }
 }
