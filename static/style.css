@@ -1,4 +1,4 @@
-/* Last Call styles: dark, calm and high-end, with one muted color (docs/UI_DESIGN.md section 8).
+/* Last Call styles: a black-and-white dashboard with soft grey light (docs/UI_DESIGN.md section 8).
    Phone first: the normal rules are for a phone. The one media query near the bottom
    adjusts things for laptops, from 1024px wide. */
 
@@ -8,31 +8,28 @@
 /* Every value on the site comes from these variables, so changing one line here
    changes it everywhere. Contrast ratios are in UI_DESIGN.md section 8. */
 :root {
-  color-scheme: dark;       /* dark scrollbars and form controls */
+  --page: #F3F3F1;         /* page background */
+  --card: #FFFFFF;         /* cards */
+  --ink: #0B0B0B;          /* main text, primary buttons, featured cards, counted */
+  --ink-2: #5C5C5C;        /* secondary text */
+  --ink-3: #8A8A8A;        /* 3.45:1 on white: too faint for small text, so it is for large text only */
+  --line: #E5E5E2;         /* borders and dividers */
+  --held: #9A9A9A;         /* held but not counted, in the gauge */
+  --on-ink: #FFFFFF;       /* text on black */
+  --on-ink-2: #BDBDBD;     /* quieter text on black */
+  --danger: #B42318;       /* only Declined, Charge failed, Needs attention, always with a word */
+  --danger-bg: #FDECEA;
 
-  --bg: #0A0B0C;            /* page */
-  --surface: #131517;       /* cards */
-  --surface-2: #1A1D20;     /* raised cards and inputs */
-  --line: rgba(255, 255, 255, 0.08);          /* borders */
-  --line-strong: rgba(255, 255, 255, 0.14);
-  --ink: #F2F3F1;           /* main text */
-  --ink-2: #A6ACA8;         /* secondary text and captions */
-  --ink-3: #6E7571;         /* 3.6 to 4.2:1, too faint for small text, so no text uses it */
-
-  /* The one color: muted teal to sage. Every gradient comes from this scale or black. */
-  --tint-900: #0F1A1B;
-  --tint-700: #1E3436;
-  --tint-500: #3F6461;
-  --tint-300: #9DB8AE;
-  --tint-100: #D6E3DC;
-  --accent: var(--tint-300);   /* counted and goal reached, always with a word */
-  --on-accent: #0A0B0C;        /* text on the light tints */
-
-  --danger: #F2867A;        /* only Declined, Charge failed, Needs attention, always with a word */
-  --danger-bg: #2A1513;
+  /* The greys that gradients are made of. No other hue appears on the page. */
+  --grey-50: #FAFAF9;
+  --grey-100: #F3F3F1;
+  --grey-200: #E8E8E5;
+  --grey-300: #D9D9D5;
+  --grey-800: #2A2A2A;
+  --grey-900: #161616;
 
   /* Fine noise laid over every gradient, so it never shows bands. */
-  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E");
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
 
   --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --text-display: 2.5rem;  /* 40px: the big numbers */
@@ -53,12 +50,13 @@
      with a floor so the box never turns square on a laptop. */
   --radius-inner: max(calc(var(--radius-card) - var(--card-padding)), 8px);
 
-  /* On a dark page, depth comes from light: a thin highlight along the top edge. */
-  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.35);
-  --shadow-raised: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 24px 64px rgba(0, 0, 0, 0.5);
-  --shadow-hover: 0 28px 72px rgba(0, 0, 0, 0.6);
-  --button-lit: inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 -1px 0 rgba(0, 0, 0, 0.25), 0 8px 24px rgba(63, 100, 97, 0.35);
-  --button-pressed: inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 -1px 0 rgba(0, 0, 0, 0.25), 0 2px 8px rgba(63, 100, 97, 0.35);
+  /* Soft black shadows in layers, never a colored glow. */
+  --shadow-rest: 0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08), 0 24px 48px rgba(0, 0, 0, 0.06);
+  --shadow-floating: 0 2px 4px rgba(0, 0, 0, 0.05), 0 12px 32px rgba(0, 0, 0, 0.10);
+  --shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.06), 0 16px 40px rgba(0, 0, 0, 0.12);
+  --button-lit: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 20px rgba(0, 0, 0, 0.18);
+  --button-pressed: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 2px 6px rgba(0, 0, 0, 0.18);
 
   --landing-header-height: 64px;
 
@@ -94,15 +92,29 @@ html {
 /* tabular-nums gives every digit the same width, so money and times never jump. */
 body {
   margin: 0;
-  background-color: var(--bg);
-  background-image: radial-gradient(60% 480px at 100% 0%, rgba(157, 184, 174, 0.06), transparent);
+  background-color: var(--grey-100);
   color: var(--ink);
   font-family: var(--font);
   font-size: var(--text-body);
   font-variant-numeric: tabular-nums;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  background-repeat: no-repeat;
+}
+
+/* The page's light: two soft blooms, the dot grid and the grain, on one layer fixed to the screen.
+   A fixed layer works on iPhones, which ignore background-attachment: fixed, and it only has to
+   be drawn once, while a fixed background is repainted on every scroll. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--grain),
+    radial-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+    radial-gradient(70% 70% at 8% 0%, rgba(255, 255, 255, 0.9), transparent),
+    radial-gradient(70% 70% at 95% 100%, rgba(217, 217, 213, 0.5), transparent);
+  background-size: 200px 200px, 20px 20px, auto, auto;
+  pointer-events: none;
 }
 
 /* Some rules below set display, which would beat the browser's own [hidden] rule. */
@@ -190,8 +202,8 @@ a {
   min-height: var(--banner-height);
   margin: 0;
   padding: env(safe-area-inset-top, 0px) var(--gutter) 0;
-  background: var(--tint-100);
-  color: var(--on-accent);
+  background: var(--ink);
+  color: var(--on-ink);
   font-size: var(--text-caption);
   text-align: center;
 }
@@ -276,7 +288,7 @@ a {
 
 .sandbox-card-text {
   margin: 0;
-  color: var(--ink-2);
+  color: var(--on-ink-2);
   font-size: var(--text-caption);
 }
 
@@ -316,8 +328,8 @@ a {
   flex-wrap: wrap;
   gap: 8px;
   padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid var(--line);
-  background: rgba(10, 11, 12, 0.72);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.72);
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
   backdrop-filter: blur(16px) saturate(1.4);
 }
@@ -344,8 +356,8 @@ a {
 .card {
   padding: var(--card-padding);
   border-radius: var(--radius-card);
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
+  background: linear-gradient(180deg, var(--card), var(--grey-50));
+  box-shadow: var(--shadow-rest), inset 0 1px 0 rgba(255, 255, 255, 0.8);
   border: 1px solid var(--line);
 }
 
@@ -355,14 +367,15 @@ a {
   font-weight: 500;
 }
 
-/* A raised card with light in it. .card-bloom is an empty element inside the card: the gradient
-   and the grain sit on its ::before, and it keeps them inside the card's rounded corners. The light
-   comes from one corner, so words at the other side stay on the dark part. */
+/* A black card with soft light falling from the top left. .card-bloom is an empty element inside
+   the card that holds the light and the grain, and keeps them inside the rounded corners. */
 .light-card {
   position: relative;
   isolation: isolate;
-  background: var(--surface-2);
-  box-shadow: var(--shadow-raised);
+  border-color: rgba(255, 255, 255, 0.08);
+  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), #0B0B0B 70%);
+  box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: var(--on-ink);
 }
 
 .card-bloom {
@@ -378,7 +391,7 @@ a {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: var(--grain), radial-gradient(circle farthest-corner at 100% 0%, var(--tint-500) 0%, var(--tint-700) 30%, var(--tint-900) 65%);
+  background-image: var(--grain), radial-gradient(circle farthest-corner at 0% 0%, rgba(255, 255, 255, 0.07), transparent 60%);
 }
 
 /* ---------- Avatars ---------- */
@@ -391,22 +404,22 @@ a {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.10);
+  background: var(--line);
   color: var(--ink);
   font-size: var(--text-caption);
   font-weight: 600;
 }
 
 .avatar-counted {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--ink);
+  color: var(--on-ink);
 }
 
 
 /* ---------- Buttons ---------- */
 
-/* The primary button: a pill lit from inside, with a soft glow under it. .button-link is a real
-   link that goes to another page and looks the same. It presses in as soon as a finger lands. */
+/* The primary button: a black pill with light along its top edge. .button-link is a real link
+   that goes to another page and looks the same. It presses in as soon as a finger lands. */
 button,
 .button-link {
   position: relative;
@@ -417,11 +430,11 @@ button,
   gap: 8px;
   min-height: var(--button-height);
   padding: 0 20px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 999px;
-  background: linear-gradient(180deg, var(--tint-500), var(--tint-700));
+  background: linear-gradient(180deg, #3A3A3A, #0B0B0B);
   box-shadow: var(--button-lit);
-  color: var(--ink);
+  color: var(--on-ink);
   font: inherit;
   font-size: var(--text-body);
   font-weight: 600;
@@ -433,53 +446,41 @@ button,
   transition: transform 120ms var(--ease-out);
 }
 
-/* Two layers wait on each button: ::before brightens it and ::after holds a bigger glow. Hover only
-   fades them in, because fading a layer is cheap and animating a gradient or shadow is not. */
+/* A layer waits on each button and fades in on hover, because fading a layer is cheap and
+   animating a gradient is not. On a primary button it brightens the pill one step. */
 button::before,
-.button-link::before,
-button::after,
-.button-link::after {
+.button-link::before {
   content: "";
   position: absolute;
   inset: -1px;
   z-index: -1;
   border-radius: inherit;
+  background: rgba(255, 255, 255, 0.10);
   opacity: 0;
   pointer-events: none;
   transition: opacity 200ms ease;
 }
 
-button::before,
-.button-link::before {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-button::after,
-.button-link::after {
-  box-shadow: 0 12px 32px rgba(63, 100, 97, 0.55);
-}
-
 /* A button that can't be pressed yet looks clearly switched off. */
 button:disabled {
   border-color: var(--line);
-  background: var(--surface-2);
+  background: var(--line);
   box-shadow: none;
   color: var(--ink-2);
   cursor: not-allowed;
 }
 
-button:disabled::before,
-button:disabled::after {
+button:disabled::before {
   display: none;
 }
 
-/* Glass: the quiet buttons, the current menu item and the small round buttons. */
+/* Frosted glass: the quiet buttons, the current menu item and the small round buttons. */
 .button-secondary,
 .icon-button,
 .nav-item[aria-current="page"] {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.65);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   color: var(--ink);
@@ -489,12 +490,9 @@ button:disabled::after {
   font-weight: 500;
 }
 
+/* Hover takes the glass from 65% to 85% white. */
 .button-secondary::before {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.button-secondary::after {
-  display: none;
+  background: rgba(255, 255, 255, 0.57);
 }
 
 .button-full {
@@ -527,25 +525,33 @@ button:disabled::after {
   position: absolute;
   inset: -3px;
   border-radius: 50%;
-  box-shadow: none;
-  opacity: 1;
 }
 
 .icon-button:active {
   transform: scale(0.97);
 }
 
+/* On a black card the small round button is dark glass. */
+.light-card .icon-button {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: var(--on-ink);
+}
+
 /* Only a real mouse gets hover looks, because a tap would leave them stuck on a phone. */
 @media (hover: hover) and (pointer: fine) {
   button:hover:not(:disabled)::before,
-  .button-link:hover::before,
-  button:hover:not(:disabled)::after,
-  .button-link:hover::after {
+  .button-link:hover::before {
     opacity: 1;
   }
 
   .icon-button:hover {
-    background: rgba(255, 255, 255, 0.10);
+    background: rgba(255, 255, 255, 0.85);
+  }
+
+  .light-card .icon-button:hover {
+    background: rgba(255, 255, 255, 0.2);
   }
 
   .nav-item:hover {
@@ -553,12 +559,12 @@ button:disabled::after {
   }
 }
 
-/* Where glass isn't possible, a slightly stronger solid tint does the same job. */
+/* Where glass isn't possible, a stronger white does the same job. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .button-secondary,
   .icon-button,
   .nav-item[aria-current="page"] {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.92);
   }
 }
 
@@ -585,9 +591,9 @@ textarea {
   width: 100%;
   min-height: 48px;
   padding: 0 16px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line);
   border-radius: var(--radius-field);
-  background: var(--surface-2);
+  background: var(--card);
   color: var(--ink);
   font: inherit;
   font-size: 1rem;
@@ -604,14 +610,14 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--tint-300);
-  box-shadow: 0 0 0 1px var(--tint-300);
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
   outline: none;
 }
 
 input:disabled,
 textarea:disabled {
-  background: var(--surface);
+  background: var(--grey-100);
   color: var(--ink-2);
 }
 
@@ -653,7 +659,7 @@ input[type="checkbox"] {
   min-height: 0;
   margin: 0;
   padding: 0;
-  accent-color: var(--tint-300);
+  accent-color: var(--ink);
 }
 
 
@@ -691,7 +697,7 @@ input[type="checkbox"] {
   margin: 0 0 20px;
   padding: 12px 16px;
   border-radius: var(--radius-inner);
-  background: var(--surface-2);
+  background: var(--grey-100);
 }
 
 /* The pledge page's three steps are sections of one card, split by a line. */
@@ -717,7 +723,7 @@ input[type="checkbox"] {
   margin: 12px 0 0;
   padding: 12px 16px;
   border-radius: var(--radius-inner);
-  background: var(--surface-2);
+  background: var(--grey-100);
 }
 
 .check-message:empty,
@@ -728,7 +734,7 @@ input[type="checkbox"] {
 
 /* A box the AI filled has a black edge until the friend edits it. */
 input.ai-filled {
-  border-color: var(--tint-300);
+  border-color: var(--ink);
 }
 
 .hold-text {
@@ -752,7 +758,7 @@ input.ai-filled {
 .result-line {
   margin: 24px 0 0;
   padding: 16px;
-  border: 1px solid var(--tint-300);
+  border: 1px solid var(--ink);
   border-radius: var(--radius-inner);
   font-weight: 500;
 }
@@ -894,12 +900,12 @@ input.ai-filled {
 }
 
 /* Ribbed light, as if it comes through fluted glass. The layer is bigger than the card, so its
-   bloom can drift during last call without showing an edge. */
+   light can drift during last call without showing an edge. */
 .countdown-card .card-bloom::before {
   inset: -15%;
   background-image: var(--grain),
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 6px),
-    radial-gradient(circle farthest-corner at 85% 90%, var(--tint-500) 0%, var(--tint-700) 30%, #0A0B0C 70%);
+    radial-gradient(circle farthest-corner at 15% 10%, rgba(255, 255, 255, 0.08), transparent 60%);
 }
 
 /* The auto margins center the time in whatever height the card has. */
@@ -961,6 +967,10 @@ input.ai-filled {
   font-weight: 500;
 }
 
+.light-card .stat-caption {
+  color: var(--on-ink-2);
+}
+
 /* The half ring */
 .ring {
   position: relative;
@@ -987,7 +997,7 @@ input.ai-filled {
 }
 
 .ring-counted {
-  stroke: url(#ring-fill);
+  stroke: var(--ink);
   stroke-dasharray: 100 100;
   transition: stroke-dashoffset 600ms var(--ease-out);
 }
@@ -1002,7 +1012,7 @@ input.ai-filled {
 }
 
 .board[data-status="EXPIRED"] .ring-counted {
-  stroke: rgba(255, 255, 255, 0.25);
+  stroke: var(--held);
 }
 
 .ring-center {
@@ -1107,8 +1117,8 @@ input.ai-filled {
 }
 
 .board-rows li[data-counted="true"] .row-avatar {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--ink);
+  color: var(--on-ink);
 }
 
 /* overflow-wrap breaks a long name with no spaces, so it can't push the chip off the screen. */
@@ -1139,9 +1149,9 @@ input.ai-filled {
   min-height: 28px;
   padding: 0 12px;
   overflow: hidden;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: transparent;
+  background: var(--card);
   color: var(--ink);
   font-size: var(--text-caption);
   font-weight: 500;
@@ -1152,33 +1162,26 @@ input.ai-filled {
 
 .board-rows li[data-status="HOLD_PENDING"] .row-chip {
   border-style: dashed;
-  border-color: var(--line-strong);
+  border-color: var(--line);
 }
 
 .board-rows li[data-status="HELD"] .row-chip {
-  border-color: transparent;
-  background: rgba(255, 255, 255, 0.10);
+  border-color: var(--line);
+  background: var(--line);
 }
 
 /* Only this chip may be cut short with dots, because the line under the name shows the
    same words in full. A "Charged $x" chip is money, so it is never cut. */
 .board-rows li[data-waiting="true"] .row-chip {
   max-width: 8rem;
-  border-color: var(--tint-300);
-  background: transparent;
-  color: var(--tint-100);
+  border-color: var(--ink);
+  background: var(--card);
 }
 
 .board-rows li[data-counted="true"] .row-chip {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--on-accent);
-}
-
-.board-rows li[data-status="CHARGED"] .row-chip {
-  border-color: var(--tint-100);
-  background: var(--tint-100);
-  color: var(--on-accent);
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--on-ink);
 }
 
 /* Last, because a failed charge also has data-counted="true". */
@@ -1220,7 +1223,7 @@ input.ai-filled {
 
 /* ---------- Motion on the board ---------- */
 
-/* Last call: light comes up in the status card. It is the same element all along, so a
+/* Last call: the status card turns black. It is the same element all along, so a
    transition does it, and the 10-second refresh can't restart it. */
 .status-card {
   position: relative;
@@ -1232,12 +1235,27 @@ input.ai-filled {
   transition: opacity 300ms var(--ease-out);
 }
 
+.status-card .card-bloom {
+  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), #0B0B0B 70%);
+}
+
 .status-card .card-bloom::before {
-  background-image: var(--grain), radial-gradient(circle farthest-corner at 100% 100%, var(--tint-500) 0%, var(--tint-700) 30%, var(--tint-900) 65%);
+  background-image: var(--grain), radial-gradient(circle farthest-corner at 0% 0%, rgba(255, 255, 255, 0.07), transparent 60%);
 }
 
 .board[data-status="LAST_CALL"] .status-card .card-bloom {
   opacity: 1;
+}
+
+.board[data-status="LAST_CALL"] .status-card {
+  color: var(--on-ink);
+}
+
+.board[data-status="LAST_CALL"] .status-button {
+  border-color: var(--on-ink);
+  background: var(--on-ink);
+  box-shadow: var(--shadow-floating);
+  color: var(--ink);
 }
 
 /* The countdown card's light drifts slowly during last call. Only a layer moves. */
@@ -1274,7 +1292,7 @@ input.ai-filled {
   animation: card-enter 300ms var(--ease-out);
 }
 
-/* The circle turns sage together: no delay, so they change at the same moment. */
+/* The circle turns black together: no delay, so they change at the same moment. */
 .row-just-counted .row-chip,
 .row-just-counted .row-avatar {
   animation: turn-counted 200ms var(--ease-out);
@@ -1284,8 +1302,8 @@ input.ai-filled {
   display: inline-block;
   padding: 0 8px;
   border-radius: 999px;
-  background: var(--tint-100);
-  color: var(--on-accent);
+  background: var(--ink);
+  color: var(--on-ink);
   font-weight: 500;
   animation: wiggle 450ms ease-in-out, fade-away 300ms ease 3700ms forwards;
 }
@@ -1332,7 +1350,7 @@ input.ai-filled {
 }
 
 @keyframes turn-counted {
-  from { background-color: rgba(255, 255, 255, 0.10); color: var(--ink); }
+  from { background-color: var(--line); color: var(--ink); }
 }
 
 @keyframes bloom-drift {
@@ -1399,8 +1417,8 @@ input.ai-filled {
   gap: 12px;
   height: var(--landing-header-height);
   padding: 0 var(--gutter);
-  border-bottom: 1px solid var(--line);
-  background: rgba(10, 11, 12, 0.72);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.72);
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
   backdrop-filter: blur(16px) saturate(1.4);
 }
@@ -1445,8 +1463,8 @@ input.ai-filled {
   padding: 0 16px;
 }
 
-/* The canvas: a big rounded panel with ribbed light coming from the top right corner. Its
-   ::before holds the light behind everything. overflow keeps the pieces inside it. */
+/* The canvas: a big rounded panel on the page's own light, a little brighter behind the logo, with
+   faint grey ribs. Its ::before holds that behind everything. overflow keeps the pieces inside it. */
 .hero {
   padding: 16px 16px 0;
 }
@@ -1463,7 +1481,7 @@ input.ai-filled {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 32px;
-  background-color: var(--bg);
+  background-color: transparent;
   text-align: center;
 }
 
@@ -1473,11 +1491,11 @@ input.ai-filled {
   inset: 0;
   z-index: -1;
   background-image: var(--grain),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 6px),
-    radial-gradient(circle farthest-corner at 92% -8%, var(--tint-500) 0%, var(--tint-900) 42%, #0A0B0C 72%);
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.025) 0 1px, transparent 1px 6px),
+    radial-gradient(45% 55% at 50% 35%, #FFFFFF, transparent);
 }
 
-/* The logo as a raised dark glass tile. Scrolling moves .hero-tile; hover wiggles the face inside it. */
+/* The logo as a raised white tile. Scrolling moves .hero-tile; hover wiggles the face inside it. */
 .hero-tile {
   flex: none;
   width: 96px;
@@ -1490,10 +1508,10 @@ input.ai-filled {
   width: 100%;
   height: 100%;
   border-radius: 24px;
-  background: var(--surface-2);
-  box-shadow: var(--shadow-raised);
+  background: var(--card);
+  box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.8);
   place-items: center;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line);
 }
 
 .hero-tile-face img {
@@ -1521,7 +1539,7 @@ input.ai-filled {
 }
 
 .hero-line-soft {
-  color: var(--tint-300);
+  color: var(--ink-3);
 }
 
 .hero-lead {
@@ -1549,11 +1567,11 @@ input.ai-filled {
   max-width: 240px;
   padding: 14px;
   border-radius: 18px;
-  background: var(--surface-2);
-  box-shadow: var(--shadow-raised);
+  background: var(--card);
+  box-shadow: var(--shadow-floating), inset 0 1px 0 rgba(255, 255, 255, 0.8);
   text-align: left;
   transform: rotate(var(--tilt, 0deg)) scale(var(--piece-scale, 1));
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line);
 }
 
 .piece-body p {
@@ -1589,15 +1607,15 @@ input.ai-filled {
 }
 
 .piece-chip-black {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--on-accent);
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--on-ink);
 }
 
 .piece-chip-outline {
   display: inline-block;
-  border-color: var(--tint-300);
-  color: var(--tint-100);
+  border-color: var(--ink);
+  color: var(--ink);
 }
 
 .piece-avatars {
@@ -1607,18 +1625,19 @@ input.ai-filled {
 
 .piece-avatars .avatar + .avatar {
   margin-left: -8px;
-  box-shadow: 0 0 0 2px var(--surface-2);
+  box-shadow: 0 0 0 2px var(--card);
 }
 
 .piece-black {
   min-width: 140px;
-  background: var(--tint-900);
-  box-shadow: var(--shadow-raised);
-  color: var(--ink);
+  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), #0B0B0B 70%);
+  box-shadow: var(--shadow-floating), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: var(--on-ink);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .piece-black .piece-caption {
-  color: var(--ink-2);
+  color: var(--on-ink-2);
 }
 
 .piece-time {
@@ -1645,7 +1664,7 @@ input.ai-filled {
 }
 
 .mini-ring-arc {
-  stroke: var(--tint-300);
+  stroke: var(--ink);
   stroke-dasharray: 70 100;
 }
 
@@ -1653,11 +1672,11 @@ input.ai-filled {
   position: relative;
   max-width: 200px;
   padding-top: 20px;
-  background: var(--tint-100);
+  background: #FFFDF5;
   font-size: 1.0625rem;
   font-weight: 500;
   line-height: 1.3;
-  color: var(--on-accent);
+  color: var(--ink);
 }
 
 .piece-pin {
@@ -1667,7 +1686,7 @@ input.ai-filled {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--on-accent);
+  background: var(--ink);
 }
 
 /* Phones get two pieces, in the flow of the page, so they can never cover text. */
@@ -1837,7 +1856,7 @@ input.ai-filled {
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .landing-header,
   .page-actions {
-    background: var(--bg);
+    background: var(--card);
   }
 }
 
@@ -1845,7 +1864,7 @@ input.ai-filled {
 @media (prefers-reduced-transparency: reduce) {
   .landing-header,
   .page-actions {
-    background: var(--bg);
+    background: var(--card);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -1853,7 +1872,7 @@ input.ai-filled {
   .button-secondary,
   .icon-button,
   .nav-item[aria-current="page"] {
-    background: var(--surface-2);
+    background: var(--card);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -2039,6 +2058,10 @@ input.ai-filled {
   transition: opacity 250ms var(--ease-out);
 }
 
+.board .status-card {
+  transition: transform 250ms var(--ease-out), color 300ms var(--ease-out);
+}
+
 .row-avatar {
   transition: transform 200ms var(--ease-out);
 }
@@ -2069,7 +2092,7 @@ input.ai-filled {
 
   .board-rows li:hover {
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--grey-100);
   }
 
   .board-rows li:hover .row-avatar {
@@ -2102,7 +2125,7 @@ button:active:not(:disabled),
 
 .button-secondary:active:not(:disabled),
 .icon-button:active:not(:disabled) {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 /* Wiggle: sometimes, never constantly. Shake is for a field with an error. */
@@ -2134,9 +2157,14 @@ button:active:not(:disabled),
 /* A black ring around whatever the keyboard is on. :focus-visible shows it
    for keyboard users, not after every mouse click. Fields use their black edge. */
 :focus-visible {
-  outline: 2px solid var(--tint-300);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
+
+.light-card :focus-visible {
+  outline-color: var(--on-ink);
+}
+
 
 /* ---------- Laptops ---------- */
 
