@@ -12,6 +12,7 @@ import psycopg
 from flask import Flask, jsonify, make_response, redirect, render_template, request, url_for
 
 import ai_parser
+import conditions
 import config
 import db
 import lifecycle
@@ -67,6 +68,24 @@ LEAVE_COUNTED_TEXT = "You're counted, so you can't leave during last call."
 LEAVE_DONE_TEXT = "You're out. Your hold is cancelled, and nothing will be charged."
 LEAVE_CANCELLING_TEXT = "You're out. Cancelling your hold\u2026"
 LEAVE_CLOSED_TEXT = "It's too late to cancel here: pledging has ended for this event."
+# D95: the receipt on S6. Placeholders until Samuel approves them (D57). Every amount is a saved record,
+# formatted by dollars(); the released amount is worked out by money.released_cents only.
+RECEIPT_TEXTS = {
+    "PAID": "You paid %s (your max was %s). Nobody paid more than their max.",
+    "REFUNDED": "You were charged %s, and it was refunded in full.",
+    "REFUND_IN_PROGRESS": "You were charged %s. Your refund is in progress.",
+    "REFUND_REVIEW": "You were charged %s. The treasurer is looking into your refund.",
+    "FAILED": "Your card couldn't be charged, so you paid nothing. The treasurer has been told.",
+    "NOT_CHARGED_CANCELLED": "You weren't charged. Your hold was cancelled.",
+    "NOT_CHARGED_CANCELLING": "You weren't charged. Your hold is being cancelled.",
+    "NOT_CHARGED_NO_HOLD": "You weren't charged.",
+    "EXPIRED_CANCELLED": "The goal wasn't reached, so nobody paid. Your hold was cancelled.",
+    "EXPIRED_CANCELLING": "The goal wasn't reached, so nobody paid. Your hold is being cancelled.",
+    "EXPIRED_NO_HOLD": "The goal wasn't reached, so nobody paid.",
+    "CHARGING": "Shares are being charged now. Check back in a minute.",
+    "UNDER_REVIEW": "We're checking what happened to your payment. The treasurer has been told.",
+}
+REFUND_RECEIPT_KINDS = ("REFUNDED", "REFUND_IN_PROGRESS", "REFUND_REVIEW")
 LEAVE_MESSAGES = {"CAN_LEAVE": LEAVE_ASK_TEXT, "COUNTED": LEAVE_COUNTED_TEXT, "LEFT": LEAVE_DONE_TEXT,
                   "LEFT_CANCELLING": LEAVE_CANCELLING_TEXT, "CLOSED": LEAVE_CLOSED_TEXT}
 # The board's texts, copied from docs/UI_DESIGN.md section 10. DRAFT_TEXT and the time formats are
@@ -242,9 +261,32 @@ def leave_page(pledger_token):
         return ERROR_TEXT, 503
     if state["state"] == "NOT_FOUND":
         return ERROR_TEXT, 404
-    return render_template("leave.html", title=state["title"], message=LEAVE_MESSAGES[state["state"]],
+    trail = None
+    if state["state"] == "RECEIPT":
+        message, trail = receipt_view(state["receipt"])
+    else:
+        message = LEAVE_MESSAGES[state["state"]]
+    return render_template("leave.html", title=state["title"], message=message, trail=trail,
                            can_leave=state["state"] == "CAN_LEAVE", button_text=LEAVE_BUTTON_TEXT,
-                           leave_url=url_for("leave_submit", pledger_token=pledger_token))
+                           leave_url=url_for("leave_submit", pledger_token=pledger_token),
+                           board_url=url_for("board_page", event_id=state["event_id"]))
+
+
+# D95: the receipt line and, for a paid friend only, the 3-step money trail. Formatting only: the amounts
+# are saved records, and the released amount comes from money.released_cents (rule 2).
+def receipt_view(facts):
+    kind = facts["kind"]
+    if kind == "PAID":
+        return RECEIPT_TEXTS[kind] % (dollars(facts["paid_cents"]), dollars(facts["max_cents"])), money_trail(facts)
+    if kind in REFUND_RECEIPT_KINDS:
+        return RECEIPT_TEXTS[kind] % dollars(facts["paid_cents"]), None
+    return RECEIPT_TEXTS[kind], None
+
+
+# "Held $15.00 -> Charged $10.77 -> Released $4.23" as three finished texts.
+def money_trail(facts):
+    return {"held": dollars(facts["max_cents"]), "charged": dollars(facts["paid_cents"]),
+            "released": dollars(money.released_cents(facts["max_cents"], facts["paid_cents"]))}
 
 
 # The leave itself. Whatever happened, the answer is a redirect (303) back to the page, which shows the
@@ -793,8 +835,33 @@ def board_for_event(facts, now):
         "counted_total_text": counted_total_text,
         "progress_percent": facts["progress_percent"],
         "pledging_open": lifecycle.pledging_is_open(event, now),
+        "links": board_links(facts),
         "rows": board_row_texts(facts),
     }
+
+
+# D79: a row is counted if the circle rule counts it, or it was already charged or failed at lock (it was
+# counted then). The rows and the links both use this, so a link can never disagree with its row.
+def row_is_counted(row, facts):
+    return row["id"] in facts["counted_ids"] or row["status"] in ("CHARGED", "FAILED")
+
+
+# D96: who depends on whom, for Samuel's diagram. One link per saved condition: {"from": the pledger as the board
+# shows them, "to": the person they need, "met": that person is counted}. A name with a visible row is spelled the
+# way the board shows it; a name nobody pledged (or who left, D56) is the saved name, tidied, and is never met. Names
+# only: no id, no token. At most MAX_CONDITIONS links per pledger, in join order then saved order.
+def board_links(facts):
+    visible = {}
+    for row in facts["rows"]:
+        visible[conditions.name_key(row["name"])] = row
+    links = []
+    for saved in facts["conditions"]:
+        target = visible.get(conditions.name_key(saved["depends_on_name"]))
+        if target is None:
+            links.append({"from": saved["name"], "to": conditions.tidy_name(saved["depends_on_name"]), "met": False})
+        else:
+            links.append({"from": saved["name"], "to": target["name"], "met": row_is_counted(target, facts)})
+    return links
 
 
 # One text row per pledge, in the order board_facts gives them. estimated_share_text is "" except
@@ -808,7 +875,7 @@ def board_row_texts(facts):
         estimated_share_text = ""
         if row["id"] in facts["estimated_shares"]:
             estimated_share_text = dollars(facts["estimated_shares"][row["id"]])
-        counted = row["id"] in facts["counted_ids"] or row["status"] in ("CHARGED", "FAILED")
+        counted = row_is_counted(row, facts)
         rows.append({"name": row["name"], "status": row["status"], "status_word": status_word(row),
                      "max_text": dollars(row["max_cents"]), "estimated_share_text": estimated_share_text,
                      "counted": counted,

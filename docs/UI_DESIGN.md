@@ -277,6 +277,10 @@ Both get the same `board` object, and `board.json` is exactly this object, so th
 | `progress_percent` | a whole number from 0 to 100. It is 100 only when the goal is reached (D54), and 100 from `LAST_CALL` on (§5) | `39` |
 | `demo_mode` | true while the event runs on minute timers. Shows the demo mode badge. **Not sent yet** (`TEAM.md`); with no key, the badge stays off | `true` |
 | `pledging_open` | true or false: whether to show the link to `/e/<id>/pledge` | `true` |
+| `links` | a list of who depends on whom (D96), one per saved condition, at most `MAX_CONDITIONS` (3) per pledger, in join order then saved order; `[]` when nobody has a condition. Sent in every status. DROPPED pledges are never a `from` (D56) | |
+| `links[].from` | text: the pledger's name as the board shows it | `"Ana"` |
+| `links[].to` | text: the person they need. Spelled as the board shows them if they have a row, otherwise the saved name tidied (the same name "Waiting on …" uses). A name nobody pledged, or who left, is just a target | `"Jay"` |
+| `links[].met` | true or false: `to` has a row the board marks counted (the rows' `counted`), so it follows the rows. A circle (Ana ⇄ Jay) is two links, one each way; if one of them is not counted, both are false | `true` |
 | `rows` | a list in join order, with DROPPED pledges left out (D56) | |
 | `rows[].name` | text | `"Ana"` |
 | `rows[].status` | text, for styling only: `PENDING_PAY`, `HELD`, `DECLINED`, `CHARGED`, `FAILED` | `"HELD"` |
@@ -384,3 +388,27 @@ The new templates are refund_access.html, refund_confirm.html, refund_status.htm
 - If PayPal has no final answer the page says so and nothing changes; if it reports failed or cancelled it says "review required".
 - A frozen payment with no saved PayPal refund id shows: "No PayPal refund id was saved, so this cannot be checked here. Nothing was changed: a developer must investigate." No button.
 - Placeholder wording (D57) until Samuel approves it. Real browser and phone behaviour is NOT RUN.
+
+### S6 receipt (D95, Samuel review pending)
+
+Once the event is charging or finished, S6's `leave-message` is the friend's receipt, and there is no leave button. Placeholder texts (D57), from `RECEIPT_TEXTS` in `app.py`:
+
+| What happened | Text |
+|---|---|
+| paid (also shows the money trail) | "You paid $X (your max was $Y). Nobody paid more than their max." |
+| refunded | "You were charged $X, and it was refunded in full." |
+| refund in progress | "You were charged $X. Your refund is in progress." |
+| refund failed or cancelled | "You were charged $X. The treasurer is looking into your refund." |
+| card couldn't be charged | "Your card couldn't be charged, so you paid nothing. The treasurer has been told." |
+| not charged, hold cancelled / being cancelled / never held | "You weren't charged. Your hold was cancelled." / "... Your hold is being cancelled." / "You weren't charged." |
+| goal not reached (the same three) | "The goal wasn't reached, so nobody paid. Your hold was cancelled." / "... Your hold is being cancelled." / "The goal wasn't reached, so nobody paid." |
+| locking or charging | "Shares are being charged now. Check back in a minute." |
+| anything the records can't prove | "We're checking what happened to your payment. The treasurer has been told." |
+
+**Money trail (paid only):** an `<ol class="money-trail">` with three `money-trail-step` items, "Held $max", "→ Charged $paid", "→ Released $released" (the arrows are `money-trail-arrow`, hidden from screen readers). Bare markup, no styling yet: stack the steps vertically on phones.
+
+**Back link:** every S6 page now ends with "← Back to board" (`back-to-board-link`) to `/e/<id>`. Real browser and phone look: NOT RUN.
+
+#### `links` and the fallback list (D96, Samuel to draw and style)
+
+`links` is names and a flag only, with no ids or tokens. The end of a chain matches "Waiting on …" (D79): follow the links from an uncounted held person through held-but-uncounted people to names nobody holds for. Placeholder fallback in `board_panel.html` (inside the "Who's in" card, shown only when `links` is not empty): `<ul class="board-links">` with one `<li class="board-link" data-met="true|false">` per link, "Ana → Jay ✓" or "Bo → Cy (waiting)". Keep the data the same when you restyle or replace it. It is drawn at page load only, so redraw a diagram from `board.json` on each 10-second refresh; names are user text, so always use `textContent`, never `innerHTML`. On phones a list (or stacked chips) is the fallback for the diagram.

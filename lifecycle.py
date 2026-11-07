@@ -960,16 +960,92 @@ def leave_page_state(conn, pledger_token, now):
     if pledge is None:
         return {"state": "NOT_FOUND"}
     event = find_event(conn, pledge["event_id"])
+    # D95: once the event is charging or finished, S6 shows a receipt instead of the leave states.
+    if event["status"] in RECEIPT_EVENT_STATUSES or event["status"] in CHARGING_EVENT_STATUSES:
+        return {"state": "RECEIPT", "title": event["title"], "event_id": event["id"],
+                "receipt": receipt_facts(conn, pledge, event)}
     if pledge["status"] == "DROPPED":
         open_holds = db.fetch_one(conn, "SELECT COUNT(*) AS open FROM holds WHERE pledge_id = %s "
                                         "AND status = 'CREATED'", (pledge["id"],))
         state = "LEFT"
         if open_holds["open"] > 0:
             state = "LEFT_CANCELLING"
-        return {"state": state, "title": event["title"]}
+        return {"state": state, "title": event["title"], "event_id": event["id"]}
     reason = why_cannot_leave(conn, pledge, event, now)
     state = {None: "CAN_LEAVE", "COUNTED": "COUNTED", "CLOSED": "CLOSED"}.get(reason, "CLOSED")
-    return {"state": state, "title": event["title"]}
+    return {"state": state, "title": event["title"], "event_id": event["id"]}
+
+
+# ---------- D95: the receipt on S6 ----------
+# Read-only: SELECTs from saved records, no PayPal, no arithmetic. It returns a kind plus saved cents and
+# never an id, a request id or a token. Anything the records cannot prove is UNDER_REVIEW, so the page never
+# says "paid nothing" or "refunded" without proof.
+
+RECEIPT_EVENT_STATUSES = ("SETTLED", "NEEDS_ATTENTION", "REFUNDING", "REFUNDED", "EXPIRED")
+CHARGING_EVENT_STATUSES = ("LOCKING", "CHARGING")
+NO_HOLD_STATUSES = ("NOT_PLACED", "DENIED")        # never held money: not placed, or the card was declined
+CANCELLED_HOLD_STATUSES = ("VOIDED", "EXPIRED")
+
+
+# What happened to one friend's money, for their receipt.
+def receipt_facts(conn, pledge, event):
+    if event["status"] in CHARGING_EVENT_STATUSES:
+        return {"kind": "CHARGING"}
+    holds = db.fetch_all(conn, "SELECT id, status, amount_cents, void_run_token FROM holds WHERE pledge_id = %s "
+                               "ORDER BY id", (pledge["id"],))
+    captures = db.fetch_all(conn, "SELECT captures.* FROM captures JOIN holds ON holds.id = captures.hold_id "
+                                  "WHERE holds.pledge_id = %s ORDER BY captures.id", (pledge["id"],))
+    if any(capture_is_unknown(row) for row in captures):
+        return {"kind": "UNDER_REVIEW"}
+    paid = [row for row in captures if row["status"] in ("COMPLETED", "REFUNDED")]
+    if pledge["status"] in ("CHARGED", "REFUNDED"):
+        return charged_receipt(conn, pledge, holds, paid)
+    # D47: PayPal says money moved on a hold we never recorded a charge for. Never say "you paid nothing".
+    if paid or any(hold["status"] in MONEY_MOVED_HOLD_STATUSES for hold in holds):
+        return {"kind": "UNDER_REVIEW"}
+    if pledge["status"] == "FAILED":
+        return {"kind": "FAILED"}
+    return not_charged_receipt(event, holds)
+
+
+# A charged (or refunded) friend: exactly one recorded payment, matching the saved share, never above the max.
+def charged_receipt(conn, pledge, holds, paid):
+    if len(paid) != 1:
+        return {"kind": "UNDER_REVIEW"}
+    capture = paid[0]
+    hold = next(row for row in holds if row["id"] == capture["hold_id"])
+    if (pledge["share_cents"] != capture["amount_cents"] or capture["amount_cents"] > pledge["max_cents"]
+            or hold["amount_cents"] != pledge["max_cents"]):
+        return {"kind": "UNDER_REVIEW"}
+    refund = db.fetch_one(conn, "SELECT status, send_state, amount_cents FROM refunds WHERE capture_id = %s",
+                          (capture["id"],))
+    if pledge["status"] == "REFUNDED":
+        if (refund is not None and refund["send_state"] == "ANSWERED" and refund["status"] == "COMPLETED"
+                and refund["amount_cents"] == capture["amount_cents"] and capture["status"] == "REFUNDED"):
+            return {"kind": "REFUNDED", "paid_cents": refund["amount_cents"]}
+        return {"kind": "UNDER_REVIEW"}
+    if capture["status"] != "COMPLETED":
+        return {"kind": "UNDER_REVIEW"}
+    if refund is None:
+        return {"kind": "PAID", "paid_cents": capture["amount_cents"], "max_cents": pledge["max_cents"]}
+    if refund["send_state"] == "ANSWERED" and refund["status"] in ("FAILED", "CANCELLED"):
+        return {"kind": "REFUND_REVIEW", "paid_cents": capture["amount_cents"]}
+    if refund["status"] == "COMPLETED":
+        return {"kind": "UNDER_REVIEW"}
+    return {"kind": "REFUND_IN_PROGRESS", "paid_cents": capture["amount_cents"]}
+
+
+# A friend who was never charged: was there a hold, and is it cancelled yet?
+def not_charged_receipt(event, holds):
+    prefix = "EXPIRED" if event["status"] == "EXPIRED" else "NOT_CHARGED"
+    real_holds = [hold for hold in holds if hold["status"] not in NO_HOLD_STATUSES]
+    if not real_holds:
+        return {"kind": prefix + "_NO_HOLD"}
+    if any(hold["status"] == "CREATED" or hold["void_run_token"] is not None for hold in real_holds):
+        return {"kind": prefix + "_CANCELLING"}
+    if all(hold["status"] in CANCELLED_HOLD_STATUSES for hold in real_holds):
+        return {"kind": prefix + "_CANCELLED"}
+    return {"kind": "UNDER_REVIEW"}
 
 
 # ---------- M2: resume a lock that died halfway (D27, D50, D81) ----------
@@ -1309,6 +1385,7 @@ def board_facts(conn, event_id):
         "rows": board_rows(conn, event_id),
         "counted_ids": pledge_ids(counted),
         "waiting_on": board_waiting_on(conn, event, held, counted),
+        "conditions": board_conditions(conn, event_id),
         "held_total_cents": held_total_cents(conn, event_id),
         "counted_total_cents": money.counted_total_cents(max_list(counted)),
         "goal_cents": goal_cents,
@@ -1317,6 +1394,16 @@ def board_facts(conn, event_id):
         "any_hold_created": has_created_hold(conn, event_id),
         "club_net_cents": money.club_net_cents(charge_net_cents(conn, event_id)),
     }
+
+
+# D96: every saved condition of the board's pledges, as (pledger name, the name they depend on), in ONE query:
+# join order of the pledger, then the order the conditions were saved. DROPPED pledges are left out (D56). No
+# id, token or email is selected, so none can reach the board. app.board_links turns these into the links.
+def board_conditions(conn, event_id):
+    return db.fetch_all(conn, "SELECT pledges.name AS name, pledge_conditions.depends_on_name AS depends_on_name "
+                              "FROM pledge_conditions JOIN pledges ON pledges.id = pledge_conditions.pledge_id "
+                              "WHERE pledges.event_id = %s AND pledges.status <> 'DROPPED' "
+                              "ORDER BY pledges.created_at, pledges.id, pledge_conditions.id", (event_id,))
 
 
 # The id of each pledge in a list, in the same order.

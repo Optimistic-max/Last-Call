@@ -117,6 +117,20 @@
       <p>Nobody has pledged yet. Share the link to start.</p>
       {{ share_button(invite_url, "Invite", class_name="button-secondary board-invite", hidden=not board.pledging_open) }}
     </div>
+    {# D96, bare and unstyled: one line per link in board.links, for Samuel to restyle or replace with the
+       dependency diagram. Keep the data the same ({from, to, met}). The wording is a placeholder (D57). Names
+       are escaped by Jinja. Drawn by the server at page load only: board.js does not refresh this list, so a
+       diagram should redraw from board.json every 10 seconds. #}
+    {% if board.links %}
+    <div class="board-links-block">
+      <h3 class="board-links-title">Who depends on whom</h3>
+      <ul class="board-links">
+        {% for link in board.links %}
+        <li class="board-link" data-met="{% if link.met %}true{% else %}false{% endif %}">{{ link.from }} → {{ link.to }} {% if link.met %}✓{% else %}(waiting){% endif %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
   </div>
 
   <div class="card how-card" id="how-it-works">
