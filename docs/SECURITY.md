@@ -57,3 +57,42 @@ The pledge a friend types is sent to a third-party AI model, the AI provider set
 - After refund-all, the treasurer's account is short by the original processing fees, because PayPal keeps them on refunds (read in docs: PayPal US fees page, Nov 4 2026). Sandbox behavior is `NOT RUN`.
 - `money.py` uses the sandbox fee rate (2.59% + $0.49, checked against real sandbox captures Nov 4 2026). PayPal's live US Advanced card rate on Nov 4 2026 was 2.89% + $0.29, so a live launch must re-check the rate.
 - The `pledger_token` is kept in the browser's `localStorage` after a hold. On a shared computer, the next person could open that friend's cancel page.
+
+## F7 treasurer refund controls (D92)
+
+The existing admin URL is not sufficient to send refunds. A separate high-entropy club approval key (32-256 characters) is provided to the treasurer outside that URL. Configure only its Werkzeug scrypt/pbkdf2 password hash as REFUND_APPROVAL_KEY_HASH. Never put the key into source, a URL, a shell argument, a screenshot, or a log. No enrollment or key reset is available through an admin link. This is a shared club credential, not personal accounts or MFA.
+
+Refund controls fail closed unless FLASK_SECRET_KEY has at least 32 characters, Flask uses that key, the approval hash is configured, and APP_BASE_URL is a canonical HTTPS origin. An explicit REFUND_ALLOW_LOCAL_HTTP=true exception permits loopback HTTP only. This also permits the session cookie over local HTTP; never use that exception on a shared host. The actual .env was not changed. Verify HTTPS/proxy and cookie behavior before any deployment.
+
+Important code, in execution order:
+
+1. refund_request_refusal checks configuration, the configured host, form size, Origin/Referer and CSRF before a refund POST opens its database connection.
+2. approve verifies the independent key, clears the old session, rotates CSRF, and saves only an event ID, credential fingerprints, issue time and random session nonce in the signed cookie. Signed Flask cookies are readable; no private credential goes there.
+3. authorized_event checks the event ID and 15-minute expiry, then compares the current admin-token and approval-hash fingerprints. Credential rotation revokes an existing grant.
+4. make_action signs a random form bound to the event, session, command, target and reviewed inventory. For a pending check it includes the exact reviewed operation revision. Unused forms expire after 10 minutes.
+5. claim_command (D93) locks the event, rechecks authorization and current records, checks consumed/active commands, claims the payment or void the command needs, and inserts the durable action hash with a link to that claim. This is one transaction, and it commits before any PayPal work.
+6. The partial unique index is a second guard: only one CLAIMED browser command per event can exist across processes.
+7. run_refund_command invokes only the explicit start, continuation, cancel-one-hold or restricted GET integration. carry_out calls PayPal with no transaction open, then saves the result and finishes the command in one transaction. The previously checked form payload remains valid for that claimed invocation even if its unused-form deadline subsequently passes.
+8. finish_action retains the consumed action as FINISHED after a returned command when no active/uncertain refund or void remains. New independent commands can then proceed; replay cannot execute the completed action again.
+9. An exception, unresolved POST or uncertain void leaves CLAIMED evidence. No timer, refresh, new browser, session expiry or refund status page releases it. An inconclusive GET for a durably known pending refund can finish its read command; it does not authorize another POST for that refund.
+10. claim_treasurer_refund_check locks event then refund and checks event association, ANSWERED/PENDING, a known ID and the exact operation revision. It commits before GET. Existing owner/revision fences control the result write.
+11. Private responses use no-store, `Referrer-Policy: same-origin`, frame denial and form-action protections. It is not `no-referrer`: under that policy browsers send `Origin: null` on our own form POSTs, which the exact-origin check (correctly) refuses every time (found Nov 7, D93). `same-origin` keeps the real Origin and sends no Referer to other sites. `Origin: null` is never accepted, because a sandboxed or hostile page sends it too. Templates receive whitelisted fields, not raw payment records. Public pages receive only generic refund status words.
+
+There is no browser maintenance, retry or claim-release endpoint. A crash can conservatively block otherwise unsent work. Releasing a browser command requires a separately reviewed offline procedure: establish that the original worker cannot resume, inspect exact command identity and payment/void evidence, reconcile known resources, and keep unknown POST outcomes blocked. Do not manually delete claims simply because they are old. Existing F7 maintenance authorization is not granted by the browser session.
+
+These protections apply to the new refund interface. Existing non-refund admin actions retain their previous authorization design. Real browser, proxy and deployment verification remain NOT RUN; see TEST_PLAN.md for actual local results.
+
+### D93 corrections
+
+- **Preflight (`POST /refunds/preflight`):** same session, CSRF and exact-origin checks as every refund POST; it takes no action token and no command slot because it only reads. It makes at most one PayPal GET per request and saves only `refund_check_status`. It never voids, captures or refunds.
+- **Cancelling a hold (`POST /refunds/holds/<id>/cancel`)** is a separate single-use command bound to that hold. A form for one hold, or for START, cannot be used for another. The void request id is saved before the call (rule 3), and the same id is reused on any retry (rule 4).
+- **Atomicity:** a command and its payment/void claim are saved together; its result and its finish are saved together. A crash between leaves the command CLAIMED, never silently half-saved. The database enforces both directions (migration 006). Recovery stays GET-only: `reconcile_refund` or `reconcile_uncertain_void` saves the answer and finishes the command.
+- **Totals:** when any captured-payment record is missing or unresolved the screen shows "total unknown", never $0.00 or a partial sum.
+- Real browser, proxy and deployed-timeout behaviour of the preflight script is NOT RUN.
+
+### D94: "Check with PayPal" for a frozen refund
+
+- `POST /refunds/<id>/paypal-check` uses the same refusal checks (configuration, host, size, exact origin, CSRF), the event-scoped 15-minute session, and a signed form bound to the session, event, refund and exact operation revision. A form for another refund, event, revision or action is refused.
+- It makes at most one PayPal GET, on a refund id PayPal already returned. It cannot POST: the functions it calls never reference the refund POST or a request id (a test reads their source). It creates no browser command.
+- Nothing is written unless PayPal says COMPLETED for that exact refund id. The write is one transaction under the event lock with a compare-and-set, so two clicks or two tabs cannot both act.
+- Real browser, proxy and deployed-timeout behaviour is NOT RUN.

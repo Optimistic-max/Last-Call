@@ -9,7 +9,7 @@ import logging
 from datetime import datetime, timezone
 
 import psycopg
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from flask import Flask, jsonify, make_response, redirect, render_template, request, url_for
 
 import ai_parser
 import config
@@ -17,6 +17,7 @@ import db
 import lifecycle
 import money
 import paypal_client
+import refund_web
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,10 @@ logger = logging.getLogger(__name__)
 config.check_sandbox_url(config.PAYPAL_BASE_URL)
 
 app = Flask(__name__)
+app.secret_key = config.FLASK_SECRET_KEY or None
+app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
+                  SESSION_COOKIE_SECURE=not (config.REFUND_ALLOW_LOCAL_HTTP
+                                            and config.APP_BASE_URL.startswith(("http://localhost:", "http://127.0.0.1:"))))
 
 # Screen text, copied exactly from docs/UI_DESIGN.md section 4 (checked for honesty). %s is filled in.
 HOLD_PROMISE_TEXT = "If the goal is met, you're in. We'll hold up to %s now and charge only your share."
@@ -79,7 +84,7 @@ GOAL_TEXT = "Goal %s so the club gets a full %s after fees"
 CHARGED_WORD = "Charged %s"
 WAITING_ON_TEXT = "Waiting on %s"    # D79, a placeholder (D57)
 BOARD_STATUS_WORDS = {"PENDING_PAY": "Pledged", "HELD": "Held", "DECLINED": "Declined",
-                      "FAILED": "Charge failed"}
+                      "FAILED": "Charge failed", "REFUNDED": "Refunded"}
 
 
 # The one place the app reads the clock (AGENTS.md section 5: time is passed in). Always UTC.
@@ -94,6 +99,9 @@ def utc_now():
 # ping. Browsers ask for /favicon.ico by themselves, so settling there would double every page visit.
 @app.before_request
 def settle_anything_due():
+    # Refund pages and even rejected submissions must never trigger unrelated payments.
+    if refund_web.is_refund_path(request.path):
+        return
     if request.path.startswith("/static/") or request.path == "/health" or request.path == "/favicon.ico":
         return
     settle_on_wake(utc_now())
@@ -512,8 +520,215 @@ def admin_page(admin_token):
         return ERROR_TEXT, 404
     return render_template("admin.html", title=event["title"], share_link=share_link_for(event["id"]),
                            can_open=event["status"] == "DRAFT",
+                           refund_access_url=url_for("refund_access", admin_token=admin_token)
+                           if event["status"] in ("NEEDS_ATTENTION", "REFUNDING", "REFUNDED") else None,
                            open_url=url_for("open_pledging", admin_token=admin_token),
                            board=board_for_event(facts, utc_now()))
+
+
+# Every private refund response, including refusals, avoids caching and referrer leakage.
+def refund_response(body, status=None):
+    response = make_response(body) if status is None else make_response(body, status)
+    response.headers["Cache-Control"] = "no-store"
+    # same-origin, not no-referrer: under no-referrer browsers send "Origin: null" on our own form POSTs,
+    # which the exact-origin check rightly refuses. same-origin keeps the real Origin and sends nothing elsewhere.
+    response.headers["Referrer-Policy"] = "same-origin"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Content-Security-Policy"] = "frame-ancestors 'none'; form-action 'self'; base-uri 'none'"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+# Apply configuration and browser protections before opening a database connection.
+def refund_request_refusal():
+    if not refund_web.configured():
+        return refund_response("Refund controls are unavailable. Contact the treasurer.", 503)
+    if request.host_url.rstrip("/") != refund_web.configured_origin():
+        return refund_response("This address cannot authorize refunds.", 403)
+    request.max_content_length = config.REFUND_MAX_FORM_BYTES
+    if request.content_length is not None and request.content_length > config.REFUND_MAX_FORM_BYTES:
+        return refund_response("The submitted form is too large.", 413)
+    if request.method == "POST" and not refund_web.valid_post():
+        return refund_response("The form could not be verified. Open a fresh refund page.", 403)
+    return None
+
+
+# The URL token alone never grants money permissions; the club credential is independent.
+@app.route("/admin/<admin_token>/refund-access", methods=["GET", "POST"])
+def refund_access(admin_token):
+    refusal = refund_request_refusal()
+    if refusal is not None:
+        return refusal
+    try:
+        with db.connect(config.DATABASE_URL) as conn:
+            event = lifecycle.find_event_by_admin_token(conn, admin_token)
+            if event is None:
+                return refund_response("Refund access was not found.", 404)
+            if request.method == "POST":
+                if not refund_web.approve(event, request.form.get("approval_key", ""), utc_now()):
+                    return refund_response("Refund approval was not verified. Open the authorization page again.", 403)
+                return refund_response(redirect(url_for("refund_progress", event_id=event["id"]), code=303))
+            return refund_response(render_template("refund_access.html", title=event["title"], csrf_token=refund_web.csrf_token()))
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("refund access unavailable (%s)", type(error).__name__)
+        return refund_unavailable()
+
+
+# Errors never promise that an external operation did not happen or encourage a resend.
+def refund_unavailable():
+    return refund_response("Could not confirm the result. No refund will be resent automatically. "
+                           "View refund status or contact the treasurer for investigation.", 503)
+
+
+# Render local records only. Page refresh cannot reconcile, resume, cancel or refund.
+def show_refunds(event_id, confirmation):
+    refusal = refund_request_refusal()
+    if refusal is not None:
+        return refusal
+    try:
+        with db.connect(config.DATABASE_URL) as conn:
+            if refund_web.authorized_event(conn, event_id, utc_now()) is None:
+                return refund_response("Treasurer refund authorization is required for this event.", 403)
+            screen = refund_web.view(conn, event_id, utc_now(), confirmation)
+        template = "refund_confirm.html" if confirmation else "refund_status.html"
+        return refund_response(render_template(template, **screen))
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("refund view unavailable (%s)", type(error).__name__)
+        return refund_unavailable()
+
+
+# Confirmation reads saved records and requires a fresh explicit POST to start.
+@app.route("/admin/events/<int:event_id>/refunds/confirm")
+def refund_confirmation(event_id):
+    return show_refunds(event_id, True)
+
+
+# Progress is local and read-only; refreshing never advances a payment.
+@app.route("/admin/events/<int:event_id>/refunds")
+def refund_progress(event_id):
+    return show_refunds(event_id, False)
+
+
+# D93: the command and its payment (or void) claim are saved in ONE transaction before any PayPal call.
+# The PayPal call runs with no transaction open. Its result and the command's finish are saved in ONE
+# transaction. A crash in between leaves the command CLAIMED; GET-only recovery finishes it.
+def run_refund_command(event_id, kind, target=None):
+    refusal = refund_request_refusal()
+    if refusal is not None:
+        return refusal
+    token = request.form.get("action_token", "")
+    try:
+        with db.connect(config.DATABASE_URL) as conn:
+            event = refund_web.authorized_event(conn, event_id, utc_now())
+            if event is None:
+                return refund_response("Treasurer refund authorization is required for this event.", 403)
+            if refund_web.read_action(token, event_id, kind, utc_now(), target) is None:
+                return refund_response("This form is stale. Open a fresh refund page.", 409)
+            command = refund_web.claim_command(conn, event_id, kind, token, utc_now(), target)
+            where = "refund_confirmation" if kind == "CANCEL_HOLD" else "refund_progress"
+            if command["state"] == "REPLAY":
+                return refund_response(redirect(url_for(where, event_id=event_id), code=303))
+            if command["state"] != "CLAIMED":
+                return refund_response("This command is blocked or its form is stale. View refund status before continuing.", 409)
+            if not refund_web.carry_out(conn, command, paypal_client):
+                # No usable answer. Nothing was sent again, and the claim stays for investigation.
+                return refund_unavailable()
+        return refund_response(redirect(url_for(where, event_id=event_id), code=303))
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("refund command requires review (%s)", type(error).__name__)
+        return refund_unavailable()
+
+
+# One short, bounded request (D93): at most one PayPal GET, no money action, no command. The page's
+# script calls this again until every hold is checked. It needs the same session, CSRF and origin checks.
+@app.route("/admin/events/<int:event_id>/refunds/preflight", methods=["POST"])
+def refund_preflight(event_id):
+    refusal = refund_request_refusal()
+    if refusal is not None:
+        return refusal
+    try:
+        with db.connect(config.DATABASE_URL) as conn:
+            if refund_web.authorized_event(conn, event_id, utc_now()) is None:
+                return refund_response("Treasurer refund authorization is required for this event.", 403)
+            answer = lifecycle.preflight_next_hold(conn, event_id, paypal_client)
+        if answer is None:
+            return refund_response("Refund review is not available for this event.", 409)
+        return refund_response(jsonify(answer))
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("refund preflight unavailable (%s)", type(error).__name__)
+        return refund_unavailable()
+
+
+# D94: "Check with PayPal" for a frozen refund. GET only, one PayPal read per request, no new command: the
+# existing CLAIMED command finishes when the result is saved. Same session, CSRF and origin checks as the rest.
+@app.route("/admin/events/<int:event_id>/refunds/<int:refund_id>/paypal-check", methods=["POST"])
+def refund_paypal_check(event_id, refund_id):
+    refusal = refund_request_refusal()
+    if refusal is not None:
+        return refusal
+    token = request.form.get("action_token", "")
+    try:
+        with db.connect(config.DATABASE_URL) as conn:
+            if refund_web.authorized_event(conn, event_id, utc_now()) is None:
+                return refund_response("Treasurer refund authorization is required for this event.", 403)
+            action = refund_web.read_action(token, event_id, "RECHECK", utc_now(), refund_id)
+            if action is None:
+                return refund_response("This form is stale. Open a fresh refund page.", 409)
+            result = lifecycle.recheck_frozen_refund(conn, event_id, refund_id, action["operation_revision"], utc_now(), paypal_client)
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("refund recheck unavailable (%s)", type(error).__name__)
+        return refund_unavailable()
+    if result == "COMPLETED":
+        return refund_response(redirect(url_for("refund_progress", event_id=event_id), code=303))
+    if result == "PENDING":
+        return refund_response("PayPal has no final answer yet. Nothing was changed. Try again later.")
+    if result == "REVIEW_REQUIRED":
+        return refund_response("PayPal reports this refund as failed or cancelled: review required. Nothing was changed, and nothing is retried.")
+    if result == "NO_ANSWER":
+        return refund_unavailable()
+    return refund_response("This refund cannot be checked now. Open a fresh refund page.", 409)
+
+
+# Cancelling an open authorization is its own decision, shown for one hold at a time (D93).
+@app.route("/admin/events/<int:event_id>/refunds/holds/<int:hold_id>/cancel")
+def refund_cancel_confirmation(event_id, hold_id):
+    refusal = refund_request_refusal()
+    if refusal is not None:
+        return refusal
+    try:
+        with db.connect(config.DATABASE_URL) as conn:
+            if refund_web.authorized_event(conn, event_id, utc_now()) is None:
+                return refund_response("Treasurer refund authorization is required for this event.", 403)
+            screen = refund_web.cancel_view(conn, event_id, hold_id, utc_now())
+        if screen is None:
+            return refund_response("This authorization cannot be cancelled now. Review the refund page first.", 409)
+        return refund_response(render_template("refund_cancel.html", **screen))
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("refund cancel view unavailable (%s)", type(error).__name__)
+        return refund_unavailable()
+
+
+@app.route("/admin/events/<int:event_id>/refunds/holds/<int:hold_id>/cancel", methods=["POST"])
+def refund_cancel(event_id, hold_id):
+    return run_refund_command(event_id, "CANCEL_HOLD", hold_id)
+
+
+# Start only after consuming the treasurer's confirmed single-use action.
+@app.route("/admin/events/<int:event_id>/refunds/start", methods=["POST"])
+def refund_start(event_id):
+    return run_refund_command(event_id, "START")
+
+
+# Each additional payment requires its own explicit authorized action.
+@app.route("/admin/events/<int:event_id>/refunds/continue", methods=["POST"])
+def refund_continue(event_id):
+    return run_refund_command(event_id, "CONTINUE")
+
+
+# This browser command permits a known pending refund GET, never maintenance recovery.
+@app.route("/admin/events/<int:event_id>/refunds/<int:refund_id>/check", methods=["POST"])
+def refund_check(event_id, refund_id):
+    return run_refund_command(event_id, "CHECK", refund_id)
 
 
 # ---------- Step 5b C: the board (S3 and board.json, docs/UI_DESIGN.md section 10) ----------
@@ -652,6 +867,10 @@ def banner_text(facts, seconds):
         return SETTLED_TEXT % dollars(facts["club_net_cents"])
     if status == "NEEDS_ATTENTION":
         return NEEDS_ATTENTION_TEXT
+    if status == "REFUNDING":
+        return "Refunds are in progress"
+    if status == "REFUNDED":
+        return "Refunds complete"
     if status == "EXPIRED":
         if facts["any_hold_created"]:
             return CANCELLING_TEXT

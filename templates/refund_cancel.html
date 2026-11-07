@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Cancel one authorization{% endblock %}
+{% block content %}
+<main>
+  <header class="page-header"><h1>Cancel an open authorization for {{ title }}</h1></header>
+  <section class="card">
+    <h2>{{ name }}: {{ amount_cents|dollars }}</h2>
+    <p>This authorization is still open on PayPal. Cancelling it releases the held amount. Nothing is charged, and this cannot be undone.</p>
+    <p>Only this one authorization is cancelled. Other open authorizations, and all refunds, need their own confirmation.</p>
+    {% if active_command %}<p role="alert">A command is active or unresolved. Further commands are blocked for investigation.</p>{% endif %}
+    {% if action_token %}
+    <form method="post" action="{{ url_for('refund_cancel', event_id=event_id, hold_id=hold_id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="action_token" value="{{ action_token }}">
+      <button type="submit">Cancel this authorization</button>
+    </form>
+    {% endif %}
+    <p><a href="{{ url_for('refund_confirmation', event_id=event_id) }}">Back to the refund review</a></p>
+  </section>
+</main>
+{% endblock %}

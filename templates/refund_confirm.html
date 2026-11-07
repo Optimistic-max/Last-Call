@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Confirm refund-all{% endblock %}
+{% block content %}
+<main>
+  <header class="page-header"><h1>Review refunds for {{ title }}</h1></header>
+  <section class="card">
+    {% if totals_known %}
+    <h2>Recorded captured payments: {{ totals.amount_cents|dollars }}</h2>
+    {% else %}
+    <h2>Recorded captured payments: incomplete records, total unknown</h2>
+    <p role="alert">Some payment records are missing or unresolved, so no total is shown. Refunds stay blocked until they are investigated.</p>
+    {% endif %}
+    <p>Each full refund returns that captured payment to its participant. PayPal keeps the original processing fees; they are not deducted from the participant's refund.</p>
+    {% if totals_known and totals.fee_cents is not none %}<p>Recorded original processing fees: {{ totals.fee_cents|dollars }}.</p>
+    {% else %}<p>Fee information unavailable.</p>{% endif %}
+    <p>Step 1: each authorization is read from PayPal. This only reads; it never cancels or refunds anything.</p>
+    <p>Step 2: any authorization that is still open must be cancelled, one at a time, with its own confirmation.</p>
+    <p>Step 3: confirm the refunds. Refunds cannot be undone. One new refund is sent per action. Use Continue refunding for each subsequent payment. No refunds are retried automatically.</p>
+    {% if event_status == 'NEEDS_ATTENTION' %}
+    <p id="preflight-progress">Checked {{ progress.checked }} of {{ progress.total }} authorizations.</p>
+    {% if progress.checked < progress.total %}
+    <form method="post" id="preflight-form" action="{{ url_for('refund_preflight', event_id=event_id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Check next authorization</button>
+    </form>
+    {% endif %}
+    {% endif %}
+    {% if open_holds %}
+    <h3>Open authorizations</h3>
+    <p>These holds are still open on PayPal. Cancelling one releases the held amount and charges nothing. Each must be cancelled before refunds can start.</p>
+    <ul>
+      {% for hold in open_holds %}
+      <li>{{ hold.name }}: {{ hold.amount_cents|dollars }}
+        <a href="{{ url_for('refund_cancel_confirmation', event_id=event_id, hold_id=hold.hold_id) }}">Review and cancel</a></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% for message in blockers %}<p role="alert">{{ message }}</p>{% endfor %}
+    {% if active_command %}<p role="alert">A command is active or unresolved. Further commands are blocked for investigation.</p>{% endif %}
+    {% if action_token %}
+    <form method="post" action="{{ url_for('refund_start', event_id=event_id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="action_token" value="{{ action_token }}">
+      <button type="submit">Confirm refund everyone</button>
+    </form>
+    {% endif %}
+    <p><a href="{{ url_for('refund_progress', event_id=event_id) }}">View refund status</a></p>
+  </section>
+  {% include "refund_people.html" %}
+</main>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/refund_preflight.js') }}" defer></script>
+{% endblock %}

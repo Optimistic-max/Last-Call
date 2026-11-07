@@ -97,11 +97,11 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 | F9 | Kim fails after Ana ("if Kim's in") was charged: flagged on the treasurer view, no automatic refund | VERIFIED for the flag and for no automatic refund (Nov 3, fake PayPal + Neon test branch, `tests/test_lifecycle.py`): Ana `CHARGED` and her hold `CAPTURED`, Kim `FAILED`, the event `NEEDS_ATTENTION`, the board says "Needs the treasurer's attention" and "Charge failed", and no refund function is called. The "[Refund everyone]" button is M2 (F7): NOT RUN. With real PayPal: NOT RUN |
 | F10 | Mock headers can never be sent outside tests | NOT RUN |
 | F11 | A hold that comes back after the event left `OPEN`/`LAST_CALL` is voided at once and the pledge is `DROPPED` | VERIFIED (Oct 27, fake PayPal + Neon test branch, `tests/test_lifecycle.py`). The event expires during the authorize call: the hold is voided (void request ID saved first, then a `GET` reads `VOIDED`) and the pledge is `DROPPED`. A second test holds an expiry unsaved while a hold comes back: `mark_held` waits for it, then refuses (it fails without `FOR SHARE`). Against a real lock (step 2.5) and with real PayPal: NOT RUN |
-| F12 | A void that doesn't return 204 is checked with a `GET`; if the hold is still `CREATED`, the next sweep voids it | VERIFIED (Nov 3, fake PayPal + Neon test branch, `tests/test_sweep.py`). A 204 whose `GET` still says `CREATED`, a refused void (422) and no answer at all each leave the hold `CREATED` and the pledge `HELD`. A sweep inside 5 minutes makes no PayPal call; one after `VOID_RETRY_AFTER` voids with the same saved request ID. One sweep makes at most `SWEEP_MAX_HOLDS` voids. Mutation checks 3 and 4 below make it fail. With real PayPal: NOT RUN; whether PayPal replays a failed void for the same request ID: `unverified` |
+| F12 | An uncertain void stays claimed. The sweep does not send it again. A later explicit `GET` can record a terminal status (D89) | VERIFIED (Nov 5, fake PayPal + disposable local PostgreSQL `f7_runtime` on `127.0.0.1:55439`, not Neon; `tests/test_sweep.py` and `tests/test_void_ownership.py`). A 204 whose `GET` says `CREATED`, a refused void (422), and no answer leave the hold `CREATED` with `void_run_token` set. A later sweep sends no void and does not refresh `void_tried_at`. A claimed hold does not take the one `SWEEP_MAX_HOLDS` slot; the next eligible hold is voided. `reconcile_uncertain_void` calls `GET` only. Repeated `CREATED`, a missing `GET`, a mismatched id, and an unknown status keep the token. `VOIDED`, `EXPIRED`, `DENIED`, `CAPTURED` and `PARTIALLY_CAPTURED` are saved only while the same owner token matches. A definite `401` `AUTHENTICATION_FAILURE` whose `GET` says `CREATED` is retried with the same saved request ID. The Nov 3 run log describes the older automatic retry, which D89 replaces. Real PayPal: NOT RUN. Whether PayPal replays a void for the same request ID: `unverified` |
 | F13 | If the goal isn't reached at lock (should be impossible), nobody is charged and every hold is voided | VERIFIED (Oct 28, fake PayPal + Neon test branch, `tests/test_lifecycle.py`). With the goal made unreachable at lock (the deposit raised by hand), nobody is charged, all three holds are voided, the pledges are `DROPPED` and the event ends `EXPIRED` (D38). With real PayPal: NOT RUN |
 | F14 | **F4 guard** (D47, D49, D83): the capture retry runs only when the `GET` after a failed capture answers `CREATED` and PayPal sent back no capture ID. When the `GET` shows `CAPTURED` (the answer was lost, or `AUTHORIZATION_ALREADY_CAPTURED`), there is no retry: the fake PayPal records exactly one capture call for that pledge, the capture row stays `PENDING`, the pledge is `FAILED` and the event `NEEDS_ATTENTION` | VERIFIED (Nov 4, fake PayPal + Neon test branch, `tests/test_capture_retry.py`, D83). `CAPTURED`, `VOIDED`, `EXPIRED`, a `GET` with no answer, and a failed answer that carries a capture ID (201 `PENDING`) each give exactly one capture call and no retry. A lost answer on attempt 2 with the `GET` now `CAPTURED` follows D47 on row 2. Mutation checks 1, 5, 7 and 10 (run log) make it fail. With real PayPal: NOT RUN |
 | F15 | **D70:** at lock, a `HELD` pledge that isn't counted has its hold voided (void request ID saved first, `GET` shows `VOIDED`), becomes `DROPPED` with no share, and is never captured; the others pay shares for the counted number of people. If the void doesn't read back `VOIDED`, the pledge stays `HELD` with its hold `CREATED` and is still never captured | VERIFIED (Nov 3, fake PayPal + Neon test branch, `tests/test_lifecycle.py`). Mutation checks: charging every held pledge, or removing the void step, each make these tests fail. With real PayPal: NOT RUN |
-| F16 | **D70 case:** a void that failed at lock (the uncounted pledge stays `HELD`, her hold `CREATED`, the event `SETTLED`) is voided by the next sweep, her pledge becomes `DROPPED`, and the three `CHARGED` pledges are untouched | VERIFIED (Nov 3, fake PayPal + Neon test branch, `tests/test_sweep.py`). With real PayPal: NOT RUN |
+| F16 | **D70 case:** a void that is uncertain at lock leaves the uncounted pledge `HELD`, her hold `CREATED`, and the event `SETTLED`. The sweep does not send that void again (D89). The three `CHARGED` pledges are untouched | VERIFIED (Nov 5, fake PayPal + disposable local PostgreSQL `f7_runtime`, not Neon, `tests/test_sweep.py`). The Nov 3 run log describes the older behavior, where the next sweep voided it. Real PayPal: NOT RUN |
 | F17 | **`PENDING` holds** (dev event 19's holds 8 and 9): on a finished event, a `PENDING` hold older than `PENDING_HOLD_GRACE` whose authorize was never sent becomes `NOT_PLACED` with no PayPal call (and doesn't use up the sweep's void). A younger one, or one on an `OPEN` or `LAST_CALL` event, is left alone. One whose authorize was sent stays `PENDING` and logs a warning with the hold ID only. A late authorize answer after `NOT_PLACED` is still voided at once (F11) | VERIFIED (Nov 3, fake PayPal + Neon test branch, `tests/test_sweep.py`). Real dev holds 8 and 9: `NOT RUN` (read-only look on Nov 3 showed them `PENDING`, authorize never sent). With real PayPal: NOT RUN |
 | F18 | **PayPal already closed the hold:** a refused void whose `GET` reads `VOIDED` or `EXPIRED` is saved as read and the pledge is `DROPPED`. A `GET` that reads `CAPTURED` makes no capture call, saves the hold `CAPTURED`, marks the pledge `FAILED`, leaves the event alone and logs an error | VERIFIED (Nov 3, fake PayPal + Neon test branch, `tests/test_sweep.py`). The status name `EXPIRED` is `unverified` (TODO (source needed)). Mutation check 3 below makes it fail. With real PayPal: NOT RUN |
 | F19 | **Two sweeps can't act on the same hold:** `claim_hold` wins once and again only after `VOID_RETRY_AFTER`; two sweeps started together on two connections (slow fake void) make exactly one void call for the hold | VERIFIED (Nov 3, fake PayPal + Neon test branch, `tests/test_sweep.py`). Mutation check 1 below makes it fail |
@@ -156,3 +156,334 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 | Full pytest collection with --tb=short, database tests disabled | VERIFIED | 135 passed, 0 failed, 174 skipped in 6.65s; 309 collected. TEST_DATABASE_URL was empty only in the child process environment, so dotenv could not refill it. 173 database tests skipped; one additional skip is the absent D74 frozen dataset. This does not verify the full database-backed suite |
 
 No real PayPal, Groq, development or production database calls were made. The existing server deadline calculation and payment transitions were not changed. Review ownership: Samuel for board.js/UI wording; Malama for money.py/counted selection.
+
+## F7 Stage 1: refund storage and HTTP wrappers (Nov 5, D88)
+
+F7 as a complete feature remains NOT RUN. There is no refund lifecycle, route, UI, recovery worker or automatic migration in this stage. The migration has NOT RUN against Neon or any PostgreSQL instance; Malama's schema review and Emmanuel's separate execution approval are pending.
+
+| Check | Status | Evidence |
+|---|---|---|
+| Tests first | VERIFIED | Before implementation: 39 failed, 15 passed, 16 skipped in 1.55s. Twenty-eight failures were absent refund methods/parser; eleven were absent SQL clauses/migration. Those missing-implementation failures do not prove runtime money safety |
+| Refund POST/GET and actual-status parsing | VERIFIED | HTTP stand-ins only, tests/test_paypal_client.py: full-refund body, exact supplied request ID, GET-only reading, four real status names, unknown/malformed answers, no automatic POST retry, sandbox/ID guards and secret-free logs |
+| Focused collection after restoration | VERIFIED | 54 passed, 0 failed, 16 skipped in 0.53s. Includes 43 PayPal tests and 11 SQL source checks; the 16 PostgreSQL tests were disabled |
+| SQL constraints, trigger and migration source checks | VERIFIED | tests/test_refund_schema.py checks declarations only, not PostgreSQL execution. Fresh/upgrade trigger text matches; migration has a locked preflight, transaction, no cleanup, and UNCERTAIN evidence for pre-existing rows |
+| Actual PostgreSQL constraints/trigger; migration preservation, rollback and locking | NOT RUN | tests/test_refund_database.py prepared. No approved disposable setup or exclusive reservation was available for this run; psql/postgres/initdb/docker were not found on PATH. No database provisioning or migration execution |
+| Existing payment regression collection, database disabled | VERIFIED | 133 passed, 0 failed, 173 skipped in 6.93s across client, lifecycle, capture retry, resume, leave, sweep, money, conditions, database helpers, routes and health. Database payment behavior remains unverified in this session |
+| Full collection with --tb=short, database disabled | VERIFIED | 174 passed, 0 failed, 190 skipped in 7.88s; 364 collected. Skips: 173 existing database tests, 16 new F7 database tests, 1 missing D74 dataset. This is not a clean full database-backed suite |
+| Real sandbox refunds | NOT RUN | No PayPal or Groq calls; all wrapper tests replace HTTP/token requests |
+
+Database disabling is explicit inside the Python launcher: set os.environ['TEST_DATABASE_URL'] = '', import config, assert the configured value is empty, then call pytest.main with --tb=short and the cache provider disabled. An initial PowerShell launch removed the empty environment variable instead, encountered database-fixture setup errors, and was stopped; it has no completed summary and is excluded from the counts above. No successful database test execution was observed. Later completed runs used the checked Python launcher. The .env file was not changed.
+
+Mutation evidence (all restored before regression runs):
+
+| Deliberate change | Detecting test in this session |
+|---|---|
+| Substitute request ID; change full-refund body | test_refund_capture_uses_full_refund_contract (each: 1 failed) |
+| Add an automatic second POST | test_refund_post_never_retries_automatically (3 failed: timeout, server_error, not_json) |
+| Make refund GET a POST | test_get_refund_is_read_only (1 failed) |
+| Force COMPLETED from HTTP success | test_refund_reads_actual_status (6 failed: PENDING, FAILED, CANCELLED at HTTP 200/201) |
+| Ignore refund-ID validity; ignore HTTP error | test_refund_status_rejects_unknown_results (2 failed; 1 failed respectively) |
+| Accept blank/invalid request IDs | test_refund_requires_saved_request_id (3 failed) |
+| Bypass sandbox; remove capture-ID validation; remove refund-ID validation | test_refund_methods_refuse_live_and_bad_ids (2 failed; 1 failed; 1 failed respectively) |
+| Log a bearer token | test_refund_logs_do_not_expose_secrets (1 failed; synthetic token only) |
+| Weaken capture uniqueness; allow zero cents | test_refund_sql_declares_capture_uniqueness_and_positive_cents (each: 1 failed) |
+| Remove each immutable field comparison (capture, request ID, amount, creation time); permit assigned refund-ID replacement | test_refund_sql_declares_immutable_identity_trigger (five separate mutations, each: 1 failed) |
+| Permit an unconfirmed capture; omit amount match | test_refund_sql_checks_recorded_capture_before_insert (each: 1 failed) |
+| Remove IN_FLIGHT timestamp requirement | test_refund_sql_declares_durable_recovery_fields (1 failed) |
+| Weaken duplicate preflight; omit BEGIN | test_refund_migration_checks_conflicts_atomically_without_deleting_data (each: 1 failed) |
+| Mark legacy rows READY | test_refund_migration_preserves_uncertainty_for_existing_rows (1 failed) |
+
+Twelve PayPal behavior mutations and thirteen SQL **source-only** mutations were caught by assertions. SQL source mutations are not proof of database enforcement. Earlier malformed Python mutation patches produced syntax errors; those runs were discarded, corrected and rerun to assertion failures. An atomicity mutation patch initially failed to apply; its corrected mutation then produced the stated assertion failure. SHA-256 of paypal_client.py, schema.sql and migrations/001_f7_refund_all.sql matched their respective pre-mutation values after all restorations. Existing capture/authorization/void function bodies and lifecycle.py were unchanged.
+
+## F7 Stage 2A correction: uncertain voids (Nov 5, D89)
+
+This does not start refund sending. The sweep skips a hold that already has `void_run_token`. `reconcile_uncertain_void` reads that hold with a `GET` and does not void, capture, or refund. Codex's ownership claim, compare-and-set, and definite authentication-refusal retry stay in place.
+
+| Check | Status | Evidence |
+|---|---|---|
+| Tests first, before the fix | VERIFIED | 14 failed, 0 passed, in 2.63s. Eleven failed because `reconcile_uncertain_void` did not exist. Two failed because a claimed hold refreshed `void_tried_at` and took the sweep slot |
+| Focused sweep, leave, and void-ownership tests | VERIFIED | 74 passed, 0 failed, in 16.91s. Fake PayPal. Disposable local cluster only |
+| Mutation checks | VERIFIED | Eight deliberate breaks were each caught, then `lifecycle.py` was restored byte for byte before the next one: removing the token filter; a `GET` that also calls void; clearing the token on `CREATED` or an unknown status; saving a terminal `GET` without the owner check; accepting a mismatched authorization id; disabling the definite `401` retry; minting a new request ID on that retry; a `GET` that also calls capture |
+| Existing payment regression | VERIFIED | 336 passed, 0 failed, in 49.05s. PayPal client, lifecycle, capture retry, resume, leave, sweep, money, conditions, database helpers, routes, health, and void ownership. Fake PayPal. Same local cluster |
+| Full pytest `--tb=short` | VERIFIED | 393 passed, 0 failed, 1 skipped, in 48.03s. The skip is `tests/ai_test_messages.json` not written yet (D74). Real PayPal: NOT RUN |
+
+The database was PID 316, `postgres.exe`, listening on `127.0.0.1:55439`, data directory `C:/Users/Emmanuel/AppData/Local/Temp/last-call-f7-stage2a-2505cd322d704e479ee139d5889fca8d/data`, database `f7_runtime`, cluster name `f7_stage1_validation`. The runner refused any other target and refused external HTTP. No Neon connection was used. No PayPal request was sent.
+
+## F7 Stage 2B lifecycle (Nov 6)
+
+Internal refund functions only. There is no refund-all route, no treasurer button, and no fee sentence. The F7 screen row above stays `NOT RUN`. One real sandbox refund stays `NOT RUN`. PayPal's same-request-ID refund replay is `read in docs` for the 45-day window and was `NOT RUN` here. Fake PayPal only.
+
+| Check | Status | Evidence |
+|---|---|---|
+| Tests first, before the functions | VERIFIED | 26 failed, 1 warning, in 22.92s. The failures were the missing functions `begin_refund_all`, `resume_refund_all`, `reconcile_refund`, `retry_failed_refund`, `finish_refunding`, and `save_refund_check`. Two thread tests also waited out because the call never started |
+| One extra safety test, then the focused file | VERIFIED | `test_void_token_on_another_hold_blocks_handoff` was added so a missing void-token recheck is caught. Focused file: 27 passed in 4.72s |
+| Mutation checks | VERIFIED | Sixteen deliberate breaks in `lifecycle.py` were each caught, then the file was restored byte for byte before the next one. SHA-256 after the last restore: `12e1de77cd396a8a5ee1d0a99aa9fe2b8307f8b215277747421b3ca4ba3627bd` |
+| Payment regression | VERIFIED | 390 passed, 0 failed, in 51.83s. PayPal client, lifecycle, capture retry, resume, leave, sweep, money, conditions, database helpers, routes, health, void ownership, refund schema, refund database, and refund lifecycle. Fake PayPal. Same local cluster |
+| Full pytest `--tb=short` | VERIFIED | 420 passed, 0 failed, 1 skipped, in 51.06s. The skip is `tests/ai_test_messages.json` not written yet (D74). Real PayPal: NOT RUN |
+
+| Deliberate break | Detecting test |
+|---|---|
+| Handoff without the compare-and-set | test_two_overlapping_begins_send_one_refund |
+| Handoff without the void-token recheck | test_void_token_on_another_hold_blocks_handoff |
+| Insert the refund row after the POST | test_request_and_inflight_are_committed_before_post |
+| Mint a new request ID on an explicit retry | test_failed_refund_is_not_posted_again_until_explicit_retry |
+| Skip the IN_FLIGHT commit | test_request_and_inflight_are_committed_before_post |
+| Allow two IN_FLIGHT refunds | test_paused_post_blocks_the_sibling_refund |
+| Treat HTTP success as COMPLETED | test_pending_refund_keeps_the_event_refunding |
+| Treat PENDING as COMPLETED | test_pending_refund_keeps_the_event_refunding |
+| Post again after UNCERTAIN | test_lost_answer_stays_uncertain_and_is_not_posted_again |
+| Clear the owner because the claim is old | test_old_claim_is_not_cleared_or_resent |
+| Refund a capture that is not COMPLETED | test_pending_and_failed_captures_are_not_refunded |
+| Change the copied refund amount | test_pending_and_failed_captures_are_not_refunded |
+| Call capture from begin | test_refund_functions_do_not_capture_settle_or_add_a_route |
+| Keep a transaction open during the authorization GET | test_new_failed_pledge_during_get_blocks_handoff |
+| Write a check after the event has left NEEDS_ATTENTION | test_check_write_refuses_after_refunding |
+| Let a stale owner save COMPLETED | test_stale_token_cannot_save_completed |
+
+The database was the same disposable cluster as Stage 2A: PID 316, `postgres.exe`, `127.0.0.1:55439`, data directory `C:/Users/Emmanuel/AppData/Local/Temp/last-call-f7-stage2a-2505cd322d704e479ee139d5889fca8d/data`, database `f7_runtime`, cluster name `f7_stage1_validation`. The runner refused any other target and refused external HTTP. No Neon connection was used. Neither F7 migration was run. No PayPal request was sent.
+
+## F7 Stage 2B safety corrections (Nov 6, D90)
+
+All database execution in this session used the already existing, identity-verified PostgreSQL 18.3 disposable cluster: 127.0.0.1:55439, cluster_name f7_stage1_validation, data directory C:/Users/Emmanuel/AppData/Local/Temp/last-call-f7-stage2a-2505cd322d704e479ee139d5889fca8d/data. The guarded runner overrides application database configuration, refuses other database targets, and refuses external HTTP. Fake PayPal only. No Neon connection or migration; real PayPal/Groq: NOT RUN.
+
+Tests-first evidence: 10 initial assertion failures reproduced active-POST reconciliation, stale GET regression, explicit retry, non-FAILED residual holds, missing refunds, and changed authorization statuses (2.34s). Two further assertion failures demonstrated delayed hold creation and authorization eligibility races (2.00s). Five initial PostgreSQL failures established that the new columns were absent; these structural failures are not counted as money-safety mutation evidence. Follow-up regressions each failed before their correction: a READY row with a known refund resource acquiring invented first-send evidence, and completed accounting without a saved refund resource ID.
+
+| Final check | Status | Evidence |
+|---|---|---|
+| Focused refund lifecycle, safety, schema and PostgreSQL tests | VERIFIED | 105 passed, 0 failed, 0 skipped in 12.37s |
+| Payment regression selection after restoration | VERIFIED | 441 passed, 0 failed, 0 skipped in 61.92s; PayPal client, lifecycle, capture retry, resume, leave, sweep, money, conditions, db, routes, health, void ownership and all refund modules |
+| Full pytest --tb=short -q -rs after restoration | VERIFIED | 471 passed, 0 failed, 1 skipped in 63.82s; skip: tests/test_ai_accuracy.py:156, tests/ai_test_messages.json is not written (D74) |
+| Final migration 003 preservation | VERIFIED | Four synthetic historical sending states preserved across all five populated application tables. operation_revision becomes 0 and first_send_started_at stays NULL; all original fields unchanged |
+| Failed preflight and injected late-DDL rollback | VERIFIED | Both restore the prior column/default/constraint/function/trigger catalog. Late failure was injected after function/trigger creation, before COMMIT |
+| Fresh schema versus migrated Stage 2A schema | VERIFIED | Column/default, constraint, function and trigger definitions match. Local databases f7_upgrade003_62ecce69c1 and f7_fresh003_62ecce69c1 retained for inspection |
+| Lifecycle mutations | VERIFIED | 23 intended violations caught; lifecycle.py restored byte-for-byte after each, SHA-256 afb05e77cd8bdd347d515b1fb047939934d3e367a6a6f45d2b88a6360f390204 |
+| PostgreSQL function mutations | VERIFIED | 5 guard removals caught by expected exception assertions. Original pg_get_functiondef restored exactly after each; SHA-256 1f333c51f3fe02dd3474777e233f977332752378b85c7f63009a59f311a146a2 |
+
+The matrix below lists the final mutations and detecting tests. Some invalid transitions are caught by PostgreSQL before HTTP; these prove the database guard, rather than an unsafe external call occurring. An earlier partial unknown-capture mutation left a redundant classifier intact and passed; it was replaced with a full classifier bypass and then caught. Syntax errors and broken mocks are not counted.
+
+| Deliberate break | Detecting test |
+|---|---|
+| active_get | `tests/test_refund_safety.py::test_get_cannot_release_active_post` |
+| stale_get | `tests/test_refund_safety.py::test_out_of_order_get_cannot_regress_completed[PENDING]` |
+| stale_id_save | `tests/test_refund_safety.py::test_operation_revision_rejects_stale_send_result[COMPLETED]` |
+| stale_uncertain | `tests/test_refund_safety.py::test_operation_revision_rejects_stale_send_result[NO_ANSWER]` |
+| event_owner | `tests/test_refund_lifecycle.py::test_stale_token_cannot_save_completed` |
+| event_revision | `tests/test_refund_lifecycle.py::test_stale_revision_cannot_reconcile_over_a_replacement` |
+| uncertain_sibling | `tests/test_refund_safety.py::test_uncertain_post_blocks_independent_refund` |
+| enable_retry | `tests/test_refund_safety.py::test_explicit_retry_remains_disabled_with_unknown_original_time` |
+| maintenance_gate | `tests/test_refund_safety.py::test_recovery_requires_authorized_maintenance_and_exact_claim` |
+| check_only_failed | `tests/test_refund_safety.py::test_check_only_is_get_only_and_does_not_enable_retry[FAILED]` |
+| all_holds | `tests/test_refund_safety.py::test_unresolved_nonfailed_hold_blocks_completion[HELD-CREATED]` |
+| missing_refund | `tests/test_refund_safety.py::test_missing_refund_blocks_completion[REFUNDED]` |
+| unknown_capture | `tests/test_refund_safety.py::test_unknown_capture_attempt_blocks_entire_plan[PENDING-False]` |
+| wrong_authorization | `tests/test_refund_safety.py::test_unusable_authorization_read_cannot_change_hold[wrong_id]` |
+| hold_snapshot | `tests/test_refund_lifecycle.py::test_changed_hold_during_get_blocks_handoff` |
+| created_capture | `tests/test_refund_safety.py::test_changed_authorization_state_is_recorded[CAPTURED-MANUAL_REVIEW]` |
+| creation_recheck | `tests/test_refund_safety.py::test_late_authorization_eligibility_is_rechecked[start_hold]` |
+| authorization_recheck | `tests/test_refund_safety.py::test_late_authorization_eligibility_is_rechecked[authorize_hold]` |
+| post_provenance | `tests/test_refund_safety.py::test_deliver_refuses_stale_claim_before_http` |
+| atomic_completion | `tests/test_refund_safety.py::test_completion_updates_roll_back_together` |
+| first_send_evidence | `tests/test_refund_safety.py::test_first_send_evidence_commits_before_post` |
+| known_resource_first_send | `tests/test_refund_safety.py::test_ready_row_with_existing_resource_is_not_a_first_send` |
+| completed_missing_resource | `tests/test_refund_safety.py::test_completed_refund_without_resource_id_blocks_completion` |
+| immutable_original_time | `tests/test_refund_operation_database.py::test_original_send_time_is_immutable` |
+| invent_historical_time | `tests/test_refund_operation_database.py::test_historical_original_send_time_cannot_be_invented` |
+| decrease_revision | `tests/test_refund_operation_database.py::test_revision_cannot_decrease_or_be_negative` |
+| check_only_post | `tests/test_refund_operation_database.py::test_check_only_cannot_become_a_post` |
+| completed_regression | `tests/test_refund_operation_database.py::test_completed_refund_cannot_regress_in_database` |
+
+Recovery remains maintenance-only, event-token authorized, and conditional on exact owner and revisions. The application_name label is not proof that a worker died. Operators must stop original workers; CHECK_ONLY grants only GET permission even then. Failed/pending recovery observations remain CHECK_ONLY. Unknown refund IDs remain blocked. Explicit retries remain disabled while exact-endpoint retention is unverified. Known ANSWERED/PENDING refunds allow serialized independent progress; uncertain/active/recovery operations block new POSTs. The tests simulate PayPal responses and process/database failures; real process-kill/deployment recovery and real refund behavior are NOT RUN.
+
+Migrations 001 and 002 and tests/fake_paypal.py matched their pre-task SHA-256 values. AST comparisons confirmed the pre-existing void, sweep, leave, capture, settlement and resume functions were unchanged. The approved eligibility guards are limited to hold creation and authorization claim. No route, template, fee, or Stage 3 implementation was added. Original uncommitted files were backed up under the disposable cluster's stage2b-safety-cab50f65f7ed4a81ad53e06747de603f directory.
+
+Final read-only cleanup check: f7_runtime contained 0 events, 0 pledges, 0 conditions, 0 holds, 0 captures and 0 refunds. The pre-existing PostgreSQL service remained stopped. The existing disposable server and validation databases were retained; this task did not start or stop the original service.
+
+## F7 Stage 2B final audit corrections (Nov 6, D91)
+
+All database execution below used the independently reverified existing disposable PostgreSQL 18.3 cluster on loopback port 55439, cluster_name f7_stage1_validation, data directory under last-call-f7-stage2a-2505cd322d704e479ee139d5889fca8d. No Neon connection or real PayPal/Groq call. The existing run_local_tests.py restricted every psycopg connection to f7_runtime on that cluster and rejected real requests.Session HTTP sends. DATABASE_URL was empty in the child process; .env was unchanged.
+
+| Check | Status | Actual result |
+|---|---|---|
+| Tests first, original lifecycle and database guards | VERIFIED | 26 failed, 6 passed in 5.60s in test_refund_dispatch.py. Eight meaningful failures: fenced POST loses ID (IN_FLIGHT/CHECK_ONLY), duplicate deliveries (shared/copied claim), dispatch revision not consumed, capture-zero-update incorrectly commits, ANSWERED reset accepted, second IN_FLIGHT entry accepted. Eighteen additional contract failures were the absent new ID-only helper; these are not counted as demonstrated safety violations |
+| Lifecycle implemented, before installing migration 004 | VERIFIED | 2 failed, 38 passed in 5.54s. Only the two direct SQL transition regressions remained |
+| Focused final refund selection, after restoration | VERIFIED | 148 passed, 0 failed, 0 skipped in 25.93s. Refund dispatch, migration, lifecycle, safety, operation database, database and schema modules |
+| Payment regression selection | VERIFIED | 484 passed, 0 failed, 0 skipped in 72.04s. Client, lifecycle, capture retry, resume, leave, sweep, money, conditions, db, routes, health, void ownership and every refund module |
+| Full pytest --tb=short -q -rs | VERIFIED | 514 passed, 0 failed, 1 skipped in 74.48s. Expected skip: tests/test_ai_accuracy.py:156, missing tests/ai_test_messages.json (D74). The previous 471 passing cases remain green; 43 cases were added |
+| Migration 004, verified local runtime | VERIFIED | Applied transactionally only in disposable f7_runtime. No historical row updates; migrations 001–003 unchanged |
+| Migration preservation and rollback | VERIFIED | Exact migration applied in new local f7_upgrade004_c0a882a20a after HEAD schema and migration 003. All six application tables and five historical send states preserved byte-equivalent JSON values. Missing prerequisite trigger caused preflight rollback. An injected undefined-function call after function replacement, before COMMIT, rolled back the complete column/constraint/function/trigger catalog |
+| Fresh-install compatibility | VERIFIED | Actual PostgreSQL catalog in f7_fresh004_c0a882a20a, initialized from schema.sql, matched the upgraded catalog. Both disposable databases retained for inspection |
+| Migration lock behavior | VERIFIED | Independent connection held the event lock. Exact migration stopped at its configured lock timeout; rollback left the catalog unchanged. No sleep-based concurrency synchronization |
+| Concurrency and crash boundaries | VERIFIED | Paused POST fenced into CHECK_ONLY retained only its ID; authorized later GET resolved it. GET before ID stayed blocked. GET already active with the same ID retained its revision across an ID-only no-op. Shared/copied duplicate claims dispatched once. Interruption after dispatch commit, both before and at fake HTTP, could not resend |
+| Atomic completion and multiple captures | VERIFIED | Capture state changed through a second connection: zero-row capture update raised and rolled back refund outcome while retaining the separately committed refund ID. A pledge with two captures remained CHARGED until the last refund completed |
+| Safety mutation checks | VERIFIED | 14 detected; each mutation restored. See mapping below. Assertions checked the intended behavior; no syntax/signature/mock failures counted |
+| Final integrity and cleanup | VERIFIED | Migrations 001–003 byte-for-byte equal to pre-task backups. AST comparison: only claim_ready_refund, record_refund_answer and deliver_refund changed; read-only refund_post_is_owned replaced by consume_refund_dispatch; two identity helpers added. Capture, void, leave, sweep, settlement and authorization functions unchanged by D91. f7_runtime ended with zero rows in all six application tables. Final database guard matched source. Original PostgreSQL service stayed stopped |
+
+Two existing assertions were updated for the approved behavior: stale COMPLETED responses preserve their ID while leaving outcome PENDING/IN_FLIGHT, and first-send evidence has revision 2 at HTTP (initial claim plus one-use dispatch). No existing test was skipped or removed.
+
+Commands used the existing guarded runner with .venv/Scripts/python.exe: focused selection was tests/test_refund_dispatch.py tests/test_refund_dispatch_migration.py tests/test_refund_lifecycle.py tests/test_refund_safety.py tests/test_refund_operation_database.py tests/test_refund_database.py tests/test_refund_schema.py --tb=short -q. Payment selection added tests/test_paypal_client.py tests/test_lifecycle.py tests/test_capture_retry.py tests/test_resume.py tests/test_leave.py tests/test_sweep.py tests/test_money.py tests/test_conditions.py tests/test_db.py tests/test_routes.py tests/test_health.py tests/test_void_ownership.py. Full selection had only --tb=short -q -rs. Cacheprovider was disabled by that runner.
+
+| Deliberate mutation | Detecting test in tests/test_refund_dispatch.py |
+|---|---|
+| Remove request-ID identity check | test_late_id_checks_every_identity[request_id-different-request] |
+| Remove refund amount identity check | test_late_id_checks_every_identity[amount_cents-641] |
+| Remove PayPal capture identity check | test_late_id_checks_every_identity[paypal_capture_id-DIFFERENTCAPTURE] |
+| Remove capture-row identity check | test_late_id_checks_every_identity[capture_row_id--1] |
+| Remove pledge identity check | test_late_id_checks_every_identity[pledge_id--1] |
+| Accept an existing conflicting refund ID | test_late_id_never_overwrites_conflict_or_changes_revision |
+| ID-only path writes a stale COMPLETED outcome | test_fenced_post_preserves_id_only[CHECK_ONLY] |
+| Replace dispatch CAS with read-only validation | test_same_claim_dispatches_once[True] |
+| Mutate caller's shared claim | test_same_claim_dispatches_once[True] |
+| Dispatch ignores original revision after interruption | test_crash_between_dispatch_commit_and_http_stays_blocked |
+| Ignore capture-update row count | test_capture_zero_update_rolls_back_completion |
+| Allow ANSWERED -> READY | test_nonready_cannot_reset_to_ready[ANSWERED] |
+| Permit second IN_FLIGHT entry with original evidence | test_second_inflight_entry_with_original_evidence_is_rejected |
+| Reject legitimate IN_FLIGHT revision increment | test_inplace_dispatch_revision_increment_is_allowed |
+
+The conflicting-ID mutation accepted the conflicting value at the application boundary; the independent immutable-ID database guard was retained. The in-place-increment mutation deliberately made the database reject a legal operation; its CheckViolation is the intended compatibility failure. The other mutations failed safety assertions or expected rejection checks. Every lifecycle mutation restored original bytes after its test, with final SHA-256 269a8baf3b3c039e9b9408e59e2fb1b528c9cde3c906544f57aead1251c96593. Database-only mutations restored the function after each test and the final function was compared with schema.sql.
+
+Backups, mutation logs, scripts and migration evidence are outside the repository in last-call-f7-final-74f07205e7f14c4784b8b07338ff7224 under the temporary directory. No validation artifacts are proposed for commit.
+
+Limits: real refund HTTP and real process-kill recovery are NOT RUN. Unknown/lost refund IDs, conflicting identities, event-owner changes and unavailable database writes remain investigation blocks. Explicit retries remain disabled. D47 missing capture records are never invented. Stage 3 routes, browser confirmation and UI remain NOT RUN/unimplemented; F7's overall screen/sandbox row above remains NOT RUN. This work did not alter Stage 2A or the existing independent progression policy for known ANSWERED results. No Neon migration, deployment or Git write command ran.
+
+
+## F7 Stage 3 treasurer refund interface (Nov 6, D92)
+
+Stage 2B was committed at 7f00fbe on emmanuel/f7-refund-all before this task; the initial tracked/untracked Git status was clean. Only one local worktree was registered and no pending local template edits were present. Samuel's unpublished work was not independently confirmed. Template/text review remains his responsibility; Malama reviews money.py and migration 005's actual SQL. No Git write command ran.
+
+All execution used the existing guarded run_local_tests.py, with .venv/Scripts/python.exe, against the independently verified PostgreSQL 18.3 disposable cluster at loopback port 55439, database f7_runtime, cluster_name f7_stage1_validation and the existing last-call-f7-stage2a temporary data directory. The runner restricts every psycopg connection, overrides DATABASE_URL, clears payment credentials and blocks requests.Session external HTTP. Fake PayPal only. No Neon connection/migration, real PayPal/Groq request, credential change or deployment.
+
+Tests first: 20 initial browser/lifecycle contract failures and 7 database failures established missing routes, guards, helpers, table and migration. These were missing-functionality/structural failures, not money-safety mutation evidence. Subsequent failing behavior assertions reproduced an unnecessarily blocked pending GET command, adoption of a newer revision, incomplete refund inventory offering continuation, non-ASCII CSRF returning 500, missing public refund labels, inaccurate person/event completion, an unrecorded capture on a dropped pledge, form expiry after a valid claim, and historical READY sending evidence labelled unsent. Each was corrected before final verification. An intermediate full run had 556 passed, 1 failed, 1 skipped: the failure was a Stage 2-only source assertion forbidding a refund entry point in app.py. Stage 3 explicitly permits routes; the test now preserves and extends its no-capture/no-settlement refund checks.
+
+| Check | Status | Actual result |
+|---|---|---|
+| Final focused browser, migration, lifecycle, safety and dispatch selection | VERIFIED | 174 passed, 0 failed, 0 skipped in 46.05s |
+| Final payment regression selection | VERIFIED | 552 passed, 0 failed, 0 skipped in 100.12s |
+| Final complete pytest --tb=short -q -rs | VERIFIED | 582 passed, 0 failed, 1 skipped in 99.89s. Expected skip: tests/test_ai_accuracy.py:156, missing tests/ai_test_messages.json (D74) |
+| Migration 005, exact SQL on verified local runtime | VERIFIED | Additive action table, partial unique active-command index and identity/reopen/target trigger installed locally only |
+| New migration/database selection | VERIFIED | All 12 cases passed within focused selection: five historical sending states preserved across all six application tables, failed preflight, injected late-DDL rollback, lock timeout, index/trigger behavior and matching fresh-install object SQL |
+| Safety mutations | VERIFIED | 22 intended violations caught by behavior assertions or expected database rejection assertions; no syntax, signature or broken-mock failure counted |
+| Source integrity | VERIFIED | All pre-existing lifecycle and money function ASTs unchanged. App's existing changes are limited to refund-hook exemption, admin link and generic refund banners. Migrations 001-004 unchanged |
+| Real browser, mobile, keyboard, HTTPS/proxy and deployed request-duration checks | NOT RUN | Flask test-client rendering is not real-browser verification |
+| Live sandbox refund and overall F7 screen flow | NOT RUN | Local fake-PayPal results do not verify live provider/browser behavior |
+
+The final implementation adds 68 cases (56 browser/lifecycle/presentation tests and 12 migration/database/source cases). Completed action rows remain FINISHED against replay and release their event slot. Durably known PENDING/FAILED answers permit the next independent refund. Unknown POST results, uncertain voids and interrupted commands remain CLAIMED without expiry. Inconclusive GET-only checks of a known pending resource do not unnecessarily block future commands. All browser checks remain event-scoped, known-ID, ANSWERED/PENDING and exact-revision only. No retry or maintenance route exists.
+
+Deterministic concurrency cases use independent connections and threading events/barriers: copied and independent forms while the first operation is paused, a committed browser claim visible before lifecycle/HTTP, an event lock independently acquirable during fake HTTP, and a maintenance change committed while a browser check waits for its event lock. Failures before lifecycle, after completed payment bookkeeping, after a claim's form deadline and at operation-revision fences are simulated. Actual process-kill recovery remains NOT RUN.
+
+| Deliberate mutation | Detecting test |
+|---|---|
+| approval_key | `tests/test_refund_web.py::test_approval_requires_independent_key_and_csrf` |
+| csrf | `tests/test_refund_web.py::test_stale_tampered_wrong_action_and_csrf_forms_do_not_execute` |
+| origin | `tests/test_refund_web.py::test_origin_is_required_and_exact[https://attacker.example]` |
+| session_event | `tests/test_refund_web.py::test_event_scope_is_checked_even_with_correct_admin_binding` |
+| session_expiry | `tests/test_refund_web.py::test_cross_event_expired_and_rotated_grants_are_rejected` |
+| session_form_binding | `tests/test_refund_web.py::test_form_from_another_authorized_session_is_rejected` |
+| save_command_before_send | `tests/test_refund_web.py::test_web_claim_is_durable_before_lifecycle` |
+| confirmation_inventory | `tests/test_refund_web.py::test_changed_captured_amount_requires_fresh_confirmation` |
+| uncertain_command | `tests/test_refund_web.py::test_unknown_result_keeps_command_blocked` |
+| expire_old_claim | `tests/test_refund_web.py::test_old_uncertain_web_claim_never_expires` |
+| browser_check_only | `tests/test_refund_web.py::test_browser_cannot_reconcile_recovery_states[CHECK_ONLY]` |
+| browser_event_scope | `tests/test_refund_web.py::test_check_rejects_real_other_event_even_when_both_are_refunding` |
+| browser_revision | `tests/test_refund_web.py::test_browser_pending_reconciliation_checks_event_and_revision` |
+| form_revision_not_latest | `tests/test_refund_web.py::test_changed_revision_after_web_claim_is_not_adopted` |
+| completed_label | `tests/test_refund_web.py::test_payment_states_are_honest_and_never_offer_retry[ANSWERED-COMPLETED-Payment records require investigation]` |
+| captured_amount | `tests/test_refund_web.py::test_refund_summary_uses_captured_integer_cents_only` |
+| unknown_fee | `tests/test_refund_web.py::test_refund_summary_uses_captured_integer_cents_only` |
+| settlement_exemption | `tests/test_refund_web.py::test_url_token_alone_cannot_send_and_refund_requests_never_settle` |
+| name_escaping | `tests/test_refund_web.py::test_captured_totals_xss_and_private_fields` |
+| database_one_active | `tests/test_refund_web_database.py::test_only_one_active_command_and_finished_history_is_retained` |
+| database_no_reopen | `tests/test_refund_web_database.py::test_finished_actions_cannot_reopen_or_change_identity[state = 'CLAIMED', finished_at = NULL]` |
+| ready_sending_history | `tests/test_refund_web.py::test_ready_with_sending_history_is_not_presented_as_unsent` |
+
+Every source mutation was restored byte-for-byte from a confirmed temporary backup. The database-only index and function mutations restored their exact pg_get_indexdef/pg_get_functiondef strings. The final historical-READY mutation restored refund_web.py SHA-256 4923ad8ade1f49d0391b7e029834fa66a87b6915a3fd674b95f24ba994ffea9f. The other unchanged source files still match their mutation backup hashes. Logs/backups remain outside the repository in last-call-f7-stage3-56jkslvh and last-call-f7-stage3-ready-u0uq5mqr under the temporary directory. The main temporary mutation script later became unreadable/unwritable (PermissionError); its result logs remained readable. The final additional mutation used a separate confirmed backup and restored exactly; no inaccessible artifact was deleted or overwritten.
+
+Migration 005's design approval is not approval of its final SQL or shared deployment. The original PostgreSQL service remained stopped; the pre-existing disposable server is retained. Claims are intentionally conservative after interruption; no offline browser-command release utility was implemented. Provisioning the club key, configuring Flask/session/origin settings, reviewing migration permissions/SQL and testing real browser/proxy behavior are still required. Slow multi-authorization preflight can outlast a web worker and leave a durable investigation block; load/deployment behavior is unverified. No automatic cleanup or retry is a remedy.
+
+Final read-only cleanup and integrity checks: VERIFIED. f7_runtime contained 0 events, 0 pledges, 0 conditions, 0 holds, 0 captures, 0 refunds and 0 refund_web_actions after the final suite. No manual cleanup was performed. The live action guard matched schema.sql; final source bytes matched their restored mutation backups. Pre-existing lifecycle/money functions and migrations 001-004 remained unchanged. The original postgresql-x64-18 service remained Stopped; the pre-existing disposable server was retained. git diff --check found no whitespace errors. All Stage 3 changes remain uncommitted.
+
+Final full command: .venv\Scripts\python.exe "$env:TEMP/last-call-f7-stage2a-2505cd322d704e479ee139d5889fca8d/run_local_tests.py" --tb=short -q -rs. Focused selection: test_refund_web.py, test_refund_web_database.py, test_refund_lifecycle.py, test_refund_safety.py and test_refund_dispatch.py. Payment selection: test_paypal_client.py, test_lifecycle.py, test_capture_retry.py, test_resume.py, test_leave.py, test_sweep.py, test_money.py, test_conditions.py, test_db.py, test_routes.py, test_health.py, test_void_ownership.py and every test_refund_* module. Each used the same verified runner and --tb=short -q.
+
+## F7 Stage 3 corrections (Nov 7, D93)
+
+All execution used the guarded `run_local_tests.py` against the verified disposable PostgreSQL 18.3 cluster at 127.0.0.1:55439 (database `f7_runtime`), with fake PayPal and outside HTTP blocked. Migration 006 was applied **only** to that cluster. It was not applied to any Neon branch.
+
+Tests first, before any code: `tests/test_refund_migration006.py` and `tests/test_refund_stage3_fixes.py` failed for the right reasons. After fixing one mistake in my own test file (a missing fixture import that produced 35 setup errors), the failures grouped as: 22 missing preflight/cancel routes (a JSON answer expected, none returned), 16 missing `target_hold_id` column, 5 missing `refund_web_actions_cancel_target` constraint, 3 missing migration file, plus the real $0.00 totals bug. These counts are grouped error lines, not a pass/fail total.
+
+| Check | Status | Actual result |
+|---|---|---|
+| Existing suite on the new schema, before the new code existed | VERIFIED | `--ignore` of the new web test file, old code, migration 006 applied: 601 passed, 6 failed, 1 error, 1 skipped. Of the 6 failures, 2 were existing tests that I had rewritten for the new flow and that need the new code (`lifecycle.post_refund`); the other 4 failures and the 1 error were defects in my first draft of the migration tests (a committed stray row and unscoped UPDATEs), fixed afterwards. No pre-existing test failed because of the schema. |
+| New migration tests, `tests/test_refund_migration006.py` | VERIFIED | 25 passed. Includes: downgrade to 005 then apply 006 gives exactly the current catalog; existing rows unchanged; missing table, disabled trigger, and a wrong action-type list each abort and change nothing; a late failure rolls everything back; the lock wait is bounded; each constraint and each trigger rule rejects bad rows in rolled-back transactions; `schema.sql` contains the migration objects verbatim. |
+| New behaviour tests, `tests/test_refund_stage3_fixes.py` | VERIFIED | 36 passed. Preflight is GET-only, one authorization per request, CSRF/origin-protected; START waits for the preflight and never cancels; cancel is a separate single-use form bound to its hold; the claim and the command (and the result and the finish) are atomic, with no transaction open during PayPal; three crash cases recover with GET only and the command then finishes; START/CONTINUE always record the refund they claimed (for 007); incomplete records never show $0.00 or a partial sum. |
+| Independent-review fix: a captured hold read as CREATED (Nov 7) | VERIFIED | Local disposable cluster, fake PayPal. `test_a_captured_hold_that_paypal_reads_as_created_is_left_alone_and_not_offered`: a hold saved CAPTURED with a completed capture, the fake GET says CREATED; nothing is written, a warning names the hold id only, no cancel is offered. `test_a_hold_with_a_completed_capture_is_never_offered_for_cancelling`: `open_hold` and the locked `claim_cancel_hold` both refuse it. Both failed before the fix and passed after. File now 38 passed; full pytest 645 passed, 0 failed, 1 skipped (D74). |
+| Existing tests changed because the flow changed | VERIFIED | `test_refund_web.py`: `action_form` marks holds checked first (a stand-in for a finished preflight); `test_crash_after_web_claim_before_lifecycle_stays_blocked` and `test_web_claim_is_durable_before_lifecycle` patch `lifecycle.post_refund` instead of `begin_refund_all`; the two maintenance-fence/revision tests and the form-expiry test now inject the change during the GET, because the claim and the lifecycle claim are now one transaction; the overlap test no longer reads `calls[-1]`. `test_refund_web_database.py`: the 005-versus-schema comparison stops at the 006 marker. Intent of each was kept. |
+| Full pytest `--tb=short -rs` | VERIFIED | 643 passed, 0 failed, 1 skipped in 144.01s. Skip: `tests/test_ai_accuracy.py:156`, `tests/ai_test_messages.json` is not written yet (D74). |
+| Neon test or main branch, migration 006 | NOT RUN | Deliberately not applied or run. |
+| Real browser, phone, keyboard, and the preflight script's loop | NOT RUN | `refund_preflight.js` was never executed; Flask test-client HTML is not browser verification. |
+| Live sandbox refund, voids and deployed request duration | NOT RUN | Local fake-PayPal results do not verify live provider behaviour or the real 120 s worker limit. |
+
+Mutation checks: each change was made, the matching tests run, and the file restored. For source files the restore was proven byte-identical by SHA-256; for the database the catalog (function text and constraint definitions) was compared before and after.
+
+| Fix | Deliberate break | Caught by |
+|---|---|---|
+| 1 | preflight also voids an open hold | `test_preflight_uses_only_get_and_writes_only_the_check_result` |
+| 1 | START no longer waits for every hold to be checked | `test_confirm_page_shows_checked_n_of_m_and_start_waits_for_the_check` |
+| 2 | preflight keeps going after one hold | `test_each_preflight_request_checks_exactly_one_authorization` |
+| 3 | cancel form usable for a different hold | `test_a_cancel_form_works_only_for_its_own_hold_and_action` |
+| 3 | locked cancel claim stops requiring a PENDING hold | `test_the_locked_claim_refuses_a_hold_the_preflight_has_not_seen_open` (the first draft of the tests did NOT catch this; the web layer's own check hid it, so this lifecycle-level test was added and the mutation re-run) |
+| 4 | claim and command no longer one transaction | `test_failed_command_insert_rolls_back_the_payment_claim`, `..._the_void_claim` |
+| 4 | START result and finish in separate transactions | `test_failed_finish_rolls_back_the_saved_result_with_it` |
+| 4 | cancel result and finish in separate transactions | `test_failed_finish_rolls_back_the_cancel_result_with_it` |
+| 4 | refund recovery stops finishing the command | `test_crash_after_a_start_payment_is_recovered_...`, `test_crash_after_a_pending_check_is_recovered_...` |
+| 4 | void recovery stops finishing the command | `test_crash_after_a_cancel_is_recovered_with_get_only_and_the_command_finishes` |
+| 4 (for 007) | new code stops recording the refund it claimed | `test_start_and_continue_always_record_the_refund_they_claimed` |
+| 5 | totals always "complete" | `test_missing_capture_record_does_not_show_a_zero_total` (2), `test_partial_records_...` (2), `test_an_unresolved_capture_attempt_...` |
+| 6 | preflight saves CREATED over a captured hold | `test_a_captured_hold_that_paypal_reads_as_created_is_left_alone_and_not_offered` |
+| 6 | `open_hold` offers a hold with a completed capture | `test_a_hold_with_a_completed_capture_is_never_offered_for_cancelling` |
+| 6 | locked `claim_cancel_hold` claims a hold with a completed capture | `test_a_hold_with_a_completed_capture_is_never_offered_for_cancelling` |
+| DB rule | a command may finish while its refund is unresolved (G4) | `test_command_cannot_finish_while_its_refund_is_unresolved[IN_FLIGHT]` |
+| DB rule | a cancel may finish while the void owner remains (G4) | `test_cancel_command_cannot_finish_while_the_void_owner_remains` |
+| DB rule | a cancel may exist without its void claim | `test_cancel_hold_needs_the_void_claim_committed_first` |
+| DB rule | a refund command may exist without its refund claim | `test_claimed_refund_must_be_in_flight_and_belong_to_the_event` |
+| DB rule | the link columns may change | `test_link_columns_cannot_change_after_insert` |
+| DB constraint | `claim_kind` dropped | `test_only_start_and_continue_may_claim_a_refund` |
+| DB constraint | `cancel_target` dropped | `test_other_actions_cannot_carry_a_hold` |
+| DB constraint | `one_command_per_refund` dropped | `test_one_command_per_claimed_refund_is_declared_and_enforced` |
+
+Note for the DB rows: `test_migration_applied_on_005_gives_exactly_the_current_schema` also fails on any of these changes, because it compares whole catalogs. It is not counted as the catcher; the dedicated behaviour test in the right-hand column is.
+
+## F7 "Check with PayPal" for a frozen refund (Nov 7, D94)
+
+Local disposable PostgreSQL 18.3 at 127.0.0.1:55439 through the guarded `run_local_tests.py`, fake PayPal, outside HTTP blocked. Migration 006 needed no change. Tests were written first: with no code, 20 of the first 22 failed (missing config value, function, route and page text). After the code, `tests/test_refund_frozen_check.py` has 24 tests (two more were added before the code to cover the revision check and the event scope).
+
+| Check | Status | Actual result |
+|---|---|---|
+| `tests/test_refund_frozen_check.py` | VERIFIED | 24 passed. A frozen IN_FLIGHT, UNCERTAIN or CHECK_ONLY refund with a saved PayPal refund id and a PayPal COMPLETED answer: one GET only, no POST, request id unchanged, refund ANSWERED/COMPLETED, capture and pledge REFUNDED, event REFUNDED, and the existing CLAIMED command FINISHED (no new command). PENDING, no answer, a wrong refund id, FAILED and CANCELLED each change nothing (rows compared before and after). No saved refund id, a fresh IN_FLIGHT, a normal pending refund, an older revision and another event's refund are never offered or checked. A second click gets 409 without a GET. Two concurrent clicks, in one session and in two sessions: exactly one acts. A crash inside the final transaction rolls everything back and a retry works; a crash during the GET changes nothing. Session, CSRF, origin, wrong-action and expired-form checks. Source check: the recheck code never mentions the refund POST or a request id. |
+| Full pytest `--tb=short -rs` | VERIFIED | 669 passed, 0 failed, 1 skipped in 224.53s. Skip: `tests/test_ai_accuracy.py:156`, `tests/ai_test_messages.json` is not written yet (D74). |
+| Real browser, phone, live sandbox refund, deployed request duration | NOT RUN | Flask test-client results do not verify these. |
+| Neon | NOT RUN | Nothing here touches a Neon branch. |
+
+Mutation checks (each break made, matching tests run, file restored and proven byte-identical by SHA-256):
+
+| Deliberate break | Caught by |
+|---|---|
+| the GET also sends a refund POST | `test_completed_answer_finishes_the_refund_and_the_existing_command` (3) and `test_the_recheck_code_cannot_post_or_mint_a_request_id` |
+| revision compare-and-set removed | `test_a_form_for_an_older_revision_is_refused_before_any_get` |
+| frozen-age check removed | `test_a_fresh_in_flight_refund_is_not_offered_and_not_checked` |
+| refund-id match removed | `test_answer_about_a_different_refund_changes_nothing` |
+| PENDING treated as final | `test_pending_changes_nothing` |
+| fence, save and finish split into separate transactions | `test_a_crash_inside_the_final_transaction_rolls_everything_back_and_a_retry_works` |
+| the existing command is never finished | `test_completed_answer_finishes_the_refund_and_the_existing_command` (3) |
+| event-scope check removed | `test_a_refund_of_another_event_is_never_checked_even_if_both_are_refunding` |
+| CSRF/origin checks removed from the route | `test_session_csrf_origin_and_form_checks` |
+| FAILED and CANCELLED no longer stop before the write | `test_failed_or_cancelled_writes_nothing_and_says_review_required` (2) |
+
+## Sandbox refund-all rehearsal on dev (Option A, approved Nov 7)
+
+Helper: `tests/sandbox_lock_with_one_refusal.py`, run by hand only (pytest never collects it). It runs the real `lifecycle.lock_and_charge` for one demo event, with the real sandbox client, except that ONE named friend's capture is answered locally with a made-up 422 `TRANSACTION_REFUSED`. That refusal is SIMULATED; F22 (PayPal's real refusal through the mock header) stays NOT RUN. Guards: sandbox URL, local `APP_BASE_URL`, demo-mode event in `LAST_CALL` past `last_call_ends`, a HELD friend with exactly one CREATED hold, the database endpoint name and event title shown, and a typed `yes`.
+
+| Check | Status | Actual result |
+|---|---|---|
+| Helper refuses safely and is never collected | VERIFIED (local, offline, Nov 7) | With no local `APP_BASE_URL` it refuses before connecting to any database. `pytest --collect-only` lists it 0 times. Offline: the made-up answer reads as `TRANSACTION_REFUSED` through `lifecycle.paypal_issue`; only the chosen authorization is refused, every other function is the real `paypal_client`. No app code changed. |
+| Real sandbox refund-all on dev, localhost (event 35): $30 demo event, 3 friends (Ana, Bo, Cy) with sandbox test cards; lock with this helper so two are charged and one is refused; then preflight, cancel the refused friend's hold, START, CONTINUE; verify with SQL on dev | VERIFIED (Nov 7, Neon dev, real PayPal sandbox, run by Emmanuel; the one refusal is SIMULATED, so F22 stays NOT RUN) | Lock with one simulated refusal: the event ended NEEDS_ATTENTION, and the refused capture was tried twice (attempt 1 and its one retry). Preflight read the holds. Cy's open hold was cancelled with its own confirmation and read back VOIDED. START and CONTINUE each sent one refund: Ana $10.77 and Bo $10.78 were refunded in full and confirmed by PayPal. The event ended REFUNDED, and all the browser commands (cancel, start, continue) ended FINISHED. The SQL checks on dev matched the expected results listed in the plan. The PayPal sandbox merchant dashboard is only a cross-check, not the record (rule 9). |
+| Bug found by this run, fixed (Nov 7): the S2 "Review refunds" link was nearly invisible | VERIFIED (fix + test, local) | After the merge with Samuel's redesign the link was a plain `text-link`: no underline until hover, so it looked like a caption. It is now a `button-link`. `tests/test_refund_web.py::test_admin_page_shows_the_review_refunds_button_only_when_refunds_apply` checks that a NEEDS_ATTENTION admin page shows the button linking to `/refund-access` and an OPEN event does not. Note for Samuel in `docs/TEAM.md`. |
+| Bug found by this run, fixed (Nov 7): `Referrer-Policy: no-referrer` made browsers send `Origin: null` on every refund form POST, so the exact-origin check refused the approval key every time | VERIFIED (fix + tests, local); the real-browser retry is what completed this run | The Flask test client sets Origin by hand, so the tests had never seen it. Refund responses now send `Referrer-Policy: same-origin`; the Origin check is unchanged and still refuses `null`. Tests: `test_every_refund_response_uses_a_referrer_policy_that_keeps_origin_on_same_origin_posts`, `test_origin_null_is_still_refused_on_the_approval_form_and_the_preflight`. Recorded in D93 and `docs/SECURITY.md`. |

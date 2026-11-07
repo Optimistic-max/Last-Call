@@ -90,8 +90,8 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | After lock | **Charged once. PayPal closes the rest of each hold.** |
 | Missed goal | **Goal not reached. Every hold was cancelled. Nobody paid.** |
 | Missed goal, while any hold of that event is still CREATED (D45) | **Cancelling holds…** (shown instead of the missed-goal line until no hold is CREATED) |
-| Needs attention (treasurer) | **[Name]'s charge didn't go through. The others were charged. Choose what to do:** [Refund everyone] |
-| Refund-all confirm | **Refunding returns everyone's money, but PayPal keeps its fees ($[fees]). This can't be undone.** |
+| Needs attention (treasurer, D92) | **Needs the treasurer's attention.** [Review refunds]. A failed local charge does not prove that PayPal captured nothing. |
+| Refund-all confirm (D92; Samuel review pending) | **Each full refund returns that captured payment to its participant. PayPal keeps the original processing fees; they are not deducted from the participant's refund.** Show recorded fees or **Fee information unavailable.** Explain one new refund per explicit action. |
 | Slow first load | **Waking up the app… (free hosting can take up to a minute)** |
 | Demo mode badge | **Demo mode: timers are minutes, not hours**, in the countdown card on S2 and S3, only where `board.demo_mode` is true |
 | S4 own-words box (D31) | **AI reads. You confirm. Plain code handles the money.** and **What you type here is sent to Groq to read it. Don't type anything private.** (D75) |
@@ -358,3 +358,29 @@ A bare page from Emmanuel (Nov 4), for Samuel to restyle. It extends `base.html`
 Ids to keep: `leave-message` and `leave-button`. An unknown token (including the `admin_token`) is a 404 with the general error text. The POST always redirects (303) to the page.
 
 **On the pledge page (S4/S5):** after "Held", a hidden line `leave-link-line` is shown with the friend's own S6 address in `leave-link`, and the placeholder text "Keep this link to cancel before last call." (D57). The script sets the address with `textContent`.
+
+
+## F7 Stage 3 private refund interface (D92)
+
+Emmanuel implemented the approved security flow; Samuel's visual and wording review is pending. Existing shared styles are reused. D93 adds one small script, `static/js/refund_preflight.js`; board.js is unchanged.
+
+S2 links to /admin/<admin_token>/refund-access only for NEEDS_ATTENTION, REFUNDING or REFUNDED. That link alone grants no refund permission. The independent club key unlocks a 15-minute event-scoped session. Subsequent private pages use /admin/events/<event_id>/refunds (progress) and /refunds/confirm (confirmation). They display recorded captured payments, never held maximums or estimated shares. Known original fees are displayed; missing fees say "Fee information unavailable."
+
+The confirmation explains full participant refunds, retained original processing fees, authorization verification/cancellation, irreversibility and one new refund per action. POST /refunds/start confirms. Each subsequent POST /refunds/continue needs an explicit Continue refunding action. GET/refresh never sends, reconciles or resumes a payment. POST /refunds/<refund_id>/check permits PayPal GET only for a known eligible pending refund. No retry or maintenance controls exist.
+
+Per-payment words distinguish Not sent yet, Request started/result not confirmed, PayPal processing, PayPal-confirmed Refunded, failed/cancelled requiring review, Result unknown, and Maintenance status check required. Per-person completion requires all recorded payments to agree and no local accounting blockers. D47 captured money, missing records and unresolved authorizations get investigation messages; no missing payment amount is invented. A resolved zero-capture event explicitly says no captured payments required refunds. Public board additions are only generic Refunding/Refunded status words; private request IDs and recovery diagnostics are excluded.
+
+The new templates are refund_access.html, refund_confirm.html, refund_status.html and the private refund_people.html partial. The only automatic action is the read-only preflight (D93); no money command is ever sent automatically. Double-click correctness comes from database claims, rather than JavaScript. Keyboard/mobile layout and actual browser behavior remain NOT RUN.
+
+### D93 changes to the refund review (Samuel review pending)
+
+- The confirm page now works in three steps: (1) **Checked N of M authorizations**, where a small script (or the "Check next authorization" button without JavaScript) reads one authorization per request; (2) an **Open authorizations** list, each with a "Review and cancel" link to its own page, "Cancel this authorization", which names the person and amount and cancels only that hold; (3) "Confirm refund everyone", which appears only when every hold is checked and none is open. Placeholder wording (D57) until Samuel approves it.
+- The captured-payments line reads "Recorded captured payments: incomplete records, total unknown" when any payment record is missing or unresolved. It never shows $0.00 for that case.
+- New template `refund_cancel.html`. Real browser, keyboard and phone behaviour is NOT RUN.
+
+### D94 changes to the refund review (Samuel review pending)
+
+- A payment whose refund is frozen (no final result, sender gone, PayPal refund id saved) shows a **Check with PayPal** button and one line: "This only asks PayPal what happened to this refund. It never sends money and never starts a new refund."
+- If PayPal has no final answer the page says so and nothing changes; if it reports failed or cancelled it says "review required".
+- A frozen payment with no saved PayPal refund id shows: "No PayPal refund id was saved, so this cannot be checked here. Nothing was changed: a developer must investigate." No button.
+- Placeholder wording (D57) until Samuel approves it. Real browser and phone behaviour is NOT RUN.

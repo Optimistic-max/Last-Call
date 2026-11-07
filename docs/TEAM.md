@@ -17,6 +17,8 @@ In M1, Emmanuel creates a bare `templates/pledge.html` for Samuel to restyle; li
 
 **Live URL:** https://last-call-cr7n.onrender.com (sandbox only; Render deploys `main`, so run `pytest` before merging). The first deploy passed on Oct 30 at 10:24 PM ET with Python 3.14.7 and the pinned `requirements.txt` (D52), and `/health` returned 200 with the database connected. B1, B2 and B5 on the live URL: NOT RUN. Free hosting sleeps after 15 minutes, so the first visit can take up to a minute. Details: `docs/SYSTEM_DESIGN.md` §2.
 
+**Running the tests:** plain `pytest` is fine again (the Neon `test` branch has migrations 001 to 006 since Nov 7, see `docs/MIGRATION_RUNBOOK.md`). Emmanuel may instead use his own local runner, `run_local_tests.py` (not in the repo); it is optional.
+
 Other names in these docs are assistant bots, not people (roles from the Oct 16 plan, section 11): **steel hacks** (state machine, tables, PayPal sandbox tests), **Warden** (test list, honesty review), **hackaton rank** (README claims table, score estimate), **Transport** (reminders, fact checks).
 
 ## Open to-dos
@@ -39,6 +41,9 @@ Agents check this list before editing a file and mention any open to-do on it (`
 | Samuel | `docs/UI_DESIGN.md`, `static/js/pledge_paypal.js` | Approve or replace the pledge page's four placeholder labels (§10, "S4 `pledge.html`"), and the two placeholder texts `REVIEW_TEXT` and `OUT_TEXT` at the top of `static/js/pledge_paypal.js`. Ask Emmanuel to move them to `data-` attributes if you want them in the template. The styling is done (Nov 5). |
 | Samuel | `docs/UI_DESIGN.md`, `templates/board_panel.html` | Consider a short line by the goal explaining that it rises a little with each person, because PayPal takes a fixed fee from each charge (D76: the goal uses the current held count) (Nov 2). |
 | Samuel | `templates/pledge.html`, `docs/UI_DESIGN.md` | Approve or replace `leave.html`'s four placeholder texts (D57). On the pledge page after 'Held', add a 'Copy link' button next to the friend's own link (changes to 'Copied ✓'), and on phones a 'Send to myself' button using navigator.share; fall back to copy. The styling is done (Nov 5). |
+| Samuel | `templates/refund_confirm.html`, `templates/refund_cancel.html`, `templates/refund_status.html`, `static/js/refund_preflight.js`, `docs/UI_DESIGN.md` | Review the D93 refund review (Nov 7): the three steps, "Checked N of M", the cancel page and the "total unknown" wording are placeholders (D57). Emmanuel wrote the templates and script; they are yours after review. Not yet tried in a real browser or on a phone. |
+| Samuel | `templates/admin.html` | The "Review refunds" button on S2 (Nov 7): you may restyle it, but **keep the link** (to `refund_access_url`, i.e. `/admin/<admin_token>/refund-access`) **and its condition** (`{% if refund_access_url %}`, which `app.py` sets only for `NEEDS_ATTENTION`, `REFUNDING` and `REFUNDED`). It must stay obvious: it was easy to miss as a plain `text-link`. `tests/test_refund_web.py::test_admin_page_shows_the_review_refunds_button_only_when_refunds_apply` checks that it is a `button-link` with that address, and absent for an OPEN event. |
+| Samuel | `templates/refund_people.html`, `docs/UI_DESIGN.md` | Review the D94 "Check with PayPal" button and its messages (Nov 7); placeholder wording (D57). Not yet tried in a real browser or on a phone. |
 
 Emmanuel is over capacity through Nov 8 (about 14 h over). Revisit Wed Nov 4, 9 PM ET.
 

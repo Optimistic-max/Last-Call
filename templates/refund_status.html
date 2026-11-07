@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Refund progress{% endblock %}
+{% block content %}
+<main>
+  <header class="page-header"><h1>Refund progress for {{ title }}</h1></header>
+  <section class="card">
+    <h2>{{ event_status }}</h2>
+    {% if complete and totals.amount_cents == 0 %}
+    <p>No captured payments required refunds. The event's authorizations are resolved.</p>
+    {% elif complete %}<p>The event's refunds and authorizations are resolved.</p>
+    {% else %}<p>Refunding is incomplete. Read each payment's status below.</p>{% endif %}
+    {% if totals_known %}<p>Recorded captured payments: {{ totals.amount_cents|dollars }}.</p>
+    {% else %}<p role="alert">Recorded captured payments: incomplete records, total unknown.</p>{% endif %}
+    <p>No refunds are retried automatically. Refreshing this page sends no payment requests.</p>
+    {% for message in blockers %}<p role="alert">{{ message }}</p>{% endfor %}
+    {% if active_command %}<p role="alert">A command is active or unresolved. Further commands are blocked for investigation.</p>{% endif %}
+    {% if event_status == 'NEEDS_ATTENTION' %}<p><a href="{{ url_for('refund_confirmation', event_id=event_id) }}">Review refund-all</a></p>{% endif %}
+    {% if action_token %}
+    <form method="post" action="{{ url_for('refund_continue', event_id=event_id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="action_token" value="{{ action_token }}">
+      <button type="submit">Continue refunding</button>
+    </form>
+    {% endif %}
+    <p><a href="{{ url_for('refund_progress', event_id=event_id) }}">Refresh status</a></p>
+  </section>
+  {% include "refund_people.html" %}
+</main>
+{% endblock %}

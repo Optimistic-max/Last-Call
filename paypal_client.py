@@ -202,3 +202,37 @@ def get_capture(capture_id):
 def void_authorization(auth_id, request_id):
     check_paypal_id(auth_id)
     return send_request("POST", "/v2/payments/authorizations/" + auth_id + "/void", request_id)
+
+
+# Full refund of a saved successful capture. Stage 2 must select that database record and commit
+# its refund request ID first. This HTTP-only module cannot verify database provenance or ownership.
+# Exactly one POST: an uncertain answer must never cause an automatic retry (D28).
+def refund_capture(capture_id, request_id):
+    check_paypal_id(capture_id)
+    if not isinstance(request_id, str) or request_id.strip() == "":
+        raise ValueError("a refund needs its saved request ID")
+    return send_request("POST", "/v2/payments/captures/" + capture_id + "/refund", request_id, {})
+
+
+# Check a known refund without sending another refund. Lifecycle will require an authorized action.
+def get_refund(refund_id):
+    check_paypal_id(refund_id)
+    return send_request("GET", "/v2/payments/refunds/" + refund_id)
+
+
+# Read the actual refund status, never inferring COMPLETED from HTTP success. None means unknown.
+# This parses the protocol only: Stage 2 will match the ID to its record and decide state changes.
+def refund_status(answer):
+    if answer.get("http_status") not in (200, 201):
+        return None
+    data = answer.get("data")
+    if not isinstance(data, dict):
+        return None
+    try:
+        check_paypal_id(data.get("id"))
+    except ValueError:
+        return None
+    status = data.get("status")
+    if status not in ("COMPLETED", "PENDING", "FAILED", "CANCELLED"):
+        return None
+    return status

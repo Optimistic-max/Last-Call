@@ -16,6 +16,8 @@ CREATE TABLE events (
     last_call_ends  TIMESTAMPTZ,                       -- min(goal time + 1h, hard_deadline); M1: hard_deadline (D25)
     goal_cents      INTEGER,                           -- fee-adjusted goal, saved at lock
     lock_started_at TIMESTAMPTZ,                       -- saved when LAST_CALL -> LOCKING wins; resumes a stuck lock (D27)
+    refund_run_token TEXT,                             -- durable owner; never expires automatically (F7)
+    refund_revision INTEGER NOT NULL DEFAULT 0 CHECK (refund_revision >= 0),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -56,6 +58,8 @@ CREATE TABLE holds (
     status          TEXT        NOT NULL DEFAULT 'PENDING',  -- PENDING, CREATED, DENIED, CAPTURED, VOIDED, NOT_PLACED
     expires_at      TIMESTAMPTZ,                       -- from PayPal's expiration_time
     void_tried_at   TIMESTAMPTZ,                       -- the cleanup sweep's claim on this hold (D80)
+    void_run_token  TEXT,                              -- durable owner; uncertain calls need review (F7)
+    refund_check_status TEXT CHECK (refund_check_status IN ('PENDING', 'RESOLVED', 'MANUAL_REVIEW')),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -82,5 +86,218 @@ CREATE TABLE refunds (
     refund_id       TEXT        UNIQUE,
     amount_cents    INTEGER     NOT NULL,
     status          TEXT        NOT NULL DEFAULT 'PENDING',
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    send_state TEXT NOT NULL DEFAULT 'READY',           -- separate sending evidence from PayPal outcome
+    send_started_at TIMESTAMPTZ,
+    operation_revision BIGINT NOT NULL DEFAULT 0 CHECK (operation_revision >= 0),
+    first_send_started_at TIMESTAMPTZ,
+    error_code TEXT,                                  -- sanitized code only, never a response body
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT refunds_one_per_capture UNIQUE (capture_id),
+    CONSTRAINT refunds_amount_positive CHECK (amount_cents > 0),
+    CONSTRAINT refunds_request_not_blank CHECK (btrim(request_id) <> ''),
+    CONSTRAINT refunds_send_state CHECK (send_state IN ('READY', 'IN_FLIGHT', 'ANSWERED', 'UNCERTAIN', 'CHECK_ONLY')),
+    CONSTRAINT refunds_send_evidence CHECK (send_state <> 'IN_FLIGHT' OR send_started_at IS NOT NULL)
 );
+
+-- Enforce immutable refund identity even if a future caller accidentally tries to replace it.
+-- INSERT only accepts a recorded successful capture and its exact full amount; no money math.
+CREATE FUNCTION public.protect_refund_record() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+DECLARE
+    payment public.captures%ROWTYPE;
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        IF NEW.capture_id IS DISTINCT FROM OLD.capture_id
+           OR NEW.request_id IS DISTINCT FROM OLD.request_id
+           OR NEW.amount_cents IS DISTINCT FROM OLD.amount_cents
+           OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+            RAISE EXCEPTION 'Refund identity cannot change' USING ERRCODE = '23514';
+        END IF;
+        IF OLD.refund_id IS NOT NULL AND NEW.refund_id IS DISTINCT FROM OLD.refund_id THEN
+            RAISE EXCEPTION 'Assigned refund ID cannot change' USING ERRCODE = '23514';
+        END IF;
+    ELSE
+        SELECT * INTO payment FROM public.captures WHERE id = NEW.capture_id FOR SHARE;
+        IF NOT FOUND OR payment.status <> 'COMPLETED' OR payment.capture_id IS NULL
+           OR btrim(payment.capture_id) = ''
+           OR NEW.amount_cents IS DISTINCT FROM payment.amount_cents THEN
+            RAISE EXCEPTION 'Refund requires a recorded completed capture and its full amount'
+                USING ERRCODE = '23514';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER refunds_protect_record BEFORE INSERT OR UPDATE ON public.refunds
+FOR EACH ROW EXECUTE FUNCTION public.protect_refund_record();
+
+-- The event row serializes this check with the event-then-hold void claim.
+CREATE FUNCTION public.protect_refund_handoff() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+    IF NEW.status = 'REFUNDING' AND OLD.status IS DISTINCT FROM NEW.status AND EXISTS (
+        SELECT 1 FROM public.holds JOIN public.pledges ON pledges.id = holds.pledge_id
+        WHERE pledges.event_id = NEW.id AND holds.void_run_token IS NOT NULL
+    ) THEN
+        RAISE EXCEPTION 'Refund handoff blocked by unresolved void' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER events_protect_refund_handoff BEFORE UPDATE OF status ON public.events
+FOR EACH ROW EXECUTE FUNCTION public.protect_refund_handoff();
+
+CREATE FUNCTION public.protect_refund_operation() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+    IF NEW.operation_revision < OLD.operation_revision THEN
+        RAISE EXCEPTION 'Refund operation revision cannot decrease' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.first_send_started_at IS NOT NULL AND
+       NEW.first_send_started_at IS DISTINCT FROM OLD.first_send_started_at THEN
+        RAISE EXCEPTION 'Original refund sending time cannot change' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.first_send_started_at IS NULL AND NEW.first_send_started_at IS NOT NULL AND NOT (
+        OLD.send_state = 'READY' AND OLD.send_started_at IS NULL AND OLD.operation_revision = 0
+        AND OLD.refund_id IS NULL AND OLD.status = 'PENDING'
+        AND NEW.send_state = 'IN_FLIGHT' AND NEW.operation_revision > OLD.operation_revision
+    ) THEN
+        RAISE EXCEPTION 'Unknown original sending time cannot be invented' USING ERRCODE = '23514';
+    END IF;
+    IF NEW.send_state = 'IN_FLIGHT' AND OLD.send_state <> 'IN_FLIGHT' AND (
+        OLD.send_state <> 'READY' OR OLD.first_send_started_at IS NOT NULL
+        OR OLD.send_started_at IS NOT NULL OR OLD.operation_revision <> 0
+        OR OLD.refund_id IS NOT NULL OR OLD.status <> 'PENDING'
+        OR NEW.first_send_started_at IS NULL
+        OR NEW.operation_revision <= OLD.operation_revision
+    ) THEN
+        RAISE EXCEPTION 'Only a fresh first-send claim may POST; retries are disabled' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.send_state <> 'READY' AND NEW.send_state = 'READY' THEN
+        RAISE EXCEPTION 'Recovery cannot authorize another POST' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.send_state = 'UNCERTAIN' AND NEW.send_state = 'ANSWERED' THEN
+        RAISE EXCEPTION 'Uncertain operations require authorized CHECK_ONLY recovery' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.send_state = 'CHECK_ONLY' AND NEW.send_state = 'ANSWERED' AND NEW.status <> 'COMPLETED' THEN
+        RAISE EXCEPTION 'A recovery observation cannot enable a retry' USING ERRCODE = '23514';
+    END IF;
+    IF OLD.status = 'COMPLETED' AND NEW.status <> 'COMPLETED' THEN
+        RAISE EXCEPTION 'Completed refund cannot regress' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER refunds_protect_operation BEFORE UPDATE ON public.refunds
+FOR EACH ROW EXECUTE FUNCTION public.protect_refund_operation();
+
+-- Browser commands are separate from PayPal identities. Finished rows prevent replay forever.
+CREATE TABLE public.refund_web_actions (
+    action_hash TEXT PRIMARY KEY,
+    event_id INTEGER NOT NULL REFERENCES public.events(id),
+    session_hash TEXT NOT NULL,
+    action_type TEXT NOT NULL CHECK (action_type IN ('START', 'CONTINUE', 'CHECK')),
+    target_refund_id INTEGER REFERENCES public.refunds(id),
+    state TEXT NOT NULL DEFAULT 'CLAIMED' CHECK (state IN ('CLAIMED', 'FINISHED')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    finished_at TIMESTAMPTZ,
+    CHECK ((state = 'CLAIMED' AND finished_at IS NULL) OR (state = 'FINISHED' AND finished_at IS NOT NULL)),
+    CHECK ((action_type = 'CHECK' AND target_refund_id IS NOT NULL) OR
+           (action_type <> 'CHECK' AND target_refund_id IS NULL))
+);
+CREATE UNIQUE INDEX refund_web_one_active_event ON public.refund_web_actions(event_id) WHERE state = 'CLAIMED';
+
+-- Neither a replay nor an expired browser session may reopen a consumed command.
+CREATE FUNCTION public.protect_refund_web_action() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        IF NEW.action_hash IS DISTINCT FROM OLD.action_hash OR NEW.event_id IS DISTINCT FROM OLD.event_id
+           OR NEW.session_hash IS DISTINCT FROM OLD.session_hash OR NEW.action_type IS DISTINCT FROM OLD.action_type
+           OR NEW.target_refund_id IS DISTINCT FROM OLD.target_refund_id OR NEW.created_at IS DISTINCT FROM OLD.created_at
+           OR OLD.state = 'FINISHED' AND (NEW.state IS DISTINCT FROM OLD.state OR NEW.finished_at IS DISTINCT FROM OLD.finished_at) THEN
+            RAISE EXCEPTION 'Consumed browser command identity cannot change' USING ERRCODE = '23514';
+        END IF;
+    ELSIF NEW.state <> 'CLAIMED' THEN
+        RAISE EXCEPTION 'Browser commands must begin claimed' USING ERRCODE = '23514';
+    END IF;
+    IF NEW.action_type = 'CHECK' AND NOT EXISTS (
+        SELECT 1 FROM public.refunds JOIN public.captures ON captures.id = refunds.capture_id
+        JOIN public.holds ON holds.id = captures.hold_id JOIN public.pledges ON pledges.id = holds.pledge_id
+        WHERE refunds.id = NEW.target_refund_id AND pledges.event_id = NEW.event_id
+    ) THEN
+        RAISE EXCEPTION 'Browser command target must belong to its event' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER refund_web_actions_protect BEFORE INSERT OR UPDATE ON public.refund_web_actions
+FOR EACH ROW EXECUTE FUNCTION public.protect_refund_web_action();
+
+-- Stage 3 corrections (migration 006)
+ALTER TABLE public.refund_web_actions
+    ADD COLUMN target_hold_id INTEGER CONSTRAINT refund_web_actions_target_hold_fkey REFERENCES public.holds(id),
+    ADD COLUMN claimed_refund_id INTEGER CONSTRAINT refund_web_actions_claimed_refund_fkey REFERENCES public.refunds(id),
+    ADD CONSTRAINT refund_web_actions_one_command_per_refund UNIQUE (claimed_refund_id),
+    DROP CONSTRAINT refund_web_actions_action_type_check,
+    ADD CONSTRAINT refund_web_actions_action_type CHECK (action_type IN ('START', 'CONTINUE', 'CHECK', 'CANCEL_HOLD')),
+    ADD CONSTRAINT refund_web_actions_cancel_target CHECK (
+        (action_type = 'CANCEL_HOLD' AND target_hold_id IS NOT NULL) OR
+        (action_type <> 'CANCEL_HOLD' AND target_hold_id IS NULL)),
+    ADD CONSTRAINT refund_web_actions_claim_kind CHECK (claimed_refund_id IS NULL OR action_type IN ('START', 'CONTINUE'));
+
+-- Every rule from migration 005 stays. New rules: the links never change; a cancel command exists only
+-- after its void claim is committed; a start or continue command exists only after its refund is
+-- claimed; and a command finishes only after what it started has a saved result (D93).
+CREATE OR REPLACE FUNCTION public.protect_refund_web_action() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        IF NEW.action_hash IS DISTINCT FROM OLD.action_hash OR NEW.event_id IS DISTINCT FROM OLD.event_id
+           OR NEW.session_hash IS DISTINCT FROM OLD.session_hash OR NEW.action_type IS DISTINCT FROM OLD.action_type
+           OR NEW.target_refund_id IS DISTINCT FROM OLD.target_refund_id OR NEW.created_at IS DISTINCT FROM OLD.created_at
+           OR NEW.target_hold_id IS DISTINCT FROM OLD.target_hold_id
+           OR NEW.claimed_refund_id IS DISTINCT FROM OLD.claimed_refund_id
+           OR OLD.state = 'FINISHED' AND (NEW.state IS DISTINCT FROM OLD.state OR NEW.finished_at IS DISTINCT FROM OLD.finished_at) THEN
+            RAISE EXCEPTION 'Consumed browser command identity cannot change' USING ERRCODE = '23514';
+        END IF;
+        IF OLD.state = 'CLAIMED' AND NEW.state = 'FINISHED' THEN
+            IF EXISTS (SELECT 1 FROM public.refunds WHERE refunds.id IN (NEW.claimed_refund_id, NEW.target_refund_id)
+                       AND refunds.send_state IN ('IN_FLIGHT', 'UNCERTAIN', 'CHECK_ONLY')) THEN
+                RAISE EXCEPTION 'A browser command cannot finish while its refund is unresolved' USING ERRCODE = '23514';
+            END IF;
+            IF EXISTS (SELECT 1 FROM public.holds WHERE holds.id = NEW.target_hold_id AND holds.void_run_token IS NOT NULL) THEN
+                RAISE EXCEPTION 'A browser command cannot finish while its void is unresolved' USING ERRCODE = '23514';
+            END IF;
+        END IF;
+    ELSE
+        IF NEW.state <> 'CLAIMED' THEN
+            RAISE EXCEPTION 'Browser commands must begin claimed' USING ERRCODE = '23514';
+        END IF;
+        IF NEW.action_type = 'CANCEL_HOLD' AND NOT EXISTS (
+            SELECT 1 FROM public.holds JOIN public.pledges ON pledges.id = holds.pledge_id
+            WHERE holds.id = NEW.target_hold_id AND pledges.event_id = NEW.event_id
+              AND holds.void_run_token IS NOT NULL AND holds.void_request_id IS NOT NULL
+        ) THEN
+            RAISE EXCEPTION 'A cancel command requires its committed void claim on this event' USING ERRCODE = '23514';
+        END IF;
+        IF NEW.claimed_refund_id IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM public.refunds JOIN public.captures ON captures.id = refunds.capture_id
+            JOIN public.holds ON holds.id = captures.hold_id JOIN public.pledges ON pledges.id = holds.pledge_id
+            WHERE refunds.id = NEW.claimed_refund_id AND pledges.event_id = NEW.event_id
+              AND refunds.send_state = 'IN_FLIGHT' AND refunds.first_send_started_at IS NOT NULL
+        ) THEN
+            RAISE EXCEPTION 'A refund command requires its committed refund claim on this event' USING ERRCODE = '23514';
+        END IF;
+    END IF;
+    IF NEW.action_type = 'CHECK' AND NOT EXISTS (
+        SELECT 1 FROM public.refunds JOIN public.captures ON captures.id = refunds.capture_id
+        JOIN public.holds ON holds.id = captures.hold_id JOIN public.pledges ON pledges.id = holds.pledge_id
+        WHERE refunds.id = NEW.target_refund_id AND pledges.event_id = NEW.event_id
+    ) THEN
+        RAISE EXCEPTION 'Browser command target must belong to its event' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$;

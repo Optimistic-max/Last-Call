@@ -18,6 +18,8 @@ CREATE TABLE events (
     last_call_ends  TIMESTAMPTZ,                       -- min(goal time + 1h, hard_deadline); M1: hard_deadline (D25)
     goal_cents      INTEGER,                           -- fee-adjusted goal, saved at lock
     lock_started_at TIMESTAMPTZ,                       -- saved when LAST_CALL -> LOCKING wins; resumes a stuck lock (D27)
+    refund_run_token TEXT,                             -- durable refund owner, no automatic expiry (D88)
+    refund_revision INTEGER NOT NULL DEFAULT 0 CHECK (refund_revision >= 0),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -58,6 +60,8 @@ CREATE TABLE holds (
     status          TEXT        NOT NULL DEFAULT 'PENDING',  -- PENDING, CREATED, DENIED, CAPTURED, VOIDED, NOT_PLACED
     expires_at      TIMESTAMPTZ,                       -- from PayPal's expiration_time
     void_tried_at   TIMESTAMPTZ,                       -- the cleanup sweep's claim on this hold (D80)
+    void_run_token  TEXT,                              -- durable owner; uncertain calls need review (F7, D89)
+    refund_check_status TEXT CHECK (refund_check_status IN ('PENDING', 'RESOLVED', 'MANUAL_REVIEW')),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -84,12 +88,27 @@ CREATE TABLE refunds (
     refund_id       TEXT        UNIQUE,
     amount_cents    INTEGER     NOT NULL,
     status          TEXT        NOT NULL DEFAULT 'PENDING',
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    send_state TEXT NOT NULL DEFAULT 'READY',
+    send_started_at TIMESTAMPTZ,
+    operation_revision BIGINT NOT NULL DEFAULT 0 CHECK (operation_revision >= 0),
+    first_send_started_at TIMESTAMPTZ,
+    error_code TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT refunds_one_per_capture UNIQUE (capture_id),
+    CONSTRAINT refunds_amount_positive CHECK (amount_cents > 0),
+    CONSTRAINT refunds_request_not_blank CHECK (btrim(request_id) <> ''),
+    CONSTRAINT refunds_send_state CHECK (send_state IN ('READY', 'IN_FLIGHT', 'ANSWERED', 'UNCERTAIN', 'CHECK_ONLY')),
+    CONSTRAINT refunds_send_evidence CHECK (send_state <> 'IN_FLIGHT' OR send_started_at IS NOT NULL)
 );
 ```
 
 ## Notes
 
+- **F7 Stage 1 (D88): designed, not tested in PostgreSQL.** `schema.sql` also installs `public.protect_refund_record()` and the `refunds_protect_record` BEFORE INSERT OR UPDATE trigger. INSERT requires a recorded `COMPLETED` capture with a nonblank PayPal capture ID and matching full amount; a share lock keeps that capture stable through insertion. UPDATE cannot change the capture reference, original request ID, amount or creation time, or erase/replace an assigned refund ID. Updating result fields remains possible. These guards do not send payments or implement refund lifecycle.
+- **Recovery fields are evidence for Stage 2, not a working recovery system.** A null `refund_run_token` means no owner; a nonnull owner never expires automatically. `refund_revision` will guard stale submitted actions. `send_state` separates never-started (`READY`), started (`IN_FLIGHT`), recorded response (`ANSWERED`) and uncertain (`UNCERTAIN`); `IN_FLIGHT` requires `send_started_at`. `error_code` is for sanitized codes. A null hold `refund_check_status` means not checked; `PENDING`, `RESOLVED` and `MANUAL_REVIEW` record F7 authorization checks.
+- **Existing databases:** `migrations/001_f7_refund_all.sql` is prepared for separate review and execution approval; it has NOT RUN against Neon. It targets `public`, locks before checking conflicts, adds fields/constraints/trigger atomically, and does not rewrite existing IDs, amounts, statuses or timestamps. Existing refund rows get new send state `UNCERTAIN`, since their prior sending history is unknown; only future inserts default to `READY`. Do not rerun `schema.sql` on an existing database. Malama reviews this schema change.
+
+- **`holds.void_run_token` is a durable void owner (D89).** Null means no owner. A non-null token, including migration 002's `legacy-<id>` marker, means a void may already have been sent. The cleanup sweep does not select that hold. The token is cleared when a confirmed terminal `GET` is saved for that same token, or when a definite authentication refusal is recorded. `CREATED`, a missing `GET`, a mismatched authorization id, and any other status leave it in place. `reconcile_uncertain_void` is an explicit `GET` and is not called by the sweep. This column is already in `schema.sql`. This note does not change the table.
 - **Why `holds.status` starts at `PENDING` and `order_id` may be empty:** the row is saved with its `create_request_id` *before* the create-order call, and `order_id` is filled in the moment PayPal returns it. That is the "save before you send" rule (D24). A `PENDING` hold older than an hour with no `auth_id` is usually an abandoned checkout, with nothing to void. On a finished event, the cleanup sweep marks one whose `authorize_request_id` is empty `NOT_PLACED` (authorize was never sent, D80). If its `authorize_request_id` is set, authorize was sent and the answer never came: see `PAYPAL_INTEGRATION.md` §5.
 - **`holds.status` can also hold PayPal's own word:** after a failed or resumed capture, `lifecycle.record_failed_charge` and `resend_pending_capture` save the status PayPal's `GET` returns, as is (for example `PARTIALLY_CAPTURED` or `EXPIRED`). PayPal also has a `PENDING` authorization status (`unverified`, TODO (source needed)). So a `PENDING` hold **with** an `auth_id` is PayPal's pending, not ours: ours always has an empty `auth_id`. Nothing in the code mixes the two today, because the sweep's `NOT_PLACED` step needs an empty `auth_id` (D80). Found in the review of D81, Nov 5.
 - **Names are saved trimmed, with single spaces** (the same cleanup `conditions.py` uses for matching), so the unique index treats "Ana " and "ana" as the same person.
@@ -98,3 +117,32 @@ CREATE TABLE refunds (
 - **The treasurer's real net** is `SUM(captures.net_cents) WHERE status = 'COMPLETED'`, read from PayPal's own numbers. Never compute it from the formula.
 - **No email column and no stored "hold pending" (D62).** `pledges` has no `email` column before the freeze, so the pledge form asks for a name only. "Hold pending" (D31 #6) is never saved as a pledge status: it is worked out from `holds` when the board is built (Emmanuel's `board.json`, M4).
 - **Admin and pledger tokens** are generated with `secrets.token_urlsafe(24)`. Never show one person's token to another.
+
+- **Stage 2B corrections (D90):** operation_revision distinguishes individual refund operations within the same event owner/revision. Claims and accepted results increment it; stale writes change zero rows. first_send_started_at is set before the first POST and is immutable thereafter. Existing unknown times remain NULL. CHECK_ONLY is an explicitly authorized maintenance recovery state that permits GET only; a failed/pending observation never enables a POST. New operation guards prevent revision decreases, invented historical send times, retry transitions, and completion regression. Full accounting still belongs to lifecycle.py, not a column default.
+- **Migration 003:** migrations/003_f7_refund_operation_safety.sql extends the existing schema transactionally, checks enabled prerequisite guards, and preserves historical identities, amounts, statuses and timestamps. Stop old workers before applying it on a separately approved target. It has no automatic startup caller. Migrations 001/002 are preserved. Application rollback to older refund code is unsafe after using CHECK_ONLY: stop refund processing and preserve recovery evidence instead of deleting the columns. Local validation evidence belongs in TEST_PLAN.md; no Neon execution is authorized.
+
+- **Migration 004 (D91):** replaces only the operation guard function, transactionally with bounded lock waits and prerequisite checks. No columns or existing rows change. Only a fresh READY row with no sending history may enter IN_FLIGHT; no other state may reset to READY. An IN_FLIGHT revision increment remains valid for one-use dispatch. Migrations 001–003 remain unchanged. A late response's restricted ID-only save checks immutable identity, event ownership and the observed current revision without changing that revision or any outcome. Do not roll back to refund code that can reuse dispatch claims; stop refund processing and preserve evidence instead.
+
+
+## F7 Stage 3 browser commands (D92)
+
+refund_web_actions is separate from refunds: a browser command is not a PayPal refund identity. Migration 005 adds it without rewriting application rows. Fields are action_hash (primary key; hash of signed single-use form), event_id (event FK), session_hash, action_type (START/CONTINUE/CHECK, plus CANCEL_HOLD from migration 006), target_refund_id (refund FK for CHECK only), state (CLAIMED/FINISHED), created_at and finished_at. A partial unique index permits only one CLAIMED command per event. A trigger prevents changing identity, reopening FINISHED commands or changing their completion evidence; CHECK targets must belong to the event.
+
+The application locks the event before claiming a command. FINISHED history remains against replay while a new command can occupy the event slot. CLAIMED has no expiry. A worker crash may require offline investigation even when no PayPal call began. No startup migration, automatic claim cleanup or browser maintenance exists. Preserve the table and evidence when rolling back the interface; stop browser refund actions rather than dropping uncertain commands. Migration 005's actual SQL still requires Malama review before shared deployment. No Neon application is authorized.
+
+## F7 Stage 3 corrections (D93, migration 006)
+
+Migration 006 (`migrations/006_f7_bounded_refund_preflight.sql`, also appended to `schema.sql` after the marker "Stage 3 corrections (migration 006)") changes only `refund_web_actions` and its guard function. It is additive: code written for the 005 schema keeps working. **Applied only to the disposable local PostgreSQL; not applied to any Neon branch.** Status: VERIFIED locally by `tests/test_refund_migration006.py`; Malama's review of the actual SQL is still required.
+
+| Object | Definition | Why |
+|---|---|---|
+| `target_hold_id` | nullable INTEGER, FK `holds(id)` | A CANCEL_HOLD command names the one hold it cancels. |
+| `claimed_refund_id` | nullable INTEGER, FK `refunds(id)`, `UNIQUE` (`refund_web_actions_one_command_per_refund`) | Which refund a START/CONTINUE claimed in the same transaction as the command. Recovery uses it. A refund is claimed for sending once. |
+| action type | `CANCEL_HOLD` added (`refund_web_actions_action_type`) | Cancelling an open hold is its own explicit command. |
+| `refund_web_actions_cancel_target` | CANCEL_HOLD needs a hold; every other type must have none | A cancel with no hold is meaningless. |
+| `refund_web_actions_claim_kind` | only START/CONTINUE may have `claimed_refund_id` | Only they send a refund. It is optional for CONTINUE until migration 007 (LATER.md). |
+| `protect_refund_web_action()` | replaced; every 005 rule kept | The two link columns never change. On INSERT: a CANCEL_HOLD needs a hold of the same event with `void_run_token` and `void_request_id` already saved; a claimed refund must be IN_FLIGHT, with `first_send_started_at`, on the same event. On finishing (G4): no linked refund may be IN_FLIGHT/UNCERTAIN/CHECK_ONLY and no linked hold may still have `void_run_token`. |
+
+**`holds.refund_check_status = 'PENDING'` now has a meaning (D93, Malama's answer 1):** the preflight read the authorization from PayPal and it was still `CREATED`, so it needs cancelling by the treasurer. The CHECK constraint already allowed the value; nothing wrote it before. `RESOLVED` and `MANUAL_REVIEW` keep their old meanings. A hold read as `PENDING` and later cancelled (status no longer `CREATED`) is read again by the next preflight request. `NULL` means not read yet. "Checked N of M" counts the holds whose check is neither `NULL` nor a cancelled `PENDING`.
+
+**How to verify after applying (local or any future database):** the two columns exist and are nullable; `refund_web_actions_one_command_per_refund` is `UNIQUE (claimed_refund_id)`; the action-type constraint lists four values; `pg_get_functiondef('public.protect_refund_web_action'::regproc)` contains the four new rules; trigger `refund_web_actions_protect` is enabled; every existing row has NULL in both new columns; and the existing suite passes unchanged.

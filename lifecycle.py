@@ -198,9 +198,9 @@ def start_hold(conn, pledger_token, now, paypal):
     if pledge["status"] != "PENDING_PAY":
         return {"outcome": "NOT_HELD"}
     request_id = new_request_id()
-    hold = db.fetch_one(conn, "INSERT INTO holds (pledge_id, create_request_id, amount_cents) "
-                              "VALUES (%s, %s, %s) RETURNING id",
-                        (pledge["id"], request_id, pledge["max_cents"]))
+    hold = claim_new_hold(conn, pledge, request_id, now)
+    if hold is None:
+        return {"outcome": "CLOSED"}
     answer = paypal.create_order(pledge["max_cents"], "pledge-%d" % pledge["id"], request_id)
     order_id = answer["data"].get("id")
     if order_id is not None:
@@ -237,7 +237,7 @@ def authorize_hold(conn, order_id, pledger_token, now, paypal):
         return {"outcome": "ALREADY_PLEDGED", "name": hold["name"]}
     if hold["pledge_status"] != "PENDING_PAY":
         return {"outcome": "NOT_HELD"}
-    request_id = claim_authorize(conn, hold["id"])
+    request_id = claim_authorize(conn, hold["id"], now, pledger_token)
     if request_id is None:
         return saved_answer(conn, hold["id"])
     authorization = send_authorize(conn, hold, request_id, paypal)
@@ -247,13 +247,25 @@ def authorize_hold(conn, order_id, pledger_token, now, paypal):
 # Save the authorize call's PayPal-Request-Id before the call (rule 3). It's a compare-and-set on the
 # empty column: if two requests try to authorize the same order at once (a double click), only one gets
 # an ID. The other returns None and never calls PayPal, so one order is never authorized twice.
-def claim_authorize(conn, hold_id):
+def claim_authorize(conn, hold_id, now, pledger_token):
     request_id = new_request_id()
-    changed = db.run(conn, "UPDATE holds SET authorize_request_id = %s "
-                           "WHERE id = %s AND authorize_request_id IS NULL",
-                     (request_id, hold_id))
-    if changed == 0:
+    located = db.fetch_one(conn, "SELECT pledges.event_id FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
+                                "WHERE holds.id = %s", (hold_id,))
+    if located is None:
         return None
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT * FROM events WHERE id = %s FOR UPDATE", (located["event_id"],))
+        hold = db.fetch_one(conn, "SELECT holds.status, pledges.status AS pledge_status, pledges.pledger_token FROM holds "
+                                 "JOIN pledges ON pledges.id = holds.pledge_id WHERE holds.id = %s FOR UPDATE OF holds",
+                            (hold_id,))
+        if not pledging_is_open(event, now) or hold is None:
+            return None
+        if hold["status"] != "PENDING" or hold["pledge_status"] != "PENDING_PAY" or hold["pledger_token"] != pledger_token:
+            return None
+        changed = db.run(conn, "UPDATE holds SET authorize_request_id = %s "
+                              "WHERE id = %s AND authorize_request_id IS NULL", (request_id, hold_id))
+        if changed != 1:
+            return None
     return request_id
 
 
@@ -321,10 +333,13 @@ def mark_held(conn, hold, now):
 def give_back_hold(conn, hold, now, paypal):
     void_hold(conn, hold["id"], paypal)
     logger.info("hold %d placed but not kept, so it was voided", hold["id"])
-    if not pledging_is_open(find_event(conn, hold["event_id"]), now):
-        db.run(conn, "UPDATE pledges SET status = 'DROPPED' WHERE id = %s AND status = 'PENDING_PAY'",
-               (hold["pledge_id"],))
-        return {"outcome": "CLOSED_AND_VOIDED"}
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT * FROM events WHERE id = %s FOR UPDATE", (hold["event_id"],))
+        if not pledging_is_open(event, now):
+            if event is not None and event["status"] not in ("REFUNDING", "REFUNDED"):
+                db.run(conn, "UPDATE pledges SET status = 'DROPPED' WHERE id = %s AND status = 'PENDING_PAY'",
+                       (hold["pledge_id"],))
+            return {"outcome": "CLOSED_AND_VOIDED"}
     pledge = db.fetch_one(conn, "SELECT name, status FROM pledges WHERE id = %s", (hold["pledge_id"],))
     if pledge["status"] == "HELD":
         return {"outcome": "ALREADY_PLEDGED", "name": pledge["name"]}
@@ -348,19 +363,125 @@ def saved_answer(conn, hold_id):
 # any later try reuses the saved one (rules 3 and 4). A void answers 204 with no body, so the hold is
 # read back with a GET, and PayPal's real status is saved whatever the void answered.
 # Returns that status, or None if there was nothing to void or no answer.
-def void_hold(conn, hold_id, paypal):
-    db.run(conn, "UPDATE holds SET void_request_id = %s "
-                 "WHERE id = %s AND auth_id IS NOT NULL AND void_request_id IS NULL",
-           (new_request_id(), hold_id))
-    hold = db.fetch_one(conn, "SELECT auth_id, void_request_id FROM holds WHERE id = %s", (hold_id,))
-    if hold["auth_id"] is None:
+def void_hold(conn, hold_id, paypal, sweep=False):
+    if not conn.autocommit or conn.info.transaction_status != psycopg.pq.TransactionStatus.IDLE:
+        raise RuntimeError("A void requires an idle autocommit connection")
+    claim = claim_void_operation(conn, hold_id, sweep)
+    if claim is None:
         return None
-    paypal.void_authorization(hold["auth_id"], hold["void_request_id"])
-    check = paypal.get_authorization(hold["auth_id"])
-    status = check["data"].get("status")
-    if check["http_status"] == 200 and status is not None:
-        db.run(conn, "UPDATE holds SET status = %s WHERE id = %s", (status, hold_id))
-    logger.info("void hold %d: PayPal now says %s", hold_id, status)
+    void_answer = paypal.void_authorization(claim["auth_id"], claim["void_request_id"])
+    check = paypal.get_authorization(claim["auth_id"])
+    return finish_void_operation(conn, claim, void_answer, check, sweep)
+
+
+# Commit the owner and request ID together while locking event first, then hold.
+def claim_void_operation(conn, hold_id, sweep):
+    owner = new_token()
+    row = db.fetch_one(conn, "SELECT pledges.event_id FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
+                             "WHERE holds.id = %s", (hold_id,))
+    if row is None:
+        return None
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT status FROM events WHERE id = %s FOR UPDATE", (row["event_id"],))
+        hold = db.fetch_one(conn, "SELECT holds.*, pledges.status AS pledge_status FROM holds "
+                                  "JOIN pledges ON pledges.id = holds.pledge_id "
+                                  "WHERE holds.id = %s FOR UPDATE OF holds", (hold_id,))
+        if event is None or hold is None or event["status"] in ("REFUNDING", "REFUNDED"):
+            return None
+        if hold["auth_id"] is None or hold["void_run_token"] is not None:
+            return None
+        if sweep and not sweep_void_is_eligible(event["status"], hold):
+            return None
+        request_id = hold["void_request_id"] or new_request_id()
+        changed = db.run(conn, "UPDATE holds SET void_run_token = %s, void_request_id = %s "
+                               "WHERE id = %s AND void_run_token IS NULL", (owner, request_id, hold_id))
+        if changed != 1:
+            return None
+    return {"id": hold_id, "event_id": row["event_id"], "pledge_id": hold["pledge_id"],
+            "auth_id": hold["auth_id"], "void_request_id": request_id, "owner": owner}
+
+
+# The sweep's candidate list can be stale by the time its hold is claimed.
+def sweep_void_is_eligible(event_status, hold):
+    if hold["status"] != "CREATED" or hold["pledge_status"] == "FAILED":
+        return False
+    if event_status in ("EXPIRED", "SETTLED", "NEEDS_ATTENTION"):
+        return True
+    return hold["pledge_status"] == "DROPPED" and event_status not in ("LOCKING", "CHARGING")
+
+
+# Save only an owned result. Unknown or still-open holds retain the durable claim.
+def finish_void_operation(conn, claim, void_answer, answer, sweep):
+    data = answer.get("data")
+    if not isinstance(data, dict) or answer.get("http_status") != 200:
+        return None
+    if data.get("id") != claim["auth_id"]:
+        return None
+    status = data.get("status")
+    terminal = ("VOIDED", "EXPIRED", "DENIED", "CAPTURED", "PARTIALLY_CAPTURED")
+    refusal = void_answer.get("data")
+    definitely_refused = (void_answer.get("http_status") == 401 and isinstance(refusal, dict)
+                          and refusal.get("name") == "AUTHENTICATION_FAILURE" and status == "CREATED")
+    if status not in terminal and not definitely_refused:
+        return status
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT status FROM events WHERE id = %s FOR UPDATE", (claim["event_id"],))
+        hold = db.fetch_one(conn, "SELECT void_run_token FROM holds WHERE id = %s FOR UPDATE", (claim["id"],))
+        if event is None or hold is None or hold["void_run_token"] != claim["owner"]:
+            return None
+        changed = db.run(conn, "UPDATE holds SET status = %s, void_run_token = NULL "
+                               "WHERE id = %s AND void_run_token = %s", (status, claim["id"], claim["owner"]))
+        if changed != 1:
+            return None
+        if sweep and status in ("CAPTURED", "PARTIALLY_CAPTURED"):
+            db.run(conn, "UPDATE pledges SET status = 'FAILED' WHERE id = %s AND status IN ('HELD', 'DROPPED')",
+                   (claim["pledge_id"],))
+        elif sweep and status in ("VOIDED", "EXPIRED", "DENIED") and event["status"] in ("EXPIRED", "SETTLED", "NEEDS_ATTENTION"):
+            drop_pledges_without_a_hold(conn, claim["event_id"])
+    logger.info("void hold %d: PayPal now says %s", claim["id"], status)
+    return status
+
+
+# Read a void claim that is already owned. Locks are released before any PayPal call.
+# Nothing is written: a GET must not become permission to send the void again (D89).
+def read_uncertain_void_claim(conn, hold_id):
+    row = db.fetch_one(conn, "SELECT pledges.event_id FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
+                             "WHERE holds.id = %s", (hold_id,))
+    if row is None:
+        return None
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT status FROM events WHERE id = %s FOR UPDATE", (row["event_id"],))
+        hold = db.fetch_one(conn, "SELECT holds.*, pledges.status AS pledge_status FROM holds "
+                                  "JOIN pledges ON pledges.id = holds.pledge_id "
+                                  "WHERE holds.id = %s FOR UPDATE OF holds", (hold_id,))
+        if event is None or hold is None or event["status"] in ("REFUNDING", "REFUNDED"):
+            return None
+        if hold["status"] != "CREATED" or hold["auth_id"] is None or hold["void_run_token"] is None:
+            return None
+        return {"id": hold_id, "event_id": row["event_id"], "pledge_id": hold["pledge_id"],
+                "auth_id": hold["auth_id"], "void_request_id": hold["void_request_id"],
+                "owner": hold["void_run_token"], "sweep": sweep_void_is_eligible(event["status"], hold)}
+
+
+# Recheck one uncertain void with a GET only. The sweep does not call this.
+# A CREATED, missing, mismatched or unknown answer leaves the owner in place.
+# A terminal answer is saved only while that same owner still holds the claim.
+def reconcile_uncertain_void(conn, hold_id, paypal):
+    if not conn.autocommit or conn.info.transaction_status != psycopg.pq.TransactionStatus.IDLE:
+        raise RuntimeError("A void recheck requires an idle autocommit connection")
+    claim = read_uncertain_void_claim(conn, hold_id)
+    if claim is None:
+        return None
+    check = paypal.get_authorization(claim["auth_id"])
+    # This is not a void answer. A GET must not look like a definite authentication refusal.
+    # A browser command left open by a crash finishes in the same transaction as the saved status (D93).
+    with conn.transaction():
+        status = finish_void_operation(conn, claim, {"http_status": None, "data": None}, check, claim["sweep"])
+        if status is not None:
+            finish_web_command(conn, claim["event_id"])
+    if status in MONEY_MOVED_HOLD_STATUSES:
+        logger.error("hold %d: PayPal says %s but we never captured it. Pledge %d marked FAILED: "
+                     "look at it by hand", claim["id"], status, claim["pledge_id"])
     return status
 
 
@@ -528,8 +649,9 @@ def lock_and_charge(conn, event_id, now, paypal):
 # D70: at lock, a HELD pledge that isn't counted (its condition never came true) is never charged. Each
 # of its CREATED holds is voided by void_hold, which saves the void's PayPal-Request-Id first and reads
 # the hold back with a GET (rules 3 and 4); drop_pledges_without_a_hold then makes the pledge DROPPED.
-# A void that doesn't read back VOIDED is logged, and its pledge stays HELD with the hold CREATED for
-# M2's cleanup sweep (D45). It still can't be charged, because only `counted` is charged.
+# A void that doesn't read back VOIDED is logged, and its pledge stays HELD with the hold CREATED.
+# An uncertain void keeps its owner; the sweep does not send it again (D89). It still can't be charged,
+# because only `counted` is charged.
 # The log shows pledge and hold IDs only, never a name (docs/SECURITY.md).
 def void_uncounted_holds(conn, held, counted, paypal):
     counted_ids = []
@@ -544,7 +666,7 @@ def void_uncounted_holds(conn, held, counted, paypal):
         for hold in holds:
             status = void_hold(conn, hold["id"], paypal)
             if status != "VOIDED":
-                logger.warning("pledge %d: hold %d did not read back VOIDED (%s); left for the cleanup sweep",
+                logger.warning("pledge %d: hold %d did not read back VOIDED (%s); an uncertain void stays claimed",
                                pledge["id"], hold["id"], status)
 
 
@@ -717,8 +839,8 @@ def expire_event(conn, event_id, now, paypal):
 
 # Cancel every hold still CREATED on this event, then drop the pledges that have no hold left (D45).
 # void_hold saves each void's request ID before the call and reads the hold back with a GET. A void that
-# doesn't read back VOIDED is logged and left for M2's cleanup sweep (PAYPAL_INTEGRATION.md section 4):
-# its hold stays CREATED, so its pledge stays HELD.
+# doesn't read back VOIDED is logged and left as PayPal reported it (D89): an uncertain void keeps its
+# owner, and the cleanup sweep does not send that void again. Its hold stays CREATED, so its pledge stays HELD.
 def release_holds(conn, event_id, paypal):
     holds = db.fetch_all(conn, "SELECT holds.id FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
                                "WHERE pledges.event_id = %s AND holds.status = 'CREATED' ORDER BY holds.id",
@@ -726,7 +848,7 @@ def release_holds(conn, event_id, paypal):
     for hold in holds:
         status = void_hold(conn, hold["id"], paypal)
         if status != "VOIDED":
-            logger.warning("event %d: hold %d did not read back VOIDED (%s); left for the cleanup sweep",
+            logger.warning("event %d: hold %d did not read back VOIDED (%s); an uncertain void stays claimed",
                            event_id, hold["id"], status)
     drop_pledges_without_a_hold(conn, event_id)
 
@@ -736,11 +858,15 @@ def release_holds(conn, event_id, paypal):
 # and an unpaid pledge with no hold at all. A pledge whose void failed still has a CREATED hold, so it
 # stays HELD. "NOT EXISTS (...)" is true when the inner SELECT finds no row.
 def drop_pledges_without_a_hold(conn, event_id):
-    return db.run(conn, "UPDATE pledges SET status = 'DROPPED' "
-                        "WHERE event_id = %s AND status IN ('HELD', 'PENDING_PAY') "
-                        "AND NOT EXISTS (SELECT 1 FROM holds "
-                        "WHERE holds.pledge_id = pledges.id AND holds.status = 'CREATED')",
-                  (event_id,))
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT status FROM events WHERE id = %s FOR UPDATE", (event_id,))
+        if event is None or event["status"] in ("REFUNDING", "REFUNDED"):
+            return 0
+        return db.run(conn, "UPDATE pledges SET status = 'DROPPED' "
+                            "WHERE event_id = %s AND status IN ('HELD', 'PENDING_PAY') "
+                            "AND NOT EXISTS (SELECT 1 FROM holds "
+                            "WHERE holds.pledge_id = pledges.id AND holds.status = 'CREATED')",
+                      (event_id,))
 
 
 # ---------- M2: a friend leaves (E3, E6, D82) ----------
@@ -751,7 +877,8 @@ def drop_pledges_without_a_hold(conn, event_id):
 # 2. cancel_holds_after_leave: only the request that won step 1 cancels the pledge's holds.
 # The pledge is DROPPED BEFORE the void goes out: a lock that starts during the void then no longer sees
 # the pledge as HELD, so it can never be counted or charged. If the void doesn't read back VOIDED, the
-# pledge stays DROPPED with its hold CREATED and the cleanup sweep finishes it (D80). Nothing here ever
+# pledge stays DROPPED with its hold CREATED. An uncertain void stays claimed; the sweep does not send
+# it again (D89). Nothing here ever
 # captures (rule 6). Returns {"outcome": ...}: LEFT (with pledge_id), ALREADY_LEFT, CLOSED, COUNTED,
 # NOT_LEFT (the pledge changed under us) or NOT_FOUND.
 def leave_pledge(conn, pledger_token, now, paypal):
@@ -806,6 +933,7 @@ def drop_for_leave(conn, pledger_token, now):
 # Step 2. Cancel every CREATED hold of the pledge the normal way: claim_hold first (so the sweep stays off
 # it for VOID_RETRY_AFTER, D80), then void_hold, which saves the void's request ID before the call and
 # saves the status the GET reads back (rules 3, 4 and 5). Returns True if every hold read back VOIDED.
+# An uncertain void keeps its owner. The sweep does not send it again (D89).
 # A pledge with no CREATED hold (unpaid, declined, or a hold still being placed) needs no PayPal call; a
 # hold that comes back later is voided by give_back_hold (F11). Logs IDs only.
 def cancel_holds_after_leave(conn, pledge_id, now, paypal):
@@ -819,7 +947,7 @@ def cancel_holds_after_leave(conn, pledge_id, now, paypal):
         status = void_hold(conn, hold["id"], paypal)
         if status != "VOIDED":
             all_voided = False
-            logger.warning("pledge %d left, but hold %d did not read back VOIDED (%s); left for the cleanup sweep",
+            logger.warning("pledge %d left, but hold %d did not read back VOIDED (%s); an uncertain void stays claimed",
                            pledge_id, hold["id"], status)
     return all_voided
 
@@ -1049,14 +1177,17 @@ def warn_about_lost_authorizations(conn, now):
 
 # CREATED holds that should be cancelled, oldest first, at most SWEEP_MAX_HOLDS. A hold qualifies when:
 # its event is finished, or its pledge is DROPPED (and the event is not mid-lock: LOCKING and CHARGING
-# belong to the lock and its D27 resume). A FAILED pledge's hold is never listed (D28 c). A hold the sweep
-# tried less than VOID_RETRY_AFTER ago is skipped, so one stubborn hold can't use up every sweep.
+# belong to the lock and its D27 resume). A FAILED pledge's hold is never listed (D28 c). A hold that
+# already has a void_run_token is not listed: an uncertain void must not take the one slot (D89).
+# A hold the sweep tried less than VOID_RETRY_AFTER ago is also skipped. That wait still spaces a
+# definite authentication-refusal retry. It does not retry an uncertain void.
 def stranded_created_holds(conn, now):
     return db.fetch_all(conn, "SELECT holds.id, pledges.id AS pledge_id, pledges.event_id, "
                               "events.status AS event_status "
                               "FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
                               "JOIN events ON events.id = pledges.event_id "
                               "WHERE holds.status = 'CREATED' AND holds.auth_id IS NOT NULL "
+                              "AND holds.void_run_token IS NULL "
                               "AND pledges.status <> 'FAILED' "
                               "AND (holds.void_tried_at IS NULL OR holds.void_tried_at < %s) "
                               "AND (events.status IN " + FINISHED_EVENT_SQL + " OR (pledges.status = 'DROPPED' "
@@ -1080,22 +1211,19 @@ def claim_hold(conn, hold_id, now):
 # saves what the GET says, not what the void answered (rules 3, 4 and 5). Then:
 # - closed (VOIDED, EXPIRED, DENIED): on a finished event, drop the pledges left with no open hold;
 # - money moved (CAPTURED): we never captured it, so a person did. The pledge is FAILED and it's logged;
-# - still CREATED, or no answer: nothing changes, and the next sweep after VOID_RETRY_AFTER tries again.
+# - still CREATED, or no answer: the owner stays. The next sweep does not send this void again (D89).
+#   A definite authentication refusal is the exception: its owner is cleared and a later sweep may retry.
 def sweep_one_hold(conn, hold, now, paypal):
     if not claim_hold(conn, hold["id"], now):
         return
-    status = void_hold(conn, hold["id"], paypal)
+    status = void_hold(conn, hold["id"], paypal, sweep=True)
     if status in MONEY_MOVED_HOLD_STATUSES:
-        db.run(conn, "UPDATE pledges SET status = 'FAILED' WHERE id = %s AND status IN ('HELD', 'DROPPED')",
-               (hold["pledge_id"],))
         logger.error("hold %d: PayPal says %s but we never captured it. Pledge %d marked FAILED: "
                      "look at it by hand", hold["id"], status, hold["pledge_id"])
     elif status in CLOSED_HOLD_STATUSES:
         logger.info("the sweep closed hold %d (PayPal says %s)", hold["id"], status)
-        if hold["event_status"] in ("EXPIRED", "SETTLED", "NEEDS_ATTENTION"):
-            drop_pledges_without_a_hold(conn, hold["event_id"])
     else:
-        logger.warning("the sweep could not close hold %d (PayPal says %s); it will try again later",
+        logger.warning("the sweep could not close hold %d (PayPal says %s); review may be needed",
                        hold["id"], status)
 
 
@@ -1307,3 +1435,1004 @@ def charge_net_cents(conn, event_id):
     for row in rows:
         nets.append(row["net_cents"])
     return nets
+
+
+# ---------- F7: refund-all (D28, D88, D89) ----------
+# The treasurer's screen is not built here. Tests call these functions directly.
+# A refund never calls capture. PayPal calls happen only while the connection is idle.
+
+REFUND_DETAIL_SQL = (
+    "SELECT refunds.id, refunds.request_id, refunds.refund_id AS paypal_refund_id, refunds.send_state, "
+    "refunds.status, refunds.operation_revision, refunds.first_send_started_at, refunds.amount_cents, "
+    "captures.id AS capture_row_id, captures.capture_id AS paypal_capture_id, "
+    "pledges.id AS pledge_id, pledges.event_id "
+    "FROM refunds JOIN captures ON captures.id = refunds.capture_id "
+    "JOIN holds ON holds.id = captures.hold_id "
+    "JOIN pledges ON pledges.id = holds.pledge_id "
+)
+
+EVENT_HOLD_SQL = (
+    "SELECT holds.id, holds.pledge_id, holds.auth_id, holds.status, holds.void_run_token, "
+    "holds.refund_check_status FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
+    "WHERE pledges.event_id = %s ORDER BY holds.id FOR UPDATE OF holds"
+)
+
+
+# Refuse to talk to PayPal while a transaction is open. An open lock would freeze the void sweep.
+def require_refund_idle(conn):
+    idle = psycopg.pq.TransactionStatus.IDLE
+    if not conn.autocommit or conn.info.transaction_status != idle:
+        raise RuntimeError("A refund requires an idle autocommit connection")
+
+
+# The event lock and the caller's snapshot must still describe the same refund run.
+def event_is_owner(conn, event_id, owner, revision):
+    event = db.fetch_one(conn, "SELECT status, refund_run_token, refund_revision FROM events "
+                               "WHERE id = %s FOR UPDATE", (event_id,))
+    if event is None or event["status"] != "REFUNDING":
+        return False
+    if event["refund_run_token"] != owner or event["refund_revision"] != revision:
+        return False
+    return True
+
+
+# Snapshot any event hold before PayPal. Historical function name is retained for callers.
+def read_failed_hold(conn, hold_id):
+    located = db.fetch_one(conn, "SELECT pledges.event_id FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
+                                "WHERE holds.id = %s", (hold_id,))
+    if located is None:
+        return None
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT status FROM events WHERE id = %s FOR UPDATE", (located["event_id"],))
+        hold = db.fetch_one(conn, "SELECT holds.*, pledges.status AS pledge_status FROM holds "
+                                 "JOIN pledges ON pledges.id = holds.pledge_id "
+                                 "WHERE holds.id = %s FOR UPDATE OF holds", (hold_id,))
+        if event is None or hold is None or event["status"] != "NEEDS_ATTENTION":
+            return None
+        hold["event_id"] = located["event_id"]
+        return hold
+
+
+# Save a check only while the event and the hold still match the snapshot taken before PayPal.
+def save_refund_check(conn, snapshot, check_status, observed_status=None):
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT status FROM events WHERE id = %s FOR UPDATE", (snapshot["event_id"],))
+        hold = db.fetch_one(conn, "SELECT holds.*, pledges.status AS pledge_status FROM holds "
+                                 "JOIN pledges ON pledges.id = holds.pledge_id "
+                                 "WHERE holds.id = %s FOR UPDATE OF holds", (snapshot["id"],))
+        if event is None or hold is None or event["status"] != "NEEDS_ATTENTION":
+            return False
+        if hold["pledge_status"] != snapshot.get("pledge_status", "FAILED") or hold["auth_id"] != snapshot["auth_id"]:
+            return False
+        if hold["status"] != snapshot["status"] or hold["void_run_token"] != snapshot["void_run_token"]:
+            return False
+        if hold["void_run_token"] is not None:
+            return False
+        status = observed_status or snapshot["status"]
+        changed = db.run(conn, "UPDATE holds SET status = %s, refund_check_status = %s WHERE id = %s",
+                         (status, check_status, snapshot["id"]))
+    return changed == 1
+
+
+# PayPal's authorization status, and only when the answer is about this hold.
+def authorization_seen(answer, auth_id):
+    if not isinstance(answer, dict) or answer.get("http_status") != 200:
+        return None
+    data = answer.get("data")
+    if not isinstance(data, dict) or data.get("id") != auth_id:
+        return None
+    status = data.get("status")
+    if not isinstance(status, str):
+        return None
+    return status
+
+
+# RESOLVED is a closed hold. MANUAL_REVIEW is money that this refund will not touch.
+def refund_check_for(status):
+    if status in CLOSED_HOLD_STATUSES:
+        return "RESOLVED"
+    if status in MONEY_MOVED_HOLD_STATUSES:
+        return "MANUAL_REVIEW"
+    return None
+
+
+# The GET stays in its own function so a transaction cannot hide around it by accident.
+def read_authorization(conn, snapshot, paypal):
+    # PayPal is called only while this connection is idle.
+    require_refund_idle(conn)
+    return paypal.get_authorization(snapshot["auth_id"])
+
+
+def log_manual_review(snapshot, status):
+    logger.error("hold %d: PayPal says %s. Pledge %d is not voided or refunded from here",
+                 snapshot["id"], status, snapshot["pledge_id"])
+
+
+# A hold we already saved is checked with a GET. The database row must not move during that GET.
+def review_saved_hold(conn, snapshot, paypal):
+    seen = authorization_seen(read_authorization(conn, snapshot, paypal), snapshot["auth_id"])
+    if seen is None:
+        return False
+    check = refund_check_for(seen)
+    if seen == "CAPTURED" and snapshot["pledge_status"] != "FAILED" and hold_has_known_capture(conn, snapshot["id"]):
+        check = "RESOLVED"
+    if check is None:
+        return False
+    if check == "MANUAL_REVIEW":
+        log_manual_review(snapshot, seen)
+    return save_refund_check(conn, snapshot, check, seen)
+
+
+# CREATED is voided through the existing void claim. Its read-back is classified the same way as a GET.
+def review_created_hold(conn, snapshot, paypal):
+    seen = authorization_seen(read_authorization(conn, snapshot, paypal), snapshot["auth_id"])
+    if seen != "CREATED":
+        check = refund_check_for(seen)
+        if check is None:
+            return False
+        if check == "MANUAL_REVIEW":
+            log_manual_review(snapshot, seen)
+        return save_refund_check(conn, snapshot, check, seen)
+    status = void_hold(conn, snapshot["id"], paypal)
+    check = refund_check_for(status)
+    if check is None:
+        return False
+    expected = dict(snapshot)
+    expected["status"] = status
+    expected["void_run_token"] = None
+    if check == "MANUAL_REVIEW":
+        log_manual_review(snapshot, status)
+    return save_refund_check(conn, expected, check)
+
+
+# Review any event hold. Durable void claims and ambiguous authorization reads block handoff.
+def review_one_failed_hold(conn, hold_id, paypal):
+    require_refund_idle(conn)
+    snapshot = read_failed_hold(conn, hold_id)
+    if snapshot is None or snapshot["void_run_token"] is not None:
+        return False
+    if snapshot["auth_id"] is None:
+        if snapshot["status"] == "NOT_PLACED" and snapshot["authorize_request_id"] is None:
+            return save_refund_check(conn, snapshot, "RESOLVED")
+        return False
+    if not isinstance(snapshot["auth_id"], str) or snapshot["auth_id"].strip() == "":
+        return False
+    if snapshot["status"] == "CREATED":
+        return review_created_hold(conn, snapshot, paypal)
+    return review_saved_hold(conn, snapshot, paypal)
+
+
+# List every event hold; missing required holds are rejected by the locked accounting check.
+def failed_hold_ids(conn, event_id):
+    # Historical name retained: every hold matters, including dropped and unpaid pledges.
+    rows = db.fetch_all(conn, "SELECT holds.id FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
+                             "WHERE pledges.event_id = %s ORDER BY holds.id", (event_id,))
+    return [row["id"] for row in rows]
+
+
+# Review every hold before refund planning. Unknown observations stop the handoff.
+def review_failed_holds(conn, event_id, paypal):
+    hold_ids = failed_hold_ids(conn, event_id)
+    if hold_ids is None:
+        return False
+    for hold_id in hold_ids:
+        if not review_one_failed_hold(conn, hold_id, paypal):
+            return False
+    return True
+
+
+
+
+# Re-read all financial records inside the event lock; old GET snapshots cannot authorize handoff.
+
+
+def locked_holds_allow(conn, event_id, purpose):
+    blockers = refund_accounting_blockers(conn, event_id, purpose)
+    for blocker in blockers:
+        logger.warning("event %d refund blocked: %s record %d", event_id, blocker["reason"], blocker["id"])
+    return not blockers
+
+
+# A failed attempt with no resource ID is not a payment. Other unknown attempts need investigation.
+def capture_is_unknown(capture):
+    if capture["status"] == "FAILED" and capture["capture_id"] is None:
+        return False
+    if capture["status"] not in ("COMPLETED", "REFUNDED"):
+        return True
+    return not isinstance(capture["capture_id"], str) or not capture["capture_id"].strip() or capture["amount_cents"] <= 0
+
+
+# CAPTURED is accounted for only when exactly one completed payment is recorded on this hold.
+def hold_has_known_capture(conn, hold_id):
+    rows = db.fetch_all(conn, "SELECT * FROM captures WHERE hold_id = %s ORDER BY id", (hold_id,))
+    known = []
+    for row in rows:
+        if capture_is_unknown(row):
+            return False
+        if row["status"] in ("COMPLETED", "REFUNDED"):
+            known.append(row)
+    return len(known) == 1
+
+
+# Resolve authorizations for every pledge. Never equate an absent refund row with resolved money.
+def refund_hold_is_resolved(conn, hold):
+    if hold["void_run_token"] is not None:
+        return False
+    if hold["status"] == "NOT_PLACED":
+        return hold["auth_id"] is None and hold["authorize_request_id"] is None
+    if not isinstance(hold["auth_id"], str) or not hold["auth_id"].strip():
+        return False
+    if hold["refund_check_status"] != "RESOLVED":
+        return False
+    if hold["status"] in CLOSED_HOLD_STATUSES:
+        return True
+    if hold["status"] == "CAPTURED" and hold["pledge_status"] != "FAILED":
+        return hold_has_known_capture(conn, hold["id"])
+    return False
+
+
+# Check every recorded payment and its exact refund; amounts are compared, never recalculated.
+def refund_capture_blockers(conn, event_id, purpose):
+    rows = db.fetch_all(conn, "SELECT captures.*, refunds.id AS refund_row_id, refunds.status AS refund_status, "
+                             "refunds.send_state, refunds.refund_id AS known_refund_id, refunds.amount_cents AS refund_amount FROM captures "
+                             "JOIN holds ON holds.id = captures.hold_id JOIN pledges ON pledges.id = holds.pledge_id "
+                             "LEFT JOIN refunds ON refunds.capture_id = captures.id WHERE pledges.event_id = %s "
+                             "ORDER BY captures.id FOR UPDATE OF captures", (event_id,))
+    blockers = []
+    for row in rows:
+        if capture_is_unknown(row):
+            blockers.append({"reason": "UNKNOWN_CAPTURE", "id": row["id"]})
+        elif row["status"] in ("COMPLETED", "REFUNDED"):
+            complete = (row["refund_row_id"] is not None and row["refund_status"] == "COMPLETED"
+                        and isinstance(row["known_refund_id"], str) and bool(row["known_refund_id"].strip())
+                        and row["send_state"] == "ANSWERED" and row["refund_amount"] == row["amount_cents"]
+                        and row["status"] == "REFUNDED")
+            if purpose == "finish" and not complete:
+                blockers.append({"reason": "PAYMENT_NOT_REFUNDED", "id": row["id"]})
+            if purpose == "handoff" and row["refund_row_id"] is not None:
+                blockers.append({"reason": "EXISTING_REFUND_REQUIRES_REVIEW", "id": row["id"]})
+    return blockers
+
+
+# Caller holds the event lock. Return sanitized blockers instead of silently omitting records.
+def refund_accounting_blockers(conn, event_id, purpose):
+    holds = db.fetch_all(conn, "SELECT holds.*, pledges.status AS pledge_status FROM holds JOIN pledges "
+                              "ON pledges.id = holds.pledge_id WHERE pledges.event_id = %s "
+                              "ORDER BY holds.id FOR UPDATE OF holds", (event_id,))
+    pledges = db.fetch_all(conn, "SELECT * FROM pledges WHERE event_id = %s ORDER BY id FOR UPDATE", (event_id,))
+    blockers = []
+    for hold in holds:
+        if not refund_hold_is_resolved(conn, hold):
+            blockers.append({"reason": "UNRESOLVED_AUTHORIZATION", "id": hold["id"]})
+    for pledge in pledges:
+        owned = [hold for hold in holds if hold["pledge_id"] == pledge["id"]]
+        if not owned and (pledge["status"] in ("HELD", "CHARGED", "REFUNDED", "FAILED") or pledge["share_cents"] is not None):
+            blockers.append({"reason": "MISSING_HOLD", "id": pledge["id"]})
+        payments = db.fetch_all(conn, "SELECT captures.status FROM captures JOIN holds ON holds.id = captures.hold_id "
+                                     "WHERE holds.pledge_id = %s AND captures.status IN ('COMPLETED', 'REFUNDED')",
+                               (pledge["id"],))
+        if pledge["status"] in ("CHARGED", "REFUNDED") and not payments:
+            blockers.append({"reason": "MISSING_PAYMENT", "id": pledge["id"]})
+        if purpose == "finish" and pledge["status"] == "CHARGED":
+            blockers.append({"reason": "PLEDGE_NOT_REFUNDED", "id": pledge["id"]})
+    return blockers + refund_capture_blockers(conn, event_id, purpose)
+
+
+# One READY row per recorded COMPLETED capture. The amount is copied, never calculated.
+def insert_ready_refunds(conn, event_id):
+    rows = db.fetch_all(conn, "SELECT captures.id, captures.amount_cents FROM captures "
+                              "JOIN holds ON holds.id = captures.hold_id "
+                              "JOIN pledges ON pledges.id = holds.pledge_id "
+                              "WHERE pledges.event_id = %s AND captures.status = 'COMPLETED' "
+                              "AND captures.capture_id IS NOT NULL AND btrim(captures.capture_id) <> '' "
+                              "ORDER BY captures.id", (event_id,))
+    for row in rows:
+        db.run(conn, "INSERT INTO refunds (capture_id, request_id, amount_cents) VALUES (%s, %s, %s)",
+               (row["id"], new_request_id(), row["amount_cents"]))
+
+
+# Plan the refunds and enter REFUNDING in one transaction. A lost compare-and-set rolls the rows back.
+def open_refunding(conn, event_id):
+    owner = new_token()
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT status, refund_revision FROM events WHERE id = %s FOR UPDATE",
+                             (event_id,))
+        if event is None or event["status"] != "NEEDS_ATTENTION":
+            return None
+        if not locked_holds_allow(conn, event_id, "handoff"):
+            return None
+        insert_ready_refunds(conn, event_id)
+        updated = db.fetch_one(conn, "UPDATE events SET status = 'REFUNDING', refund_run_token = %s, "
+                                     "refund_revision = refund_revision + 1 WHERE id = %s "
+                                     "AND status = 'NEEDS_ATTENTION' RETURNING refund_revision",
+                              (owner, event_id))
+        if updated is None:
+            raise RuntimeError("refund handoff lost the compare-and-set")
+    logger.info("event %d is REFUNDING", event_id)
+    return {"event_id": event_id, "owner": owner, "revision": updated["refund_revision"]}
+
+
+# Start refund-all. Unknown tokens and every status except NEEDS_ATTENTION return before PayPal.
+def begin_refund_all(conn, admin_token, paypal):
+    require_refund_idle(conn)
+    event = find_event_by_admin_token(conn, admin_token)
+    if event is None or event["status"] != "NEEDS_ATTENTION":
+        return None
+    if not review_failed_holds(conn, event["id"], paypal):
+        return None
+    claim = open_refunding(conn, event["id"])
+    if claim is None:
+        return None
+    send_next_refund(conn, claim["event_id"], claim["owner"], claim["revision"], paypal)
+    finish_refunding(conn, claim["event_id"], claim["owner"], claim["revision"])
+    return "STARTED"
+
+
+def refund_in_flight(conn, event_id):
+    return db.fetch_one(conn, "SELECT refunds.id FROM refunds JOIN captures ON captures.id = refunds.capture_id "
+                              "JOIN holds ON holds.id = captures.hold_id "
+                              "JOIN pledges ON pledges.id = holds.pledge_id "
+                              "WHERE pledges.event_id = %s AND refunds.send_state IN ('IN_FLIGHT', 'UNCERTAIN', 'CHECK_ONLY') LIMIT 1",
+                        (event_id,))
+
+
+# Claim the oldest READY refund. A sibling that is already IN_FLIGHT blocks this one.
+def claim_ready_refund(conn, event_id, owner, revision):
+    with conn.transaction():
+        if not event_is_owner(conn, event_id, owner, revision):
+            return None
+        if refund_in_flight(conn, event_id) is not None:
+            return None
+        row = db.fetch_one(conn, REFUND_DETAIL_SQL + "WHERE pledges.event_id = %s AND refunds.send_state = 'READY' "
+                                   "ORDER BY refunds.id LIMIT 1 FOR UPDATE OF refunds", (event_id,))
+        if row is None or not isinstance(row["paypal_capture_id"], str) or row["paypal_capture_id"].strip() == "":
+            return None
+        if row["paypal_refund_id"] is not None or row["status"] != "PENDING":
+            return None
+        claimed = db.fetch_one(conn, "UPDATE refunds SET send_state = 'IN_FLIGHT', "
+                                     "send_started_at = statement_timestamp(), first_send_started_at = statement_timestamp(), "
+                                     "operation_revision = operation_revision + 1 "
+                                     "WHERE id = %s AND send_state = 'READY' AND operation_revision = %s "
+                                     "AND first_send_started_at IS NULL AND send_started_at IS NULL "
+                                     "RETURNING operation_revision, first_send_started_at",
+                               (row["id"], row["operation_revision"]))
+        if claimed is None:
+            return None
+    row["owner"] = owner
+    row["revision"] = revision
+    row["event_id"] = event_id
+    row["send_state"] = "IN_FLIGHT"
+    row["operation_revision"] = claimed["operation_revision"]
+    row["first_send_started_at"] = claimed["first_send_started_at"]
+    return row
+
+
+# A PayPal resource id is accepted only when it is safe to put in a URL. Anything else is unknown.
+def paypal_resource_id(answer, paypal):
+    if not isinstance(answer, dict):
+        return None
+    data = answer.get("data")
+    if not isinstance(data, dict):
+        return None
+    try:
+        paypal.check_paypal_id(data.get("id"))
+    except (TypeError, ValueError):
+        return None
+    return data.get("id")
+
+
+def uncertain_code(answer):
+    if isinstance(answer, dict) and answer.get("http_status") is None:
+        return "NO_ANSWER"
+    return "UNKNOWN"
+
+
+# Save the refund id before deciding what it means. A stale owner writes nothing.
+def remember_refund_id(conn, claim, paypal_refund_id):
+    with conn.transaction():
+        if not event_is_owner(conn, claim["event_id"], claim["owner"], claim["revision"]):
+            return False
+        refund = db.fetch_one(conn, "SELECT refund_id, send_state FROM refunds WHERE id = %s FOR UPDATE",
+                              (claim["id"],))
+        if refund is None or refund["send_state"] != "IN_FLIGHT":
+            return False
+        if refund["refund_id"] is not None:
+            if refund["refund_id"] != paypal_refund_id:
+                return False
+        saved = db.fetch_one(conn, "UPDATE refunds SET refund_id = %s, operation_revision = operation_revision + 1 "
+                                   "WHERE id = %s AND send_state = 'IN_FLIGHT' AND operation_revision = %s "
+                                   "RETURNING operation_revision",
+                             (paypal_refund_id, claim["id"], claim["operation_revision"]))
+    if saved is None:
+        return False
+    claim["operation_revision"] = saved["operation_revision"]
+    return True
+
+
+# Match immutable sending provenance, including the event and full capture amount.
+def refund_identity_matches(row, claim):
+    return all(row[field] == claim[field] for field in (
+        "id", "capture_row_id", "paypal_capture_id", "request_id", "amount_cents", "event_id", "pledge_id"
+    ))
+
+
+# A fenced response may preserve only its ID; it never inherits the newer operation claim.
+def remember_late_refund_id(conn, claim, paypal_refund_id, paypal):
+    try:
+        paypal.check_paypal_id(paypal_refund_id)
+    except (TypeError, ValueError):
+        return False
+    with conn.transaction():
+        if not event_is_owner(conn, claim["event_id"], claim["owner"], claim["revision"]):
+            return False
+        row = db.fetch_one(conn, REFUND_DETAIL_SQL + "WHERE refunds.id = %s FOR UPDATE OF refunds", (claim["id"],))
+        if row is None or not refund_identity_matches(row, claim):
+            return False
+        if (claim["send_state"] != "IN_FLIGHT" or row["send_state"] not in ("IN_FLIGHT", "CHECK_ONLY")
+                or row["status"] == "COMPLETED" or row["first_send_started_at"] is None
+                or row["first_send_started_at"] != claim["first_send_started_at"]
+                or row["operation_revision"] <= claim["operation_revision"]):
+            return False
+        if row["paypal_refund_id"] is not None:
+            return row["paypal_refund_id"] == paypal_refund_id
+        return db.run(conn, "UPDATE refunds SET refund_id = %s WHERE id = %s AND refund_id IS NULL "
+                            "AND operation_revision = %s AND send_state = %s",
+                      (paypal_refund_id, row["id"], row["operation_revision"], row["send_state"])) == 1
+
+
+# Record the actual PayPal status. HTTP success alone is not COMPLETED. The pledge moves only from CHARGED.
+def record_refund_answer(conn, claim, status, paypal_refund_id):
+    if status not in ("COMPLETED", "PENDING", "FAILED", "CANCELLED"):
+        return False
+    if claim["send_state"] not in ("IN_FLIGHT", "ANSWERED", "CHECK_ONLY"):
+        return False
+    target_state = "ANSWERED"
+    if claim["send_state"] == "CHECK_ONLY" and status != "COMPLETED":
+        target_state = "CHECK_ONLY"
+    error_code = None
+    if status != "COMPLETED":
+        error_code = status
+    with conn.transaction():
+        if not event_is_owner(conn, claim["event_id"], claim["owner"], claim["revision"]):
+            return False
+        changed = db.run(conn, "UPDATE refunds SET send_state = %s, status = %s, error_code = %s, "
+                               "operation_revision = operation_revision + 1 "
+                               "WHERE id = %s AND send_state = %s AND refund_id = %s "
+                               "AND operation_revision = %s AND status <> 'COMPLETED'",
+                         (target_state, status, error_code, claim["id"], claim["send_state"],
+                          paypal_refund_id, claim["operation_revision"]))
+        if changed != 1:
+            return False
+        if status == "COMPLETED":
+            captured = db.run(conn, "UPDATE captures SET status = 'REFUNDED' WHERE id = %s AND status = 'COMPLETED'",
+                              (claim["capture_row_id"],))
+            if captured != 1:
+                raise RuntimeError("Refund completion requires exactly one completed capture")
+            db.run(conn, "UPDATE pledges SET status = 'REFUNDED' WHERE id = %s AND status = 'CHARGED' "
+                         "AND NOT EXISTS (SELECT 1 FROM captures JOIN holds ON holds.id = captures.hold_id "
+                         "WHERE holds.pledge_id = pledges.id AND captures.status IN ('COMPLETED', 'PENDING'))",
+                   (claim["pledge_id"],))
+    return True
+
+
+# A lost POST stays blocked. Only the exact owner and operation revision may record uncertainty.
+def mark_refund_uncertain(conn, claim, error_code):
+    if claim["send_state"] != "IN_FLIGHT":
+        return False
+    with conn.transaction():
+        if not event_is_owner(conn, claim["event_id"], claim["owner"], claim["revision"]):
+            return False
+        changed = db.run(conn, "UPDATE refunds SET send_state = 'UNCERTAIN', error_code = %s, "
+                               "operation_revision = operation_revision + 1 "
+                               "WHERE id = %s AND send_state = 'IN_FLIGHT' AND operation_revision = %s",
+                         (error_code, claim["id"], claim["operation_revision"]))
+    return changed == 1
+
+
+# POST one claimed refund and return what happened, without saving the final result (D93). The
+# IN_FLIGHT row is already committed, and no transaction is open during the POST. A refund id from
+# PayPal is saved at once (rule 3), before anything else. Returns None when nothing more may be saved.
+# Exceptions do not post again.
+def post_refund(conn, claim, paypal):
+    require_refund_idle(conn)
+    claim = consume_refund_dispatch(conn, dict(claim))
+    if claim is None:
+        return None
+    try:
+        answer = paypal.refund_capture(claim["paypal_capture_id"], claim["request_id"])
+    except AssertionError:
+        raise
+    except (RuntimeError, OSError, ValueError) as error:
+        logger.warning("refund %d: no answer (%s)", claim["id"], type(error).__name__)
+        return {"claim": claim, "uncertain": "NO_ANSWER"}
+    paypal_refund_id = paypal_resource_id(answer, paypal)
+    if paypal_refund_id is not None and not remember_refund_id(conn, claim, paypal_refund_id):
+        remember_late_refund_id(conn, claim, paypal_refund_id, paypal)
+        return None
+    status = paypal.refund_status(answer)
+    if status is None:
+        return {"claim": claim, "uncertain": uncertain_code(answer)}
+    return {"claim": claim, "status": status, "refund_id": paypal_refund_id}
+
+
+# Save what post_refund returned. The browser path runs this in the same transaction as finishing its
+# command (D93); direct callers run it on its own.
+def save_refund_outcome(conn, outcome):
+    if outcome is None:
+        return False
+    if "uncertain" in outcome:
+        return mark_refund_uncertain(conn, outcome["claim"], outcome["uncertain"])
+    return record_refund_answer(conn, outcome["claim"], outcome["status"], outcome["refund_id"])
+
+
+# POST one claimed refund and save its result. The same behaviour as before D93, in two small steps.
+def deliver_refund(conn, claim, paypal):
+    save_refund_outcome(conn, post_refund(conn, claim, paypal))
+
+
+# Consume the exact dispatch revision once and commit before HTTP; a crash cannot replay it.
+def consume_refund_dispatch(conn, claim):
+    with conn.transaction():
+        if not event_is_owner(conn, claim["event_id"], claim["owner"], claim["revision"]):
+            return None
+        row = db.fetch_one(conn, REFUND_DETAIL_SQL + "WHERE refunds.id = %s FOR UPDATE OF refunds", (claim["id"],))
+        if row is None or row["send_state"] != "IN_FLIGHT" or row["first_send_started_at"] is None:
+            return None
+        if (not refund_identity_matches(row, claim) or row["paypal_refund_id"] is not None
+                or row["status"] != "PENDING" or claim["send_state"] != "IN_FLIGHT"):
+            return None
+        consumed = db.fetch_one(conn, "UPDATE refunds SET operation_revision = operation_revision + 1 "
+                                      "WHERE id = %s AND operation_revision = %s AND send_state = 'IN_FLIGHT' "
+                                      "RETURNING operation_revision", (claim["id"], claim["operation_revision"]))
+        if consumed is None:
+            return None
+    claim["operation_revision"] = consumed["operation_revision"]
+    return claim
+
+
+# Administrative maintenance only: fence a stopped sender into GET-only investigation.
+# The connection label separates this from app connections; it does not prove worker death.
+# The operator must stop original workers. Even a mistaken transfer cannot authorize a POST.
+def recover_refund_check_only(conn, admin_token, refund_row_id, owner, revision, operation_revision):
+    require_refund_idle(conn)
+    if conn.info.parameter_status("application_name") != "last_call_refund_maintenance":
+        raise PermissionError("Refund recovery requires a dedicated maintenance connection")
+    event = find_event_by_admin_token(conn, admin_token)
+    if event is None:
+        return False
+    with conn.transaction():
+        if not event_is_owner(conn, event["id"], owner, revision):
+            return False
+        row = db.fetch_one(conn, REFUND_DETAIL_SQL + "WHERE refunds.id = %s FOR UPDATE OF refunds", (refund_row_id,))
+        if row is None or row["event_id"] != event["id"]:
+            return False
+        changed = fence_to_check_only(conn, refund_row_id, operation_revision)
+    return changed is not None
+
+
+# Fence a stopped or unknown sender into GET-only investigation (CHECK_ONLY). Compare-and-set on the exact
+# operation revision. Used by maintenance recovery and by the treasurer's "Check with PayPal" (D94).
+# Returns the new operation revision, or None when nothing matched. It can never allow another POST.
+def fence_to_check_only(conn, refund_row_id, operation_revision):
+    row = db.fetch_one(conn, "UPDATE refunds SET send_state = 'CHECK_ONLY', operation_revision = operation_revision + 1 "
+                             "WHERE id = %s AND operation_revision = %s AND send_state IN ('IN_FLIGHT', 'UNCERTAIN') "
+                             "RETURNING operation_revision", (refund_row_id, operation_revision))
+    return None if row is None else row["operation_revision"]
+
+
+# Send at most the next READY refund. IN_FLIGHT, UNCERTAIN and PENDING rows are not posts.
+def send_next_refund(conn, event_id, owner, revision, paypal):
+    require_refund_idle(conn)
+    claim = claim_ready_refund(conn, event_id, owner, revision)
+    if claim is None:
+        return None
+    deliver_refund(conn, claim, paypal)
+    return claim
+
+
+# Continue a refund run that already has an owner. This does not start a new one.
+def resume_refund_all(conn, admin_token, paypal):
+    require_refund_idle(conn)
+    event = find_event_by_admin_token(conn, admin_token)
+    if event is None or event["status"] != "REFUNDING" or event["refund_run_token"] is None:
+        return None
+    send_next_refund(conn, event["id"], event["refund_run_token"], event["refund_revision"], paypal)
+    finish_refunding(conn, event["id"], event["refund_run_token"], event["refund_revision"])
+    return "RESUMED"
+
+
+# Snapshot a saved refund id, then release the lock before the GET.
+def read_refund_claim(conn, refund_row_id):
+    located = db.fetch_one(conn, REFUND_DETAIL_SQL + "WHERE refunds.id = %s", (refund_row_id,))
+    if located is None:
+        return None
+    with conn.transaction():
+        event = find_event(conn, located["event_id"])
+        if event is None or event["refund_run_token"] is None:
+            return None
+        if not event_is_owner(conn, event["id"], event["refund_run_token"], event["refund_revision"]):
+            return None
+        row = db.fetch_one(conn, REFUND_DETAIL_SQL + "WHERE refunds.id = %s FOR UPDATE OF refunds", (refund_row_id,))
+        if row is None or row["paypal_refund_id"] is None or row["status"] == "COMPLETED":
+            return None
+        allowed = row["send_state"] == "CHECK_ONLY" or (row["send_state"] == "ANSWERED" and row["status"] == "PENDING")
+        if not allowed:
+            return None
+        updated = db.fetch_one(conn, "UPDATE refunds SET operation_revision = operation_revision + 1 "
+                                    "WHERE id = %s AND operation_revision = %s RETURNING operation_revision",
+                               (row["id"], row["operation_revision"]))
+        if updated is None:
+            return None
+        row["operation_revision"] = updated["operation_revision"]
+        row["owner"] = event["refund_run_token"]
+        row["revision"] = event["refund_revision"]
+        return row
+
+
+# One GET of a refund we already hold an id for. Nothing is saved here and no transaction is open.
+# The answer must be about this exact refund id; anything else is "no usable answer" (None).
+def read_refund_status(conn, claim, paypal):
+    require_refund_idle(conn)
+    answer = paypal.get_refund(claim["paypal_refund_id"])
+    seen = paypal_resource_id(answer, paypal)
+    status = paypal.refund_status(answer)
+    if seen != claim["paypal_refund_id"] or status is None:
+        return None
+    return {"claim": claim, "status": status, "refund_id": seen}
+
+
+# Save a GET answer and close the run when everything is refunded, in one transaction (D93).
+# Returns the status, or None when the answer could not be saved (a stale owner or revision).
+def save_get_outcome(conn, outcome):
+    claim = outcome["claim"]
+    with conn.transaction():
+        if not record_refund_answer(conn, claim, outcome["status"], outcome["refund_id"]):
+            return None
+        finish_refunding(conn, claim["event_id"], claim["owner"], claim["revision"])
+    return outcome["status"]
+
+
+# Read one known refund. No refund id means no GET and no POST. A browser command left open by a
+# crash finishes in the same transaction as the saved answer (D93).
+def reconcile_refund(conn, refund_row_id, paypal):
+    require_refund_idle(conn)
+    claim = read_refund_claim(conn, refund_row_id)
+    if claim is None:
+        return None
+    outcome = read_refund_status(conn, claim, paypal)
+    if outcome is None:
+        return None
+    with conn.transaction():
+        status = save_get_outcome(conn, outcome)
+        if status is None:
+            return None
+        finish_web_command(conn, claim["event_id"])
+    return status
+
+
+# Browser reconciliation claims only this event's known pending resource under the event lock.
+def claim_treasurer_refund_check(conn, event_id, refund_row_id, operation_revision):
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT * FROM events WHERE id = %s FOR UPDATE", (event_id,))
+        if event is None or event["status"] != "REFUNDING" or event["refund_run_token"] is None:
+            return None
+        row = db.fetch_one(conn, REFUND_DETAIL_SQL + "WHERE refunds.id = %s AND pledges.event_id = %s "
+                                   "FOR UPDATE OF refunds", (refund_row_id, event_id))
+        if (row is None or row["send_state"] != "ANSWERED" or row["status"] != "PENDING"
+                or not isinstance(row["paypal_refund_id"], str) or not row["paypal_refund_id"].strip()
+                or row["operation_revision"] != operation_revision):
+            return None
+        changed = db.fetch_one(conn, "UPDATE refunds SET operation_revision = operation_revision + 1 "
+                                    "WHERE id = %s AND operation_revision = %s RETURNING operation_revision",
+                               (refund_row_id, operation_revision))
+        if changed is None:
+            return None
+        row["operation_revision"] = changed["operation_revision"]
+        row["owner"] = event["refund_run_token"]
+        row["revision"] = event["refund_revision"]
+        return row
+
+
+# No recovery or POST permission is available through the treasurer interface.
+def reconcile_refund_for_treasurer(conn, event_id, refund_row_id, operation_revision, paypal):
+    require_refund_idle(conn)
+    claim = claim_treasurer_refund_check(conn, event_id, refund_row_id, operation_revision)
+    if claim is None:
+        return None
+    outcome = read_refund_status(conn, claim, paypal)
+    if outcome is None:
+        return None
+    return save_get_outcome(conn, outcome)
+
+
+# Explicit retries are disabled until exact-endpoint retention is confirmed.
+def claim_failed_refund(conn, refund_row_id):
+    # Exact-endpoint retention is unverified. Neither a failed status nor recovery permits a POST.
+    return None
+
+
+def retry_failed_refund(conn, refund_row_id, paypal):
+    require_refund_idle(conn)
+    # Kept as an explicit refusal for existing callers. Never mint a new refund identity.
+    return None
+
+
+def unfinished_refund(conn, event_id):
+    return db.fetch_one(conn, "SELECT refunds.id FROM refunds JOIN captures ON captures.id = refunds.capture_id "
+                              "JOIN holds ON holds.id = captures.hold_id "
+                              "JOIN pledges ON pledges.id = holds.pledge_id "
+                              "WHERE pledges.event_id = %s AND NOT (refunds.send_state = 'ANSWERED' "
+                              "AND refunds.status = 'COMPLETED') LIMIT 1", (event_id,))
+
+
+# Close the run only for this owner. MANUAL_REVIEW, PENDING, FAILED and uncertain rows stay REFUNDING.
+def finish_refunding(conn, event_id, owner, revision):
+    changed = 0
+    with conn.transaction():
+        if not event_is_owner(conn, event_id, owner, revision):
+            return False
+        if not locked_holds_allow(conn, event_id, "finish"):
+            return False
+        if unfinished_refund(conn, event_id) is not None:
+            return False
+        changed = db.run(conn, "UPDATE events SET status = 'REFUNDED', refund_run_token = NULL "
+                               "WHERE id = %s AND status = 'REFUNDING' AND refund_run_token = %s "
+                               "AND refund_revision = %s", (event_id, owner, revision))
+    if changed == 1:
+        logger.info("event %d is REFUNDED", event_id)
+    return changed == 1
+
+
+# ---------- F7 Stage 3 corrections (D93) ----------
+# The preflight only reads. Cancelling holds and refunding are separate commands. A browser command is
+# claimed together with its payment claim, and finished together with its saved result. No PayPal call
+# ever runs inside a database transaction.
+
+# Finish a browser command only when nothing it started is still unresolved. With an action_hash it
+# finishes that one command; without one, every claimed command of the event (used by recovery).
+# The database refuses the same thing for the rows a command is linked to (migration 006).
+def finish_web_command(conn, event_id, action_hash=None):
+    with conn.transaction():
+        db.fetch_one(conn, "SELECT id FROM events WHERE id = %s FOR UPDATE", (event_id,))
+        if refund_in_flight(conn, event_id) is not None:
+            return False
+        uncertain_void = db.fetch_one(conn, "SELECT holds.id FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
+                                           "WHERE pledges.event_id = %s AND holds.void_run_token IS NOT NULL LIMIT 1", (event_id,))
+        if uncertain_void is not None:
+            return False
+        if action_hash is None:
+            return db.run(conn, "UPDATE refund_web_actions SET state = 'FINISHED', finished_at = statement_timestamp() "
+                                "WHERE event_id = %s AND state = 'CLAIMED'", (event_id,)) >= 1
+        return db.run(conn, "UPDATE refund_web_actions SET state = 'FINISHED', finished_at = statement_timestamp() "
+                            "WHERE action_hash = %s AND event_id = %s AND state = 'CLAIMED'", (action_hash, event_id)) == 1
+
+
+# Holds that still need a look: never read, or cancelled since they were read as open.
+UNCHECKED_HOLD_SQL = ("(holds.refund_check_status IS NULL OR "
+                      "(holds.refund_check_status = 'PENDING' AND holds.status <> 'CREATED'))")
+
+
+# "Checked N of M": M is every hold of the event, N the ones with a saved check.
+def preflight_counts(conn, event_id):
+    row = db.fetch_one(conn, "SELECT count(*) AS total, count(*) FILTER (WHERE " + UNCHECKED_HOLD_SQL + ") AS unchecked "
+                             "FROM holds JOIN pledges ON pledges.id = holds.pledge_id WHERE pledges.event_id = %s", (event_id,))
+    return {"checked": row["total"] - row["unchecked"], "total": row["total"]}
+
+
+# Read one hold's authorization with a single GET and save only the check result. A CREATED hold is not
+# voided here: it is saved as PENDING ("seen open, needs cancelling") for the treasurer to confirm.
+def preflight_one_hold(conn, snapshot, paypal):
+    if snapshot["void_run_token"] is not None:
+        return False
+    if snapshot["auth_id"] is None:
+        if snapshot["status"] == "NOT_PLACED" and snapshot["authorize_request_id"] is None:
+            return save_refund_check(conn, snapshot, "RESOLVED")
+        return False
+    if not isinstance(snapshot["auth_id"], str) or snapshot["auth_id"].strip() == "":
+        return False
+    seen = authorization_seen(read_authorization(conn, snapshot, paypal), snapshot["auth_id"])
+    if seen is None:
+        return False
+    if seen == "CREATED":
+        # A hold we saved as anything but CREATED, or that has a recorded completed capture, is not open.
+        # PayPal's answer disagrees with our records: save nothing and let a person look (as review_saved_hold does).
+        if snapshot["status"] != "CREATED" or hold_has_known_capture(conn, snapshot["id"]):
+            logger.warning("hold %d: PayPal says CREATED but our records say otherwise. Nothing was changed", snapshot["id"])
+            return False
+        check = "PENDING"
+    else:
+        check = refund_check_for(seen)
+    if seen == "CAPTURED" and snapshot["pledge_status"] != "FAILED" and hold_has_known_capture(conn, snapshot["id"]):
+        check = "RESOLVED"
+    if check is None:
+        return False
+    if check == "MANUAL_REVIEW":
+        log_manual_review(snapshot, seen)
+    return save_refund_check(conn, snapshot, check, seen)
+
+
+# One short request: check the next unchecked hold, exactly one PayPal GET at most, so a request can
+# never outlive the web worker (gunicorn's 120 seconds, D71). Returns None when the event is not
+# waiting for review. "error" is True when the answer could not be used; nothing is saved then.
+def preflight_next_hold(conn, event_id, paypal):
+    require_refund_idle(conn)
+    event = find_event(conn, event_id)
+    if event is None or event["status"] != "NEEDS_ATTENTION":
+        return None
+    candidate = db.fetch_one(conn, "SELECT holds.id FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
+                                   "WHERE pledges.event_id = %s AND " + UNCHECKED_HOLD_SQL + " ORDER BY holds.id LIMIT 1",
+                             (event_id,))
+    error = False
+    if candidate is not None:
+        snapshot = read_failed_hold(conn, candidate["id"])
+        error = snapshot is None or not preflight_one_hold(conn, snapshot, paypal)
+    counts = preflight_counts(conn, event_id)
+    done = counts["checked"] == counts["total"]
+    return {"checked": counts["checked"], "total": counts["total"], "done": done, "error": error}
+
+
+# Claim the first refund of a run inside the caller's transaction: plan the refunds, enter REFUNDING
+# and claim the oldest READY refund. Nothing is sent. No review and no cancelling happens here (D93):
+# every hold must already be checked, and the locked accounting check inside open_refunding enforces it.
+def claim_start(conn, event_id):
+    with conn.transaction():
+        opened = open_refunding(conn, event_id)
+        if opened is None:
+            return None
+        claim = claim_ready_refund(conn, event_id, opened["owner"], opened["revision"])
+        return {"owner": opened["owner"], "revision": opened["revision"], "claim": claim}
+
+
+# Claim the next READY refund of a run that already has an owner, inside the caller's transaction.
+def claim_continue(conn, event_id):
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT status, refund_run_token, refund_revision FROM events "
+                                   "WHERE id = %s FOR UPDATE", (event_id,))
+        if event is None or event["status"] != "REFUNDING" or event["refund_run_token"] is None:
+            return None
+        claim = claim_ready_refund(conn, event_id, event["refund_run_token"], event["refund_revision"])
+        if claim is None:
+            return None
+        return {"owner": event["refund_run_token"], "revision": event["refund_revision"], "claim": claim}
+
+
+# Claim the void of one open hold inside the caller's transaction. Only a hold the preflight saw open
+# (PENDING) can be cancelled, and only while the event waits for review. The void request id is saved
+# by claim_void_operation before any PayPal call (rule 3).
+def claim_cancel_hold(conn, event_id, hold_id):
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT status FROM events WHERE id = %s FOR UPDATE", (event_id,))
+        hold = db.fetch_one(conn, "SELECT holds.status, holds.refund_check_status, pledges.event_id FROM holds "
+                                  "JOIN pledges ON pledges.id = holds.pledge_id WHERE holds.id = %s FOR UPDATE OF holds",
+                            (hold_id,))
+        if event is None or hold is None or event["status"] != "NEEDS_ATTENTION" or hold["event_id"] != event_id:
+            return None
+        if hold["status"] != "CREATED" or hold["refund_check_status"] != "PENDING":
+            return None
+        if hold_has_known_capture(conn, hold_id):
+            return None
+        return claim_void_operation(conn, hold_id, False)
+
+
+# Void one claimed hold, then read it back: two calls about one authorization, no transaction open.
+def void_and_read(conn, claim, paypal):
+    require_refund_idle(conn)
+    void_answer = paypal.void_authorization(claim["auth_id"], claim["void_request_id"])
+    check = paypal.get_authorization(claim["auth_id"])
+    return {"claim": claim, "void_answer": void_answer, "check": check}
+
+
+# Save the cancel result. A closed hold becomes RESOLVED; one that PayPal says moved money becomes
+# MANUAL_REVIEW. A hold still open keeps its void claim and stays blocked for investigation.
+def save_cancel_result(conn, outcome):
+    claim = outcome["claim"]
+    status = finish_void_operation(conn, claim, outcome["void_answer"], outcome["check"], False)
+    if status not in ("VOIDED", "EXPIRED", "DENIED", "CAPTURED", "PARTIALLY_CAPTURED"):
+        return status
+    check = refund_check_for(status)
+    if check == "MANUAL_REVIEW":
+        log_manual_review(claim, status)
+    db.run(conn, "UPDATE holds SET refund_check_status = %s WHERE id = %s AND status = %s AND void_run_token IS NULL",
+           (check, claim["id"], status))
+    return status
+
+
+# ---------- F7 D94: GET-only "Check with PayPal" for a frozen refund ----------
+# It only ever sends GET, with the refund id PayPal already gave us. It never POSTs, never makes a request
+# id, and never creates a browser command: it finishes the existing CLAIMED one once the result is saved.
+
+RECHECK_SQL = (
+    "SELECT refunds.id, refunds.refund_id AS paypal_refund_id, refunds.send_state, refunds.status, "
+    "refunds.send_started_at, refunds.operation_revision, refunds.capture_id AS capture_row_id, "
+    "pledges.id AS pledge_id, pledges.event_id "
+    "FROM refunds JOIN captures ON captures.id = refunds.capture_id "
+    "JOIN holds ON holds.id = captures.hold_id JOIN pledges ON pledges.id = holds.pledge_id "
+    "WHERE refunds.id = %s AND pledges.event_id = %s "
+)
+
+
+# A refund is frozen when it has no final result and its sender cannot still be running. UNCERTAIN and
+# CHECK_ONLY always qualify; IN_FLIGHT only after REFUND_FROZEN_AFTER_SECONDS. `now` is passed in.
+def refund_is_frozen(row, now):
+    if row["status"] == "COMPLETED":
+        return False
+    if row["send_state"] in ("UNCERTAIN", "CHECK_ONLY"):
+        return True
+    if row["send_state"] != "IN_FLIGHT" or row["send_started_at"] is None:
+        return False
+    return now.timestamp() - row["send_started_at"].timestamp() >= config.REFUND_FROZEN_AFTER_SECONDS
+
+
+# The refund as it is now, only if it belongs to this event, is frozen, has a PayPal refund id saved and is
+# still at the operation revision the treasurer saw. With for_update it locks the refund row.
+def read_frozen_refund(conn, event_id, refund_row_id, operation_revision, now, for_update=False):
+    event = find_event(conn, event_id)
+    if event is None or event["status"] != "REFUNDING" or event["refund_run_token"] is None:
+        return None
+    sql = RECHECK_SQL + ("FOR UPDATE OF refunds" if for_update else "")
+    row = db.fetch_one(conn, sql, (refund_row_id, event_id))
+    if row is None or row["operation_revision"] != operation_revision:
+        return None
+    if not isinstance(row["paypal_refund_id"], str) or not row["paypal_refund_id"].strip():
+        return None
+    if not refund_is_frozen(row, now):
+        return None
+    row["owner"] = event["refund_run_token"]
+    row["revision"] = event["refund_revision"]
+    row["event_id"] = event_id
+    return row
+
+
+# Ask PayPal about one frozen refund: ONE GET, no transaction open, bounded by the PayPal timeout. Nothing is
+# written unless PayPal says COMPLETED for this exact refund id; then the fence, the saved result and the
+# finish of the existing command are ONE transaction, and a compare-and-set decides which click wins.
+# Returns NOT_ELIGIBLE, NO_ANSWER, PENDING, REVIEW_REQUIRED, LOST_RACE or COMPLETED.
+def recheck_frozen_refund(conn, event_id, refund_row_id, operation_revision, now, paypal):
+    require_refund_idle(conn)
+    snapshot = read_frozen_refund(conn, event_id, refund_row_id, operation_revision, now)
+    if snapshot is None:
+        return "NOT_ELIGIBLE"
+    outcome = read_refund_status(conn, snapshot, paypal)
+    if outcome is None:
+        return "NO_ANSWER"
+    status = outcome["status"]
+    if status in ("FAILED", "CANCELLED"):
+        return "REVIEW_REQUIRED"
+    if status != "COMPLETED":
+        return "PENDING"
+    result = "LOST_RACE"
+    with conn.transaction():
+        if not event_is_owner(conn, event_id, snapshot["owner"], snapshot["revision"]):
+            raise psycopg.Rollback()
+        current = read_frozen_refund(conn, event_id, refund_row_id, operation_revision, now, True)
+        if current is None:
+            raise psycopg.Rollback()
+        claim = dict(current)
+        claim["send_state"] = "CHECK_ONLY"
+        if current["send_state"] != "CHECK_ONLY":
+            fenced = fence_to_check_only(conn, refund_row_id, operation_revision)
+            if fenced is None:
+                raise psycopg.Rollback()
+            claim["operation_revision"] = fenced
+        if save_get_outcome(conn, {"claim": claim, "status": status, "refund_id": outcome["refund_id"]}) is None:
+            raise psycopg.Rollback()
+        finish_web_command(conn, event_id)
+        result = "COMPLETED"
+    return result
+
+
+# Recheck under the event lock so delayed checkout cannot insert after the refund inventory.
+def claim_new_hold(conn, pledge, request_id, now):
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT * FROM events WHERE id = %s FOR UPDATE", (pledge["event_id"],))
+        current = db.fetch_one(conn, "SELECT status, pledger_token, max_cents FROM pledges WHERE id = %s FOR UPDATE",
+                               (pledge["id"],))
+        if not pledging_is_open(event, now) or current is None:
+            return None
+        if current["status"] != "PENDING_PAY" or current["pledger_token"] != pledge["pledger_token"]:
+            return None
+        if current["max_cents"] != pledge["max_cents"]:
+            return None
+        return db.fetch_one(conn, "INSERT INTO holds (pledge_id, create_request_id, amount_cents) "
+                                 "VALUES (%s, %s, %s) RETURNING id",
+                            (pledge["id"], request_id, pledge["max_cents"]))

@@ -120,3 +120,23 @@ def capture_authorization(auth_id, amount_cents, request_id):
 def get_capture(capture_id):
     details = {"capture_id": capture_id}
     return record_and_answer("get_capture", details, capture_read_back(capture_id, "0.62", "4.38"))
+
+
+# A full refund answer. HTTP 201 does not by itself mean the money moved: status says so.
+def refund_result(refund_id, status, http_status=201):
+    return answer(http_status, {"id": refund_id, "status": status})
+
+
+# The real parser and ID check are pure. Lifecycle calls them on the paypal object it was given.
+refund_status = paypal_client.refund_status
+check_paypal_id = paypal_client.check_paypal_id
+
+
+def refund_capture(capture_id, request_id):
+    details = {"capture_id": capture_id, "request_id": request_id}
+    return record_and_answer("refund_capture", details, refund_result(new_id("REFUND"), "COMPLETED"))
+
+
+def get_refund(refund_id):
+    details = {"refund_id": refund_id}
+    return record_and_answer("get_refund", details, refund_result(refund_id, "COMPLETED"))

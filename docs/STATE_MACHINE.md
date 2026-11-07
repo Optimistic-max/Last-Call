@@ -72,7 +72,7 @@ Webhooks are not used. Nothing in any milestone needs them, so they moved to `do
 ## Rules for "leaving"
 
 - Only with the pledger's own `pledger_token`, and only while the event is `OPEN` or `LAST_CALL` and its time is not up. `LOCKING`, `CHARGING` and every later status refuse a leave (D81 case 1, D82).
-- Before last call: anyone can leave. The pledge becomes `DROPPED` first (compare-and-set, with the event row locked), then its hold is voided (void request ID saved first, `GET` shows `VOIDED`). A void that isn't confirmed leaves the pledge `DROPPED` with its hold `CREATED`, and the cleanup sweep finishes it.
+- Before last call: anyone can leave. The pledge becomes `DROPPED` first (compare-and-set, with the event row locked), then its hold is voided (void request ID saved first, `GET` shows `VOIDED`). A void that isn't confirmed leaves the pledge `DROPPED` with its hold `CREATED`. An uncertain void keeps its owner, and the cleanup sweep does not send it again (D89).
 - During last call: a `COUNTED` pledger **cannot** leave. Show: "You're counted, so you can't leave during last call." A `HELD` pledger who isn't counted can still leave, and that never changes who is counted (invariant 2).
 - A name that left can't pledge again before the freeze (`docs/LATER.md`).
 
@@ -86,7 +86,7 @@ Every way a step can go wrong, and where its handling is written down. All of it
 | The same person tries again (after a decline, a closed tab or a reload) | Reuse that person's unpaid pledge with a new hold row and order; refuse if they already hold ("[Name] has already pledged.") | `DECISIONS.md` D26 |
 | Authorize times out or returns something unexpected | Retry once with the same request ID, then a generic error. Never treated as held | `PAYPAL_INTEGRATION.md` §4–5 |
 | A hold comes back after the event left `OPEN`/`LAST_CALL` | Void it at once, pledge `DROPPED`, show the "pledging closed" message (F11). The sweep catches any that slip through | `SYSTEM_DESIGN.md` §5A |
-| A void doesn't return 204 | `GET` the authorization and save its real status. Still `CREATED`: the sweep retries on the next wake (F12) | `PAYPAL_INTEGRATION.md` §4 |
+| A void doesn't return a confirmed close | `GET` the authorization. A terminal status is saved when the id matches. Still `CREATED`, or no usable answer: the claim stays and the sweep does not send another void (D89, F12). A later explicit GET-only recheck can record a terminal status. A definite authentication refusal may be retried by the sweep with the same request id | `PAYPAL_INTEGRATION.md` §4 |
 | The sweep finds a hold PayPal already closed (void refused, `GET` shows `VOIDED` or `EXPIRED`) | Save the real status; on a finished event the pledge becomes `DROPPED`. If the `GET` shows `CAPTURED`, the pledge is `FAILED` and an error is logged; the sweep never captures (D80) | `DECISIONS.md` D80 |
 | A friend leaves while the lock starts, or twice at once (double click) | The leave locks the event row, so it either runs first (and the lock never sees the pledge as `HELD`) or sees `LOCKING` and is refused. A second click gets `ALREADY_LEFT` with no PayPal call (D82) | `DECISIONS.md` D82 |
 | Two requests try the same status change | Compare-and-set: only one wins (E8) | `SYSTEM_DESIGN.md` §4 |
@@ -107,3 +107,15 @@ Every way a step can go wrong, and where its handling is written down. All of it
 4. **Together, 1–3 mean the board can never flip from "goal reached" back to "short" during last call.**
 5. **Each counted pledge is captured at most once** (compare-and-set + saved request IDs + `final_capture: true`).
 6. **Every authorization ID in PayPal also exists in our `holds` table**, because we save it before doing anything else. The one gap: an authorize call whose answer never arrives (`PAYPAL_INTEGRATION.md` §5).
+
+## F7 Stage 2B safety correction (D90)
+
+Before NEEDS_ATTENTION -> REFUNDING, inspect every pledge, hold and capture attempt. CREATED holds must be resolved through Stage 2A before handoff. Unknown authorizations, active/uncertain void claims, unknown captured money and inconsistent capture records block handoff. Read back every known authorization and accept changed PayPal statuses only when the local snapshot still matches. CAPTURED/PARTIALLY_CAPTURED are never classified as voided. Missing capture discovery remains manual (D49).
+
+A READY refund becomes IN_FLIGHT with its saved request ID, original-send timestamp and a new operation revision committed before HTTP. Every accepted result advances that revision. COMPLETED updates refund/capture/pledge records in one transaction; a pledge is not fully refunded while another known capture remains unresolved. Event completion independently checks capture-to-refund coverage, not just existing refund rows. A zero-payment event still needs resolved authorizations and consistent records.
+
+Ordinary GET reconciliation accepts only recorded ANSWERED/PENDING or CHECK_ONLY rows. It cannot release IN_FLIGHT/UNCERTAIN. Explicit authorized maintenance may transfer the exact existing claim to CHECK_ONLY; this fences stale workers and permits GET only. A noncompleted observation remains CHECK_ONLY and cannot authorize another POST. Unknown refund IDs remain blocked. No claim expires. Explicit refund retries are disabled pending exact-endpoint retention verification; this supersedes the retry availability described above in D28's original design.
+
+A durable ANSWERED/PENDING resource is not an active HTTP sender. The next independent READY refund may proceed under the event lock; another IN_FLIGHT, UNCERTAIN or CHECK_ONLY row blocks it. No refund function is called by settlement or the sweep.
+
+Final audit correction (D91): a committed IN_FLIGHT claim must consume its exact operation revision once more before HTTP. Duplicate delivery of the original claim cannot send. A crash after consumption stays blocked even if HTTP never began. A maintenance fence may permit the old POST response to preserve its valid refund ID only; outcome ownership is not transferred back. Explicit GET reconciliation is still required. Refund completion rolls back if the capture update does not change exactly one COMPLETED capture; a pledge with other outstanding captures remains CHARGED. Migration 004 rejects ANSWERED -> READY and second first-send transitions without altering Stage 2A.
