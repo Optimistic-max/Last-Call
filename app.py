@@ -530,7 +530,9 @@ def admin_page(admin_token):
 def refund_response(body, status=None):
     response = make_response(body) if status is None else make_response(body, status)
     response.headers["Cache-Control"] = "no-store"
-    response.headers["Referrer-Policy"] = "no-referrer"
+    # same-origin, not no-referrer: under no-referrer browsers send "Origin: null" on our own form POSTs,
+    # which the exact-origin check rightly refuses. same-origin keeps the real Origin and sends nothing elsewhere.
+    response.headers["Referrer-Policy"] = "same-origin"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Content-Security-Policy"] = "frame-ancestors 'none'; form-action 'self'; base-uri 'none'"
     response.headers["X-Content-Type-Options"] = "nosniff"

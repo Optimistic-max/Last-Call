@@ -140,7 +140,7 @@ def test_captured_totals_xss_and_private_fields(web_case):
     assert person["auth_id"] not in text and person["capture"]["capture_id"] not in text
     assert web_case["token"] not in text
     assert "no-store" in page.headers["Cache-Control"]
-    assert page.headers["Referrer-Policy"] == "no-referrer"
+    assert page.headers["Referrer-Policy"] == "same-origin"
     cookie = authorization.headers.get("Set-Cookie", "")
     assert "HttpOnly" in cookie and "Secure" in cookie and "SameSite=Lax" in cookie
     assert fake_paypal.calls == []
@@ -613,4 +613,34 @@ def test_admin_page_shows_the_review_refunds_button_only_when_refunds_apply(web_
            (NOW - timedelta(hours=1), NOW + timedelta(days=1), web_case["event_id"]))
     text = client.get("/admin/" + web_case["token"], base_url=ORIGIN).get_data(as_text=True)
     assert "Review refunds" not in text and "/refund-access" not in text
+    assert fake_paypal.calls == []
+
+
+# A real browser sends "Origin: null" on a form POST when the page was served with Referrer-Policy: no-referrer,
+# and the exact-origin check then (rightly) refuses it every time. same-origin keeps the real Origin on our own
+# form POSTs and still sends nothing to other sites. Found Nov 7; recorded in D93.
+def test_every_refund_response_uses_a_referrer_policy_that_keeps_origin_on_same_origin_posts(web_case):
+    client = app.app.test_client()
+    address = "/admin/" + web_case["token"] + "/refund-access"
+    responses = [get(client, address), get(client, path(web_case)), post(client, path(web_case, "/start"), {}),
+                 post(client, address, {}, origin="https://attacker.example")]
+    unlock(client, web_case)
+    responses += [get(client, path(web_case)), get(client, path(web_case, "/confirm")), get(client, path(web_case, "/holds/1/cancel"))]
+    for response in responses:
+        assert response.headers["Referrer-Policy"] == "same-origin", response.status_code
+    assert fake_paypal.calls == []
+
+
+# The Origin check stays strict. "null" is what a sandboxed or hostile page sends, so it is never accepted,
+# even with a correct CSRF token and the correct approval key.
+def test_origin_null_is_still_refused_on_the_approval_form_and_the_preflight(web_case):
+    client = app.app.test_client()
+    address = "/admin/" + web_case["token"] + "/refund-access"
+    csrf = field(get(client, address), "csrf_token")
+    refused = post(client, address, {"csrf_token": csrf, "approval_key": KEY}, origin="null")
+    assert refused.status_code == 403 and "could not be verified" in refused.get_data(as_text=True)
+    assert get(client, path(web_case)).status_code == 403          # no grant was issued
+    unlock(client, web_case)
+    csrf = field(get(client, path(web_case, "/confirm")), "csrf_token")
+    assert post(client, path(web_case, "/preflight"), {"csrf_token": csrf}, origin="null").status_code == 403
     assert fake_paypal.calls == []
