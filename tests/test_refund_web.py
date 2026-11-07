@@ -596,3 +596,21 @@ def test_ready_with_sending_history_is_not_presented_as_unsent(web_case):
     text = get(client, path(web_case)).get_data(as_text=True)
     assert "sending history" in text and "investigation" in text
     assert "Not sent yet" not in text and 'name="action_token"' not in text
+
+
+# The treasurer's way into the refund pages is the "Review refunds" button on S2. Samuel may restyle it,
+# but it must stay a visible button that links to /refund-access, and only for the refund statuses.
+def test_admin_page_shows_the_review_refunds_button_only_when_refunds_apply(web_case):
+    import re
+    client = app.app.test_client()
+    page = client.get("/admin/" + web_case["token"], base_url=ORIGIN)
+    text = page.get_data(as_text=True)
+    assert page.status_code == 200
+    button = re.search(r'<a class="button-link"[^>]*href="([^"]*)"[^>]*>Review refunds</a>', text)
+    assert button is not None, "NEEDS_ATTENTION must show Review refunds as a button-link"
+    assert button.group(1) == "/admin/" + web_case["token"] + "/refund-access"
+    db.run(web_case["conn"], "UPDATE events SET status = 'OPEN', opens_at = %s, hard_deadline = %s WHERE id = %s",
+           (NOW - timedelta(hours=1), NOW + timedelta(days=1), web_case["event_id"]))
+    text = client.get("/admin/" + web_case["token"], base_url=ORIGIN).get_data(as_text=True)
+    assert "Review refunds" not in text and "/refund-access" not in text
+    assert fake_paypal.calls == []
