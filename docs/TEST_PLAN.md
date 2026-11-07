@@ -476,3 +476,12 @@ Mutation checks (each break made, matching tests run, file restored and proven b
 | event-scope check removed | `test_a_refund_of_another_event_is_never_checked_even_if_both_are_refunding` |
 | CSRF/origin checks removed from the route | `test_session_csrf_origin_and_form_checks` |
 | FAILED and CANCELLED no longer stop before the write | `test_failed_or_cancelled_writes_nothing_and_says_review_required` (2) |
+
+## Sandbox refund-all rehearsal on dev (Option A, approved Nov 7)
+
+Helper: `tests/sandbox_lock_with_one_refusal.py`, run by hand only (pytest never collects it). It runs the real `lifecycle.lock_and_charge` for one demo event, with the real sandbox client, except that ONE named friend's capture is answered locally with a made-up 422 `TRANSACTION_REFUSED`. That refusal is SIMULATED; F22 (PayPal's real refusal through the mock header) stays NOT RUN. Guards: sandbox URL, local `APP_BASE_URL`, demo-mode event in `LAST_CALL` past `last_call_ends`, a HELD friend with exactly one CREATED hold, the database endpoint name and event title shown, and a typed `yes`.
+
+| Check | Status | Actual result |
+|---|---|---|
+| Helper refuses safely and is never collected | VERIFIED (local, offline, Nov 7) | With no local `APP_BASE_URL` it refuses before connecting to any database. `pytest --collect-only` lists it 0 times. Offline: the made-up answer reads as `TRANSACTION_REFUSED` through `lifecycle.paypal_issue`; only the chosen authorization is refused, every other function is the real `paypal_client`. No app code changed. |
+| Real sandbox refund-all on dev, localhost: event $30, demo mode, 3 friends pledging up to $15 each with sandbox test cards; lock with this helper so 2 are charged and 1 refused; then preflight, cancel the refused friend's hold, START, CONTINUE; verify with the runbook-style SQL on dev and the sandbox merchant account | NOT RUN | Expected: event REFUNDED; two pledges REFUNDED, one FAILED; holds CAPTURED, CAPTURED, VOIDED, all `refund_check_status` RESOLVED; the refused friend has two FAILED capture rows with different request ids and no capture id; two refunds ANSWERED/COMPLETED with refund ids, amounts equal to the captures, distinct request ids; CANCEL_HOLD, START and CONTINUE commands FINISHED. Record the IDs here after the run. |
