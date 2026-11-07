@@ -12,6 +12,7 @@ import psycopg
 from flask import Flask, jsonify, make_response, redirect, render_template, request, url_for
 
 import ai_parser
+import conditions
 import config
 import db
 import lifecycle
@@ -834,8 +835,33 @@ def board_for_event(facts, now):
         "counted_total_text": counted_total_text,
         "progress_percent": facts["progress_percent"],
         "pledging_open": lifecycle.pledging_is_open(event, now),
+        "links": board_links(facts),
         "rows": board_row_texts(facts),
     }
+
+
+# D79: a row is counted if the circle rule counts it, or it was already charged or failed at lock (it was
+# counted then). The rows and the links both use this, so a link can never disagree with its row.
+def row_is_counted(row, facts):
+    return row["id"] in facts["counted_ids"] or row["status"] in ("CHARGED", "FAILED")
+
+
+# D96: who depends on whom, for Samuel's diagram. One link per saved condition: {"from": the pledger as the board
+# shows them, "to": the person they need, "met": that person is counted}. A name with a visible row is spelled the
+# way the board shows it; a name nobody pledged (or who left, D56) is the saved name, tidied, and is never met. Names
+# only: no id, no token. At most MAX_CONDITIONS links per pledger, in join order then saved order.
+def board_links(facts):
+    visible = {}
+    for row in facts["rows"]:
+        visible[conditions.name_key(row["name"])] = row
+    links = []
+    for saved in facts["conditions"]:
+        target = visible.get(conditions.name_key(saved["depends_on_name"]))
+        if target is None:
+            links.append({"from": saved["name"], "to": conditions.tidy_name(saved["depends_on_name"]), "met": False})
+        else:
+            links.append({"from": saved["name"], "to": target["name"], "met": row_is_counted(target, facts)})
+    return links
 
 
 # One text row per pledge, in the order board_facts gives them. estimated_share_text is "" except
@@ -849,7 +875,7 @@ def board_row_texts(facts):
         estimated_share_text = ""
         if row["id"] in facts["estimated_shares"]:
             estimated_share_text = dollars(facts["estimated_shares"][row["id"]])
-        counted = row["id"] in facts["counted_ids"] or row["status"] in ("CHARGED", "FAILED")
+        counted = row_is_counted(row, facts)
         rows.append({"name": row["name"], "status": row["status"], "status_word": status_word(row),
                      "max_text": dollars(row["max_cents"]), "estimated_share_text": estimated_share_text,
                      "counted": counted,

@@ -516,3 +516,31 @@ Mutation checks (each break made, matching tests run, file restored and proven b
 | R12 `money.released_cents` no longer refuses a charge above the hold | `test_released_refuses_impossible_amounts[1500-1501]` |
 
 The template cannot work out the released amount itself: it only receives three finished texts, never cents.
+
+## Board links for the dependency diagram (Nov 7, D96)
+
+Local disposable PostgreSQL through `run_local_tests.py`, fake PayPal. Tests were written first: all 13 failed (no `links` key, no fallback list). In the first run the escaping test passed for the wrong reason (the escaped names already appear in the rows and in "Waiting on …"), so it was changed to check the list lines themselves and then failed as it should.
+
+| Check | Status | Actual result |
+|---|---|---|
+| `tests/test_board_links.py` | VERIFIED | 12 passed. Circle counted (two links, both met); circle with an unpaid member (both not met); chain Ana→Bo→Cy with Cy unpledged (the ends worked out from the links equal "Waiting on …" for every uncounted held row); a name nobody pledged (not met, tidied); a DROPPED pledge hidden as `from` but still a plain unmet target; the target spelled as the board shows it; names and a flag only (no ids, no tokens); 3 conditions give 3 links in saved order and unpaid pledges count; after the lock met follows the rows (CHARGED met, EXPIRED none met); exactly one extra query whether there are 2 or 6 pledgers; the fallback list has one line per link on S2 and S3, only when there are links; names in the list are escaped. |
+| Existing tests changed because the key was added | VERIFIED | `tests/test_routes.py`: `BOARD_KEYS` lists `links`; `facts_for` has `conditions: []`; the db-free `test_board_facts_counted_total_uses_the_same_circle_rule` stubs the new query. |
+| Real browser and phone look of the fallback list and the diagram | NOT RUN | |
+
+Mutation checks (each break made, matching tests run, file restored and proven byte-identical):
+
+| Deliberate break | Caught by |
+|---|---|
+| L1 `met` always true | circle-unpaid and chain tests |
+| L2 `met` follows held instead of counted | the chain test |
+| L3 DROPPED filter removed from the query | the dropped-pledge test |
+| L4 names nobody pledged left out | unpledged-name, chain and dropped tests |
+| L5 target not spelled as the board shows it | the spelling test |
+| L6 a pledge id added to every link | the names-and-a-flag test |
+| L7 links only for HELD pledgers | the unpaid-pledges test |
+| L8 `from` and `to` swapped | circle and chain tests |
+| L9 `met` ignores CHARGED/FAILED after the lock | the after-the-lock test |
+| L10 names written without escaping (`|safe`) | the escaping test |
+| L11 a second conditions query per board read | the one-extra-query test |
+
+Known limit: `board.js` does not refresh the fallback list, so it shows the state at page load until the page is reloaded; a diagram should redraw from `board.json`.

@@ -1385,6 +1385,7 @@ def board_facts(conn, event_id):
         "rows": board_rows(conn, event_id),
         "counted_ids": pledge_ids(counted),
         "waiting_on": board_waiting_on(conn, event, held, counted),
+        "conditions": board_conditions(conn, event_id),
         "held_total_cents": held_total_cents(conn, event_id),
         "counted_total_cents": money.counted_total_cents(max_list(counted)),
         "goal_cents": goal_cents,
@@ -1393,6 +1394,16 @@ def board_facts(conn, event_id):
         "any_hold_created": has_created_hold(conn, event_id),
         "club_net_cents": money.club_net_cents(charge_net_cents(conn, event_id)),
     }
+
+
+# D96: every saved condition of the board's pledges, as (pledger name, the name they depend on), in ONE query:
+# join order of the pledger, then the order the conditions were saved. DROPPED pledges are left out (D56). No
+# id, token or email is selected, so none can reach the board. app.board_links turns these into the links.
+def board_conditions(conn, event_id):
+    return db.fetch_all(conn, "SELECT pledges.name AS name, pledge_conditions.depends_on_name AS depends_on_name "
+                              "FROM pledge_conditions JOIN pledges ON pledges.id = pledge_conditions.pledge_id "
+                              "WHERE pledges.event_id = %s AND pledges.status <> 'DROPPED' "
+                              "ORDER BY pledges.created_at, pledges.id, pledge_conditions.id", (event_id,))
 
 
 # The id of each pledge in a list, in the same order.
