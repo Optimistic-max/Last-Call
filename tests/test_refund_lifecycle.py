@@ -21,6 +21,7 @@ REFUND_FUNCTION_NAMES = (
     "retry_failed_refund",
     "finish_refunding",
     "save_refund_check",
+    "reconcile_refund_for_treasurer",
 )
 
 
@@ -95,7 +96,7 @@ def posts():
     return found
 
 
-def test_refund_functions_do_not_capture_settle_or_add_a_route():
+def test_refund_functions_do_not_capture_or_run_from_settlement():
     missing = []
     for name in REFUND_FUNCTION_NAMES:
         if not hasattr(lifecycle, name):
@@ -110,8 +111,8 @@ def test_refund_functions_do_not_capture_settle_or_add_a_route():
     settle = inspect.getsource(lifecycle.settle_due_events)
     assert "begin_refund_all" not in settle
     assert "refund_capture" not in settle
-    assert "refund-all" not in (ROOT / "app.py").read_text(encoding="utf-8")
-    assert "begin_refund_all" not in (ROOT / "app.py").read_text(encoding="utf-8")
+    # Stage 3 explicitly authorizes routes; settlement must still never initiate refunds.
+    assert "resume_refund_all" not in settle
 
 
 def test_unknown_token_and_wrong_status_do_not_call_paypal(refund_case):

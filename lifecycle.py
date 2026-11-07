@@ -2060,6 +2060,46 @@ def reconcile_refund(conn, refund_row_id, paypal):
     return status
 
 
+# Browser reconciliation claims only this event's known pending resource under the event lock.
+def claim_treasurer_refund_check(conn, event_id, refund_row_id, operation_revision):
+    with conn.transaction():
+        event = db.fetch_one(conn, "SELECT * FROM events WHERE id = %s FOR UPDATE", (event_id,))
+        if event is None or event["status"] != "REFUNDING" or event["refund_run_token"] is None:
+            return None
+        row = db.fetch_one(conn, REFUND_DETAIL_SQL + "WHERE refunds.id = %s AND pledges.event_id = %s "
+                                   "FOR UPDATE OF refunds", (refund_row_id, event_id))
+        if (row is None or row["send_state"] != "ANSWERED" or row["status"] != "PENDING"
+                or not isinstance(row["paypal_refund_id"], str) or not row["paypal_refund_id"].strip()
+                or row["operation_revision"] != operation_revision):
+            return None
+        changed = db.fetch_one(conn, "UPDATE refunds SET operation_revision = operation_revision + 1 "
+                                    "WHERE id = %s AND operation_revision = %s RETURNING operation_revision",
+                               (refund_row_id, operation_revision))
+        if changed is None:
+            return None
+        row["operation_revision"] = changed["operation_revision"]
+        row["owner"] = event["refund_run_token"]
+        row["revision"] = event["refund_revision"]
+        return row
+
+
+# No recovery or POST permission is available through the treasurer interface.
+def reconcile_refund_for_treasurer(conn, event_id, refund_row_id, operation_revision, paypal):
+    require_refund_idle(conn)
+    claim = claim_treasurer_refund_check(conn, event_id, refund_row_id, operation_revision)
+    if claim is None:
+        return None
+    answer = paypal.get_refund(claim["paypal_refund_id"])
+    seen = paypal_resource_id(answer, paypal)
+    status = paypal.refund_status(answer)
+    if seen != claim["paypal_refund_id"] or status is None:
+        return None
+    if not record_refund_answer(conn, claim, status, seen):
+        return None
+    finish_refunding(conn, claim["event_id"], claim["owner"], claim["revision"])
+    return status
+
+
 # Explicit retries are disabled until exact-endpoint retention is confirmed.
 def claim_failed_refund(conn, refund_row_id):
     # Exact-endpoint retention is unverified. Neither a failed status nor recovery permits a POST.

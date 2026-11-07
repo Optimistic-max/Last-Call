@@ -344,3 +344,61 @@ The conflicting-ID mutation accepted the conflicting value at the application bo
 Backups, mutation logs, scripts and migration evidence are outside the repository in last-call-f7-final-74f07205e7f14c4784b8b07338ff7224 under the temporary directory. No validation artifacts are proposed for commit.
 
 Limits: real refund HTTP and real process-kill recovery are NOT RUN. Unknown/lost refund IDs, conflicting identities, event-owner changes and unavailable database writes remain investigation blocks. Explicit retries remain disabled. D47 missing capture records are never invented. Stage 3 routes, browser confirmation and UI remain NOT RUN/unimplemented; F7's overall screen/sandbox row above remains NOT RUN. This work did not alter Stage 2A or the existing independent progression policy for known ANSWERED results. No Neon migration, deployment or Git write command ran.
+
+
+## F7 Stage 3 treasurer refund interface (Nov 6, D91)
+
+Stage 2B was committed at 7f00fbe on emmanuel/f7-refund-all before this task; the initial tracked/untracked Git status was clean. Only one local worktree was registered and no pending local template edits were present. Samuel's unpublished work was not independently confirmed. Template/text review remains his responsibility; Malama reviews money.py and migration 005's actual SQL. No Git write command ran.
+
+All execution used the existing guarded run_local_tests.py, with .venv/Scripts/python.exe, against the independently verified PostgreSQL 18.3 disposable cluster at loopback port 55439, database f7_runtime, cluster_name f7_stage1_validation and the existing last-call-f7-stage2a temporary data directory. The runner restricts every psycopg connection, overrides DATABASE_URL, clears payment credentials and blocks requests.Session external HTTP. Fake PayPal only. No Neon connection/migration, real PayPal/Groq request, credential change or deployment.
+
+Tests first: 20 initial browser/lifecycle contract failures and 7 database failures established missing routes, guards, helpers, table and migration. These were missing-functionality/structural failures, not money-safety mutation evidence. Subsequent failing behavior assertions reproduced an unnecessarily blocked pending GET command, adoption of a newer revision, incomplete refund inventory offering continuation, non-ASCII CSRF returning 500, missing public refund labels, inaccurate person/event completion, an unrecorded capture on a dropped pledge, form expiry after a valid claim, and historical READY sending evidence labelled unsent. Each was corrected before final verification. An intermediate full run had 556 passed, 1 failed, 1 skipped: the failure was a Stage 2-only source assertion forbidding a refund entry point in app.py. Stage 3 explicitly permits routes; the test now preserves and extends its no-capture/no-settlement refund checks.
+
+| Check | Status | Actual result |
+|---|---|---|
+| Final focused browser, migration, lifecycle, safety and dispatch selection | VERIFIED | 174 passed, 0 failed, 0 skipped in 46.05s |
+| Final payment regression selection | VERIFIED | 552 passed, 0 failed, 0 skipped in 100.12s |
+| Final complete pytest --tb=short -q -rs | VERIFIED | 582 passed, 0 failed, 1 skipped in 99.89s. Expected skip: tests/test_ai_accuracy.py:156, missing tests/ai_test_messages.json (D74) |
+| Migration 005, exact SQL on verified local runtime | VERIFIED | Additive action table, partial unique active-command index and identity/reopen/target trigger installed locally only |
+| New migration/database selection | VERIFIED | All 12 cases passed within focused selection: five historical sending states preserved across all six application tables, failed preflight, injected late-DDL rollback, lock timeout, index/trigger behavior and matching fresh-install object SQL |
+| Safety mutations | VERIFIED | 22 intended violations caught by behavior assertions or expected database rejection assertions; no syntax, signature or broken-mock failure counted |
+| Source integrity | VERIFIED | All pre-existing lifecycle and money function ASTs unchanged. App's existing changes are limited to refund-hook exemption, admin link and generic refund banners. Migrations 001-004 unchanged |
+| Real browser, mobile, keyboard, HTTPS/proxy and deployed request-duration checks | NOT RUN | Flask test-client rendering is not real-browser verification |
+| Live sandbox refund and overall F7 screen flow | NOT RUN | Local fake-PayPal results do not verify live provider/browser behavior |
+
+The final implementation adds 68 cases (56 browser/lifecycle/presentation tests and 12 migration/database/source cases). Completed action rows remain FINISHED against replay and release their event slot. Durably known PENDING/FAILED answers permit the next independent refund. Unknown POST results, uncertain voids and interrupted commands remain CLAIMED without expiry. Inconclusive GET-only checks of a known pending resource do not unnecessarily block future commands. All browser checks remain event-scoped, known-ID, ANSWERED/PENDING and exact-revision only. No retry or maintenance route exists.
+
+Deterministic concurrency cases use independent connections and threading events/barriers: copied and independent forms while the first operation is paused, a committed browser claim visible before lifecycle/HTTP, an event lock independently acquirable during fake HTTP, and a maintenance change committed while a browser check waits for its event lock. Failures before lifecycle, after completed payment bookkeeping, after a claim's form deadline and at operation-revision fences are simulated. Actual process-kill recovery remains NOT RUN.
+
+| Deliberate mutation | Detecting test |
+|---|---|
+| approval_key | `tests/test_refund_web.py::test_approval_requires_independent_key_and_csrf` |
+| csrf | `tests/test_refund_web.py::test_stale_tampered_wrong_action_and_csrf_forms_do_not_execute` |
+| origin | `tests/test_refund_web.py::test_origin_is_required_and_exact[https://attacker.example]` |
+| session_event | `tests/test_refund_web.py::test_event_scope_is_checked_even_with_correct_admin_binding` |
+| session_expiry | `tests/test_refund_web.py::test_cross_event_expired_and_rotated_grants_are_rejected` |
+| session_form_binding | `tests/test_refund_web.py::test_form_from_another_authorized_session_is_rejected` |
+| save_command_before_send | `tests/test_refund_web.py::test_web_claim_is_durable_before_lifecycle` |
+| confirmation_inventory | `tests/test_refund_web.py::test_changed_captured_amount_requires_fresh_confirmation` |
+| uncertain_command | `tests/test_refund_web.py::test_unknown_result_keeps_command_blocked` |
+| expire_old_claim | `tests/test_refund_web.py::test_old_uncertain_web_claim_never_expires` |
+| browser_check_only | `tests/test_refund_web.py::test_browser_cannot_reconcile_recovery_states[CHECK_ONLY]` |
+| browser_event_scope | `tests/test_refund_web.py::test_check_rejects_real_other_event_even_when_both_are_refunding` |
+| browser_revision | `tests/test_refund_web.py::test_browser_pending_reconciliation_checks_event_and_revision` |
+| form_revision_not_latest | `tests/test_refund_web.py::test_changed_revision_after_web_claim_is_not_adopted` |
+| completed_label | `tests/test_refund_web.py::test_payment_states_are_honest_and_never_offer_retry[ANSWERED-COMPLETED-Payment records require investigation]` |
+| captured_amount | `tests/test_refund_web.py::test_refund_summary_uses_captured_integer_cents_only` |
+| unknown_fee | `tests/test_refund_web.py::test_refund_summary_uses_captured_integer_cents_only` |
+| settlement_exemption | `tests/test_refund_web.py::test_url_token_alone_cannot_send_and_refund_requests_never_settle` |
+| name_escaping | `tests/test_refund_web.py::test_captured_totals_xss_and_private_fields` |
+| database_one_active | `tests/test_refund_web_database.py::test_only_one_active_command_and_finished_history_is_retained` |
+| database_no_reopen | `tests/test_refund_web_database.py::test_finished_actions_cannot_reopen_or_change_identity[state = 'CLAIMED', finished_at = NULL]` |
+| ready_sending_history | `tests/test_refund_web.py::test_ready_with_sending_history_is_not_presented_as_unsent` |
+
+Every source mutation was restored byte-for-byte from a confirmed temporary backup. The database-only index and function mutations restored their exact pg_get_indexdef/pg_get_functiondef strings. The final historical-READY mutation restored refund_web.py SHA-256 4923ad8ade1f49d0391b7e029834fa66a87b6915a3fd674b95f24ba994ffea9f. The other unchanged source files still match their mutation backup hashes. Logs/backups remain outside the repository in last-call-f7-stage3-56jkslvh and last-call-f7-stage3-ready-u0uq5mqr under the temporary directory. The main temporary mutation script later became unreadable/unwritable (PermissionError); its result logs remained readable. The final additional mutation used a separate confirmed backup and restored exactly; no inaccessible artifact was deleted or overwritten.
+
+Migration 005's design approval is not approval of its final SQL or shared deployment. The original PostgreSQL service remained stopped; the pre-existing disposable server is retained. Claims are intentionally conservative after interruption; no offline browser-command release utility was implemented. Provisioning the club key, configuring Flask/session/origin settings, reviewing migration permissions/SQL and testing real browser/proxy behavior are still required. Slow multi-authorization preflight can outlast a web worker and leave a durable investigation block; load/deployment behavior is unverified. No automatic cleanup or retry is a remedy.
+
+Final read-only cleanup and integrity checks: VERIFIED. f7_runtime contained 0 events, 0 pledges, 0 conditions, 0 holds, 0 captures, 0 refunds and 0 refund_web_actions after the final suite. No manual cleanup was performed. The live action guard matched schema.sql; final source bytes matched their restored mutation backups. Pre-existing lifecycle/money functions and migrations 001-004 remained unchanged. The original postgresql-x64-18 service remained Stopped; the pre-existing disposable server was retained. git diff --check found no whitespace errors. All Stage 3 changes remain uncommitted.
+
+Final full command: .venv\Scripts\python.exe "$env:TEMP/last-call-f7-stage2a-2505cd322d704e479ee139d5889fca8d/run_local_tests.py" --tb=short -q -rs. Focused selection: test_refund_web.py, test_refund_web_database.py, test_refund_lifecycle.py, test_refund_safety.py and test_refund_dispatch.py. Payment selection: test_paypal_client.py, test_lifecycle.py, test_capture_retry.py, test_resume.py, test_leave.py, test_sweep.py, test_money.py, test_conditions.py, test_db.py, test_routes.py, test_health.py, test_void_ownership.py and every test_refund_* module. Each used the same verified runner and --tb=short -q.

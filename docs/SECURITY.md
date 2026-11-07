@@ -57,3 +57,27 @@ The pledge a friend types is sent to a third-party AI model, the AI provider set
 - After refund-all, the treasurer's account is short by the original processing fees, because PayPal keeps them on refunds (read in docs: PayPal US fees page, Nov 4 2026). Sandbox behavior is `NOT RUN`.
 - `money.py` uses the sandbox fee rate (2.59% + $0.49, checked against real sandbox captures Nov 4 2026). PayPal's live US Advanced card rate on Nov 4 2026 was 2.89% + $0.29, so a live launch must re-check the rate.
 - The `pledger_token` is kept in the browser's `localStorage` after a hold. On a shared computer, the next person could open that friend's cancel page.
+
+## F7 treasurer refund controls (D91)
+
+The existing admin URL is not sufficient to send refunds. A separate high-entropy club approval key (32-256 characters) is provided to the treasurer outside that URL. Configure only its Werkzeug scrypt/pbkdf2 password hash as REFUND_APPROVAL_KEY_HASH. Never put the key into source, a URL, a shell argument, a screenshot, or a log. No enrollment or key reset is available through an admin link. This is a shared club credential, not personal accounts or MFA.
+
+Refund controls fail closed unless FLASK_SECRET_KEY has at least 32 characters, Flask uses that key, the approval hash is configured, and APP_BASE_URL is a canonical HTTPS origin. An explicit REFUND_ALLOW_LOCAL_HTTP=true exception permits loopback HTTP only. This also permits the session cookie over local HTTP; never use that exception on a shared host. The actual .env was not changed. Verify HTTPS/proxy and cookie behavior before any deployment.
+
+Important code, in execution order:
+
+1. refund_request_refusal checks configuration, the configured host, form size, Origin/Referer and CSRF before a refund POST opens its database connection.
+2. approve verifies the independent key, clears the old session, rotates CSRF, and saves only an event ID, credential fingerprints, issue time and random session nonce in the signed cookie. Signed Flask cookies are readable; no private credential goes there.
+3. authorized_event checks the event ID and 15-minute expiry, then compares the current admin-token and approval-hash fingerprints. Credential rotation revokes an existing grant.
+4. make_action signs a random form bound to the event, session, command, target and reviewed inventory. For a pending check it includes the exact reviewed operation revision. Unused forms expire after 10 minutes.
+5. claim_action locks the event, rechecks authorization and current records, checks consumed/active commands, and inserts the durable action hash. Its transaction commits before lifecycle or PayPal work.
+6. The partial unique index is a second guard: only one CLAIMED browser command per event can exist across processes.
+7. run_refund_command invokes only the explicit start, continuation or restricted GET integration. The previously checked form payload remains valid for that claimed invocation even if its unused-form deadline subsequently passes.
+8. finish_action retains the consumed action as FINISHED after a returned command when no active/uncertain refund or void remains. New independent commands can then proceed; replay cannot execute the completed action again.
+9. An exception, unresolved POST or uncertain void leaves CLAIMED evidence. No timer, refresh, new browser, session expiry or refund status page releases it. An inconclusive GET for a durably known pending refund can finish its read command; it does not authorize another POST for that refund.
+10. claim_treasurer_refund_check locks event then refund and checks event association, ANSWERED/PENDING, a known ID and the exact operation revision. It commits before GET. Existing owner/revision fences control the result write.
+11. Private responses use no-store, no-referrer, frame denial and form-action protections. Templates receive whitelisted fields, not raw payment records. Public pages receive only generic refund status words.
+
+There is no browser maintenance, retry or claim-release endpoint. A crash can conservatively block otherwise unsent work. Releasing a browser command requires a separately reviewed offline procedure: establish that the original worker cannot resume, inspect exact command identity and payment/void evidence, reconcile known resources, and keep unknown POST outcomes blocked. Do not manually delete claims simply because they are old. Existing F7 maintenance authorization is not granted by the browser session.
+
+These protections apply to the new refund interface. Existing non-refund admin actions retain their previous authorization design. Real browser, proxy and deployment verification remain NOT RUN; see TEST_PLAN.md for actual local results.

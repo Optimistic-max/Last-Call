@@ -94,3 +94,36 @@ Not built before the freeze. D47's safe ending stands instead: hold `CAPTURED`, 
 | Nov 4 | Emmanuel | Treasurer picks the last-call length (1 h / 6 h / 24 h) and the pledging length; anything past about 60 hours total needs reauthorizing old holds before lock (PayPal's honor period is 3 days). |
 | Nov 4 | Emmanuel | $5 share floor: (a) a board line telling people shares are at the $5 minimum, and (b) a waitlist so extra people past the floor aren't charged. Why it came up: past the floor each new person adds about $0.49 in PayPal fees without lowering anyone's share, so the club collects more than it needs. (Emmanuel isn't a fan of either; the current rule of no cap and everyone paying at least $5 is fine for now. Revisit only if a real group hits the floor.) |
 | Nov 4 | Emmanuel | A treasurer "Try the charge again" button on `NEEDS_ATTENTION` (D83): charge a `FAILED` pledge again later, from the admin page. Needs a new event compare-and-set (`NEEDS_ATTENTION` back to `CHARGING`) that also excludes refund-all, a reworded rule 6, a new screen, and a hold still `CREATED` inside PayPal's 3-day honor period. For now the only action after `NEEDS_ATTENTION` is refund-all (D49) |
+
+## Post-MVP Features
+
+Both features are **High Priority** and **planned, not implemented** (`designed, not tested`). Work begins only after MVP completion and end-to-end PayPal Sandbox validation. Neither feature is part of the current F7 Stage 3 scope.
+
+### AI Group Rescue - High Priority
+
+An AI-powered assistant that helps a group consider voluntary ways to reach its funding goal when progress stalls.
+
+- Detect how much funding is still needed using the application's confirmed funding calculation.
+- Suggest realistic ways to close the gap, considering existing pledge amounts and unmet conditions.
+- Suggest voluntary contributions or pledge adjustments without making changes itself.
+- Generate friendly, shareable suggestions.
+- Clearly distinguish hypothetical funding from confirmed pledges; suggestions do not count toward the goal.
+
+**Example (fictional, hypothetical):** "You're $25 short. Five friends could voluntarily add $5 each to reach the goal."
+
+**Safety:** The AI must never modify pledges, trigger payments, bypass conditions, or promise that a hypothetical suggestion will succeed. Plain code remains responsible for money calculations and eligibility; any participant action must follow the existing confirmation and payment safety rules.
+
+### Interactive Pledge Dependency Map - High Priority
+
+A mobile-friendly visual graph showing how participants' conditions connect.
+
+- Show who is waiting on whom.
+- Highlight the people whose decisions could unblock multiple pledges.
+- Display dependency chains and cycles.
+- Distinguish satisfied, waiting and unresolved conditions.
+- Update from actual event data and the existing condition engine's results.
+- Keep the layout clear on phones as well as larger screens.
+
+**Example (fictional):** Ana depends on Bo, and Bo depends on Cy. The graph highlights Cy as the person currently blocking the chain.
+
+**Accuracy:** The visualization must reflect the existing condition engine, including its handling of chains and cycles. It cannot change pledge eligibility or financial state. Highlighting a participant is explanatory, not a guarantee that their participation will satisfy every condition or reach the goal.

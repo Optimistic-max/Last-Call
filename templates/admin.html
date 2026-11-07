@@ -28,6 +28,9 @@
     <p class="page-goal board-goal">{{ board.goal_text }}</p>
   </div>
   <div class="page-actions">
+    {% if refund_access_url %}
+    <a class="text-link" href="{{ refund_access_url }}">Review refunds</a>
+    {% endif %}
     {% if can_open %}
     <form method="post" action="{{ open_url }}">
       <button type="submit">Open pledging</button>

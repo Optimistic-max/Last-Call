@@ -4,6 +4,19 @@
 
 import config
 
+
+# Add recorded captures only; unknown original fees stay unknown rather than estimated.
+def refund_summary_cents(payments):
+    amount_cents = 0
+    fee_cents = 0
+    for payment in payments:
+        amount_cents += payment["amount_cents"]
+        if payment["fee_cents"] is None:
+            fee_cents = None
+        elif fee_cents is not None:
+            fee_cents += payment["fee_cents"]
+    return {"amount_cents": amount_cents, "fee_cents": fee_cents}
+
 # Basis points are hundredths of a percent, so 10000 basis points is 100%.
 BASIS_POINTS_IN_100_PERCENT = 10000
 

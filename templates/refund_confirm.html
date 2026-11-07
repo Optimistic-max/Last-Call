@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Confirm refund-all{% endblock %}
+{% block content %}
+<main>
+  <header class="page-header"><h1>Review refunds for {{ title }}</h1></header>
+  <section class="card">
+    <h2>Recorded captured payments: {{ totals.amount_cents|dollars }}</h2>
+    <p>Each full refund returns that captured payment to its participant. PayPal keeps the original processing fees; they are not deducted from the participant's refund.</p>
+    {% if totals.fee_cents is none %}<p>Fee information unavailable.</p>
+    {% else %}<p>Recorded original processing fees: {{ totals.fee_cents|dollars }}.</p>{% endif %}
+    <p>Confirming checks remaining authorizations and cancels eligible uncharged holds. Refunds cannot be undone.</p>
+    <p>One new refund is sent per action. Use Continue refunding for each subsequent payment. No refunds are retried automatically.</p>
+    {% for message in blockers %}<p role="alert">{{ message }}</p>{% endfor %}
+    {% if active_command %}<p role="alert">A command is active or unresolved. Further commands are blocked for investigation.</p>{% endif %}
+    {% if action_token %}
+    <form method="post" action="{{ url_for('refund_start', event_id=event_id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="action_token" value="{{ action_token }}">
+      <button type="submit">Confirm refund everyone</button>
+    </form>
+    {% endif %}
+    <p><a href="{{ url_for('refund_progress', event_id=event_id) }}">View refund status</a></p>
+  </section>
+  {% include "refund_people.html" %}
+</main>
+{% endblock %}

@@ -22,6 +22,12 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "")
 FLASK_SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "")
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "")
+# Refund controls require an independent club credential, never the admin URL alone.
+REFUND_APPROVAL_KEY_HASH = os.environ.get("REFUND_APPROVAL_KEY_HASH", "")
+REFUND_ALLOW_LOCAL_HTTP = os.environ.get("REFUND_ALLOW_LOCAL_HTTP", "") == "true"
+REFUND_SESSION_SECONDS = 900
+REFUND_FORM_SECONDS = 600
+REFUND_MAX_FORM_BYTES = 8192
 AI_API_KEY = os.environ.get("AI_API_KEY", "")
 AI_MODEL = os.environ.get("AI_MODEL", "")
 
