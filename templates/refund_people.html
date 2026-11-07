@@ -13,6 +13,16 @@
         <button type="submit">Check PayPal status</button>
       </form>
       {% endif %}
+      {% if payment.recheck_target in rechecks %}
+      <form method="post" action="{{ url_for('refund_paypal_check', event_id=event_id, refund_id=payment.recheck_target) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="action_token" value="{{ rechecks[payment.recheck_target] }}">
+        <button type="submit">Check with PayPal</button>
+      </form>
+      <p>This only asks PayPal what happened to this refund. It never sends money and never starts a new refund.</p>
+      {% elif payment.frozen_no_id %}
+      <p role="alert">No PayPal refund id was saved, so this cannot be checked here. Nothing was changed: a developer must investigate.</p>
+      {% endif %}
     </li>
     {% endfor %}
   </ul>

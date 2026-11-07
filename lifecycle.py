@@ -2006,12 +2006,18 @@ def recover_refund_check_only(conn, admin_token, refund_row_id, owner, revision,
         row = db.fetch_one(conn, REFUND_DETAIL_SQL + "WHERE refunds.id = %s FOR UPDATE OF refunds", (refund_row_id,))
         if row is None or row["event_id"] != event["id"]:
             return False
-        changed = db.run(conn, "UPDATE refunds SET send_state = 'CHECK_ONLY', "
-                               "operation_revision = operation_revision + 1 "
-                               "WHERE id = %s AND operation_revision = %s "
-                               "AND send_state IN ('IN_FLIGHT', 'UNCERTAIN')",
-                         (refund_row_id, operation_revision))
-    return changed == 1
+        changed = fence_to_check_only(conn, refund_row_id, operation_revision)
+    return changed is not None
+
+
+# Fence a stopped or unknown sender into GET-only investigation (CHECK_ONLY). Compare-and-set on the exact
+# operation revision. Used by maintenance recovery and by the treasurer's "Check with PayPal" (D94).
+# Returns the new operation revision, or None when nothing matched. It can never allow another POST.
+def fence_to_check_only(conn, refund_row_id, operation_revision):
+    row = db.fetch_one(conn, "UPDATE refunds SET send_state = 'CHECK_ONLY', operation_revision = operation_revision + 1 "
+                             "WHERE id = %s AND operation_revision = %s AND send_state IN ('IN_FLIGHT', 'UNCERTAIN') "
+                             "RETURNING operation_revision", (refund_row_id, operation_revision))
+    return None if row is None else row["operation_revision"]
 
 
 # Send at most the next READY refund. IN_FLIGHT, UNCERTAIN and PENDING rows are not posts.
@@ -2329,6 +2335,90 @@ def save_cancel_result(conn, outcome):
     db.run(conn, "UPDATE holds SET refund_check_status = %s WHERE id = %s AND status = %s AND void_run_token IS NULL",
            (check, claim["id"], status))
     return status
+
+
+# ---------- F7 D94: GET-only "Check with PayPal" for a frozen refund ----------
+# It only ever sends GET, with the refund id PayPal already gave us. It never POSTs, never makes a request
+# id, and never creates a browser command: it finishes the existing CLAIMED one once the result is saved.
+
+RECHECK_SQL = (
+    "SELECT refunds.id, refunds.refund_id AS paypal_refund_id, refunds.send_state, refunds.status, "
+    "refunds.send_started_at, refunds.operation_revision, refunds.capture_id AS capture_row_id, "
+    "pledges.id AS pledge_id, pledges.event_id "
+    "FROM refunds JOIN captures ON captures.id = refunds.capture_id "
+    "JOIN holds ON holds.id = captures.hold_id JOIN pledges ON pledges.id = holds.pledge_id "
+    "WHERE refunds.id = %s AND pledges.event_id = %s "
+)
+
+
+# A refund is frozen when it has no final result and its sender cannot still be running. UNCERTAIN and
+# CHECK_ONLY always qualify; IN_FLIGHT only after REFUND_FROZEN_AFTER_SECONDS. `now` is passed in.
+def refund_is_frozen(row, now):
+    if row["status"] == "COMPLETED":
+        return False
+    if row["send_state"] in ("UNCERTAIN", "CHECK_ONLY"):
+        return True
+    if row["send_state"] != "IN_FLIGHT" or row["send_started_at"] is None:
+        return False
+    return now.timestamp() - row["send_started_at"].timestamp() >= config.REFUND_FROZEN_AFTER_SECONDS
+
+
+# The refund as it is now, only if it belongs to this event, is frozen, has a PayPal refund id saved and is
+# still at the operation revision the treasurer saw. With for_update it locks the refund row.
+def read_frozen_refund(conn, event_id, refund_row_id, operation_revision, now, for_update=False):
+    event = find_event(conn, event_id)
+    if event is None or event["status"] != "REFUNDING" or event["refund_run_token"] is None:
+        return None
+    sql = RECHECK_SQL + ("FOR UPDATE OF refunds" if for_update else "")
+    row = db.fetch_one(conn, sql, (refund_row_id, event_id))
+    if row is None or row["operation_revision"] != operation_revision:
+        return None
+    if not isinstance(row["paypal_refund_id"], str) or not row["paypal_refund_id"].strip():
+        return None
+    if not refund_is_frozen(row, now):
+        return None
+    row["owner"] = event["refund_run_token"]
+    row["revision"] = event["refund_revision"]
+    row["event_id"] = event_id
+    return row
+
+
+# Ask PayPal about one frozen refund: ONE GET, no transaction open, bounded by the PayPal timeout. Nothing is
+# written unless PayPal says COMPLETED for this exact refund id; then the fence, the saved result and the
+# finish of the existing command are ONE transaction, and a compare-and-set decides which click wins.
+# Returns NOT_ELIGIBLE, NO_ANSWER, PENDING, REVIEW_REQUIRED, LOST_RACE or COMPLETED.
+def recheck_frozen_refund(conn, event_id, refund_row_id, operation_revision, now, paypal):
+    require_refund_idle(conn)
+    snapshot = read_frozen_refund(conn, event_id, refund_row_id, operation_revision, now)
+    if snapshot is None:
+        return "NOT_ELIGIBLE"
+    outcome = read_refund_status(conn, snapshot, paypal)
+    if outcome is None:
+        return "NO_ANSWER"
+    status = outcome["status"]
+    if status in ("FAILED", "CANCELLED"):
+        return "REVIEW_REQUIRED"
+    if status != "COMPLETED":
+        return "PENDING"
+    result = "LOST_RACE"
+    with conn.transaction():
+        if not event_is_owner(conn, event_id, snapshot["owner"], snapshot["revision"]):
+            raise psycopg.Rollback()
+        current = read_frozen_refund(conn, event_id, refund_row_id, operation_revision, now, True)
+        if current is None:
+            raise psycopg.Rollback()
+        claim = dict(current)
+        claim["send_state"] = "CHECK_ONLY"
+        if current["send_state"] != "CHECK_ONLY":
+            fenced = fence_to_check_only(conn, refund_row_id, operation_revision)
+            if fenced is None:
+                raise psycopg.Rollback()
+            claim["operation_revision"] = fenced
+        if save_get_outcome(conn, {"claim": claim, "status": status, "refund_id": outcome["refund_id"]}) is None:
+            raise psycopg.Rollback()
+        finish_web_command(conn, event_id)
+        result = "COMPLETED"
+    return result
 
 
 # Recheck under the event lock so delayed checkout cannot insert after the refund inventory.

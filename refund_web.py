@@ -132,6 +132,8 @@ def make_action(records, kind, now, target=None):
                "expires": int(now.timestamp()) + config.REFUND_FORM_SECONDS, "target": target}
     if kind == "CHECK":
         payload["operation_revision"] = pending_refund(records, target)["operation_revision"]
+    if kind == "RECHECK":
+        payload["operation_revision"] = next(row for row in records["refunds"] if row["id"] == target)["operation_revision"]
     return URLSafeSerializer(current_app.secret_key, salt="refund-web-action").dumps(payload)
 
 
@@ -405,7 +407,7 @@ def payment_status(payment, refund):
 
 
 # Whitelist presentation fields; private PayPal IDs and request/owner tokens never leave here.
-def people_view(records):
+def people_view(records, now):
     people = []
     for pledge in records["pledges"]:
         hold_ids = [row["id"] for row in records["holds"] if row["pledge_id"] == pledge["id"]]
@@ -414,8 +416,12 @@ def people_view(records):
             if capture["hold_id"] not in hold_ids or capture["status"] not in ("COMPLETED", "REFUNDED"):
                 continue
             refund = next((row for row in records["refunds"] if row["capture_id"] == capture["id"]), None)
+            frozen = refund is not None and records["event"]["status"] == "REFUNDING" and lifecycle.refund_is_frozen(refund, now)
+            has_id = frozen and isinstance(refund["refund_id"], str) and refund["refund_id"].strip() != ""
             payments.append({"amount_cents": capture["amount_cents"], "status": payment_status(capture, refund),
-                             "check_target": refund["id"] if refund and pending_refund(records, refund["id"]) else None})
+                             "check_target": refund["id"] if refund and pending_refund(records, refund["id"]) else None,
+                             "recheck_target": refund["id"] if has_id else None,
+                             "frozen_no_id": bool(frozen and not has_id)})
         complete = bool(payments) and all(row["status"] == "Refunded - confirmed by PayPal" for row in payments)
         owned_captures = [row for row in records["captures"] if row["hold_id"] in hold_ids]
         scoped = dict(records, pledges=[pledge], holds=[row for row in records["holds"] if row["id"] in hold_ids],
@@ -433,8 +439,13 @@ def view(conn, event_id, now, confirmation=False):
     active = active_command(conn, event_id) is not None
     kind = "START" if confirmation else "CONTINUE"
     payments = [row for row in records["captures"] if row["status"] in ("COMPLETED", "REFUNDED") and not lifecycle.capture_is_unknown(row)]
-    people = people_view(records)
+    people = people_view(records, now)
     checks = {}
+    rechecks = {}
+    for person in people:
+        for payment in person["payments"]:
+            if payment["recheck_target"] is not None:
+                rechecks[payment["recheck_target"]] = make_action(records, "RECHECK", now, payment["recheck_target"])
     if not active:
         for person in people:
             for payment in person["payments"]:
@@ -443,7 +454,7 @@ def view(conn, event_id, now, confirmation=False):
                     checks[target] = make_action(records, "CHECK", now, target)
     return {"event_id": event_id, "title": records["event"]["title"], "event_status": records["event"]["status"],
             "complete": records["event"]["status"] == "REFUNDED" and not blockers(records),
-            "people": people, "totals": money.refund_summary_cents(payments),
+            "people": people, "totals": money.refund_summary_cents(payments), "rechecks": rechecks,
             "totals_known": totals_are_complete(records),
             "progress": preflight_progress(records), "open_holds": open_hold_view(records),
             "blockers": blockers(records),

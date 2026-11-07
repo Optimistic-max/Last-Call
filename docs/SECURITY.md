@@ -89,3 +89,10 @@ These protections apply to the new refund interface. Existing non-refund admin a
 - **Atomicity:** a command and its payment/void claim are saved together; its result and its finish are saved together. A crash between leaves the command CLAIMED, never silently half-saved. The database enforces both directions (migration 006). Recovery stays GET-only: `reconcile_refund` or `reconcile_uncertain_void` saves the answer and finishes the command.
 - **Totals:** when any captured-payment record is missing or unresolved the screen shows "total unknown", never $0.00 or a partial sum.
 - Real browser, proxy and deployed-timeout behaviour of the preflight script is NOT RUN.
+
+### D94: "Check with PayPal" for a frozen refund
+
+- `POST /refunds/<id>/paypal-check` uses the same refusal checks (configuration, host, size, exact origin, CSRF), the event-scoped 15-minute session, and a signed form bound to the session, event, refund and exact operation revision. A form for another refund, event, revision or action is refused.
+- It makes at most one PayPal GET, on a refund id PayPal already returned. It cannot POST: the functions it calls never reference the refund POST or a request id (a test reads their source). It creates no browser command.
+- Nothing is written unless PayPal says COMPLETED for that exact refund id. The write is one transaction under the event lock with a compare-and-set, so two clicks or two tabs cannot both act.
+- Real browser, proxy and deployed-timeout behaviour is NOT RUN.

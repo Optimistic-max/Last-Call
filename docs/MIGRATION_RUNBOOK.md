@@ -6,7 +6,7 @@ Status of this document: written Nov 7 from the repo. **Nothing in it has been r
 
 ## Gates (both must be true)
 
-1. **Malama has reviewed the actual SQL** of `migrations/005_f7_refund_web_actions.sql` and `migrations/006_f7_bounded_refund_preflight.sql` (D92 and D93 both say "actual SQL review still required"; `docs/TEAM.md` has the to-do).
+1. **Malama has reviewed the actual SQL** of `migrations/005_f7_refund_web_actions.sql` and `migrations/006_f7_bounded_refund_preflight.sql` (D92 and D93 both say "actual SQL review still required"; `docs/TEAM.md` has the to-do). **MET: Malama approved the actual SQL of migrations 001 to 006 on Nov 7 (D93).** Gate 2 (Emmanuel's approval of each target and time) is still open.
 2. **Emmanuel approves the target and the time** for each branch. The headers of the migration files say the same ("REVIEW ONLY until Emmanuel separately approves the target and execution").
 
 Migration files are the source of truth. Paste them exactly as committed. Never edit one to make it pass.

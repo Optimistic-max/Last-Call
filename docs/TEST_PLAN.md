@@ -450,3 +450,29 @@ Mutation checks: each change was made, the matching tests run, and the file rest
 | DB constraint | `one_command_per_refund` dropped | `test_one_command_per_claimed_refund_is_declared_and_enforced` |
 
 Note for the DB rows: `test_migration_applied_on_005_gives_exactly_the_current_schema` also fails on any of these changes, because it compares whole catalogs. It is not counted as the catcher; the dedicated behaviour test in the right-hand column is.
+
+## F7 "Check with PayPal" for a frozen refund (Nov 7, D94)
+
+Local disposable PostgreSQL 18.3 at 127.0.0.1:55439 through the guarded `run_local_tests.py`, fake PayPal, outside HTTP blocked. Migration 006 needed no change. Tests were written first: with no code, 20 of the first 22 failed (missing config value, function, route and page text). After the code, `tests/test_refund_frozen_check.py` has 24 tests (two more were added before the code to cover the revision check and the event scope).
+
+| Check | Status | Actual result |
+|---|---|---|
+| `tests/test_refund_frozen_check.py` | VERIFIED | 24 passed. A frozen IN_FLIGHT, UNCERTAIN or CHECK_ONLY refund with a saved PayPal refund id and a PayPal COMPLETED answer: one GET only, no POST, request id unchanged, refund ANSWERED/COMPLETED, capture and pledge REFUNDED, event REFUNDED, and the existing CLAIMED command FINISHED (no new command). PENDING, no answer, a wrong refund id, FAILED and CANCELLED each change nothing (rows compared before and after). No saved refund id, a fresh IN_FLIGHT, a normal pending refund, an older revision and another event's refund are never offered or checked. A second click gets 409 without a GET. Two concurrent clicks, in one session and in two sessions: exactly one acts. A crash inside the final transaction rolls everything back and a retry works; a crash during the GET changes nothing. Session, CSRF, origin, wrong-action and expired-form checks. Source check: the recheck code never mentions the refund POST or a request id. |
+| Full pytest `--tb=short -rs` | VERIFIED | 669 passed, 0 failed, 1 skipped in 224.53s. Skip: `tests/test_ai_accuracy.py:156`, `tests/ai_test_messages.json` is not written yet (D74). |
+| Real browser, phone, live sandbox refund, deployed request duration | NOT RUN | Flask test-client results do not verify these. |
+| Neon | NOT RUN | Nothing here touches a Neon branch. |
+
+Mutation checks (each break made, matching tests run, file restored and proven byte-identical by SHA-256):
+
+| Deliberate break | Caught by |
+|---|---|
+| the GET also sends a refund POST | `test_completed_answer_finishes_the_refund_and_the_existing_command` (3) and `test_the_recheck_code_cannot_post_or_mint_a_request_id` |
+| revision compare-and-set removed | `test_a_form_for_an_older_revision_is_refused_before_any_get` |
+| frozen-age check removed | `test_a_fresh_in_flight_refund_is_not_offered_and_not_checked` |
+| refund-id match removed | `test_answer_about_a_different_refund_changes_nothing` |
+| PENDING treated as final | `test_pending_changes_nothing` |
+| fence, save and finish split into separate transactions | `test_a_crash_inside_the_final_transaction_rolls_everything_back_and_a_retry_works` |
+| the existing command is never finished | `test_completed_answer_finishes_the_refund_and_the_existing_command` (3) |
+| event-scope check removed | `test_a_refund_of_another_event_is_never_checked_even_if_both_are_refunding` |
+| CSRF/origin checks removed from the route | `test_session_csrf_origin_and_form_checks` |
+| FAILED and CANCELLED no longer stop before the write | `test_failed_or_cancelled_writes_nothing_and_says_review_required` (2) |

@@ -377,3 +377,10 @@ The new templates are refund_access.html, refund_confirm.html, refund_status.htm
 - The confirm page now works in three steps: (1) **Checked N of M authorizations**, where a small script (or the "Check next authorization" button without JavaScript) reads one authorization per request; (2) an **Open authorizations** list, each with a "Review and cancel" link to its own page, "Cancel this authorization", which names the person and amount and cancels only that hold; (3) "Confirm refund everyone", which appears only when every hold is checked and none is open. Placeholder wording (D57) until Samuel approves it.
 - The captured-payments line reads "Recorded captured payments: incomplete records, total unknown" when any payment record is missing or unresolved. It never shows $0.00 for that case.
 - New template `refund_cancel.html`. Real browser, keyboard and phone behaviour is NOT RUN.
+
+### D94 changes to the refund review (Samuel review pending)
+
+- A payment whose refund is frozen (no final result, sender gone, PayPal refund id saved) shows a **Check with PayPal** button and one line: "This only asks PayPal what happened to this refund. It never sends money and never starts a new refund."
+- If PayPal has no final answer the page says so and nothing changes; if it reports failed or cancelled it says "review required".
+- A frozen payment with no saved PayPal refund id shows: "No PayPal refund id was saved, so this cannot be checked here. Nothing was changed: a developer must investigate." No button.
+- Placeholder wording (D57) until Samuel approves it. Real browser and phone behaviour is NOT RUN.

@@ -657,6 +657,36 @@ def refund_preflight(event_id):
         return refund_unavailable()
 
 
+# D94: "Check with PayPal" for a frozen refund. GET only, one PayPal read per request, no new command: the
+# existing CLAIMED command finishes when the result is saved. Same session, CSRF and origin checks as the rest.
+@app.route("/admin/events/<int:event_id>/refunds/<int:refund_id>/paypal-check", methods=["POST"])
+def refund_paypal_check(event_id, refund_id):
+    refusal = refund_request_refusal()
+    if refusal is not None:
+        return refusal
+    token = request.form.get("action_token", "")
+    try:
+        with db.connect(config.DATABASE_URL) as conn:
+            if refund_web.authorized_event(conn, event_id, utc_now()) is None:
+                return refund_response("Treasurer refund authorization is required for this event.", 403)
+            action = refund_web.read_action(token, event_id, "RECHECK", utc_now(), refund_id)
+            if action is None:
+                return refund_response("This form is stale. Open a fresh refund page.", 409)
+            result = lifecycle.recheck_frozen_refund(conn, event_id, refund_id, action["operation_revision"], utc_now(), paypal_client)
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("refund recheck unavailable (%s)", type(error).__name__)
+        return refund_unavailable()
+    if result == "COMPLETED":
+        return refund_response(redirect(url_for("refund_progress", event_id=event_id), code=303))
+    if result == "PENDING":
+        return refund_response("PayPal has no final answer yet. Nothing was changed. Try again later.")
+    if result == "REVIEW_REQUIRED":
+        return refund_response("PayPal reports this refund as failed or cancelled: review required. Nothing was changed, and nothing is retried.")
+    if result == "NO_ANSWER":
+        return refund_unavailable()
+    return refund_response("This refund cannot be checked now. Open a fresh refund page.", 409)
+
+
 # Cancelling an open authorization is its own decision, shown for one hold at a time (D93).
 @app.route("/admin/events/<int:event_id>/refunds/holds/<int:hold_id>/cancel")
 def refund_cancel_confirmation(event_id, hold_id):
