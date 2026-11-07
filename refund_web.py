@@ -319,10 +319,12 @@ def refund_is_unsent(row):
             and row["operation_revision"] == 0)
 
 
-# A hold the preflight read as still open (PENDING) and nobody has started cancelling.
+# A hold the preflight read as still open (PENDING) and nobody has started cancelling. A hold with any
+# recorded completed capture is never open: that money moved, so it can never be offered for cancelling (D93).
 def open_hold(records, hold_id):
     for hold in records["holds"]:
-        if (hold["id"] == hold_id and hold["status"] == "CREATED" and hold["refund_check_status"] == "PENDING"
+        paid = [row for row in records["captures"] if row["hold_id"] == hold_id and row["status"] in ("COMPLETED", "REFUNDED")]
+        if (not paid and hold["id"] == hold_id and hold["status"] == "CREATED" and hold["refund_check_status"] == "PENDING"
                 and hold["void_run_token"] is None and isinstance(hold["auth_id"], str) and hold["auth_id"].strip()):
             return hold
     return None

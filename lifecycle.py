@@ -2228,6 +2228,11 @@ def preflight_one_hold(conn, snapshot, paypal):
     if seen is None:
         return False
     if seen == "CREATED":
+        # A hold we saved as anything but CREATED, or that has a recorded completed capture, is not open.
+        # PayPal's answer disagrees with our records: save nothing and let a person look (as review_saved_hold does).
+        if snapshot["status"] != "CREATED" or hold_has_known_capture(conn, snapshot["id"]):
+            logger.warning("hold %d: PayPal says CREATED but our records say otherwise. Nothing was changed", snapshot["id"])
+            return False
         check = "PENDING"
     else:
         check = refund_check_for(seen)
@@ -2297,6 +2302,8 @@ def claim_cancel_hold(conn, event_id, hold_id):
         if event is None or hold is None or event["status"] != "NEEDS_ATTENTION" or hold["event_id"] != event_id:
             return None
         if hold["status"] != "CREATED" or hold["refund_check_status"] != "PENDING":
+            return None
+        if hold_has_known_capture(conn, hold_id):
             return None
         return claim_void_operation(conn, hold_id, False)
 

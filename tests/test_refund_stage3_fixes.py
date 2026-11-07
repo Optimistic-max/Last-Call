@@ -301,6 +301,42 @@ def test_the_locked_claim_refuses_a_hold_the_preflight_has_not_seen_open(web_cas
     assert fake_paypal.calls == []
 
 
+# A hold we saved as CAPTURED, with a completed capture, must never be offered for cancelling, even if
+# a (wrong or late) PayPal read says CREATED. Nothing is overwritten (same rule as review_saved_hold).
+def test_a_captured_hold_that_paypal_reads_as_created_is_left_alone_and_not_offered(web_case, caplog):
+    person = captured_person(web_case)
+    client = app.app.test_client()
+    unlock(client, web_case)
+    fake_paypal.next_answers["get_authorization"] = [fake_paypal.hold_read_back("CREATED", person["auth_id"])]
+    before = hold_row(web_case["conn"], person["hold_id"])
+    with caplog.at_level("WARNING"):
+        answer = preflight(client, web_case).get_json()
+    assert answer["error"] is True and answer["done"] is False
+    assert hold_row(web_case["conn"], person["hold_id"]) == before
+    assert before["status"] == "CAPTURED" and before["refund_check_status"] is None
+    assert fake_paypal.called_functions() == ["get_authorization"]
+    warnings = [record.getMessage() for record in caplog.records if record.levelname == "WARNING"]
+    assert any(str(person["hold_id"]) in message for message in warnings)
+    assert not any(person["auth_id"] in message for message in warnings)
+    text = get(client, path(web_case, "/confirm")).get_data(as_text=True)
+    assert cancel_path(web_case, person["hold_id"]) not in text
+    assert get(client, cancel_path(web_case, person["hold_id"])).status_code == 409
+
+
+# Even a hold that still says CREATED and PENDING is never offered once a completed capture is recorded.
+def test_a_hold_with_a_completed_capture_is_never_offered_for_cancelling(web_case):
+    person = captured_person(web_case)
+    db.run(web_case["conn"], "UPDATE holds SET status = 'CREATED', refund_check_status = 'PENDING' WHERE id = %s", (person["hold_id"],))
+    client = app.app.test_client()
+    unlock(client, web_case)
+    text = get(client, path(web_case, "/confirm")).get_data(as_text=True)
+    assert cancel_path(web_case, person["hold_id"]) not in text
+    assert get(client, cancel_path(web_case, person["hold_id"])).status_code == 409
+    assert lifecycle.claim_cancel_hold(web_case["conn"], web_case["event_id"], person["hold_id"]) is None
+    assert hold_row(web_case["conn"], person["hold_id"])["void_run_token"] is None
+    assert fake_paypal.calls == []
+
+
 def test_cancel_with_an_unconfirmed_read_back_keeps_the_claim_blocked(web_case):
     person = open_hold(web_case)
     client = app.app.test_client()

@@ -291,9 +291,9 @@ Fill in as you go. Nothing has been run yet.
 
 | Date | Branch | Status query result (before) | Migrations run | Verified (V1..V6) | By |
 |---|---|---|---|---|---|
-| | test | | | | |
-| | dev | | | | |
-| | production | | | | |
+| Nov 7, ~12:00 PM ET | test | 000 base schema: APPLIED (3 of 3). 001: not applied (0 of 4). 002: not applied (0 of 2). 003: not applied (0 of 3). 004: not applied (0 of 1). 005: not applied (0 of 2). 006: not applied (0 of 3). No PARTIAL rows. | none | n/a (status check only) | |
+| Nov 7, ~12:00 PM ET | dev | 000 base schema: APPLIED (3 of 3). 001: not applied (0 of 4). 002: not applied (0 of 2). 003: not applied (0 of 3). 004: not applied (0 of 1). 005: not applied (0 of 2). 006: not applied (0 of 3). No PARTIAL rows. | none | n/a (status check only) | |
+| Nov 7, ~12:00 PM ET | production | 000 base schema: APPLIED (3 of 3). 001: not applied (0 of 4). 002: not applied (0 of 2). 003: not applied (0 of 3). 004: not applied (0 of 1). 005: not applied (0 of 2). 006: not applied (0 of 3). No PARTIAL rows. | none | n/a (status check only) | |
 
 ## Files this runbook depends on
 
