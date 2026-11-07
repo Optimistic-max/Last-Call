@@ -1,6 +1,6 @@
 # Migration runbook: applying the F7 migrations to Neon
 
-Status of this document: written Nov 7 from the repo. **Neon status (Nov 7): migrations 001 to 006 are applied on the probe branch and on dev. The test and production branches do not have them.** See the Results log. Every block marked `sql` below was run on the disposable local PostgreSQL (all six migrations applied there) in a session set to read-only, and returned the expected rows (VERIFIED, local only). The Step 0 probe was run once on that cluster and left nothing behind (VERIFIED for PostgreSQL's behaviour only). How the Neon SQL Editor itself treats `BEGIN`/`COMMIT` is `unverified`; Step 0 tests that on a throwaway branch before you trust it.
+Status of this document: written Nov 7 from the repo. **Neon status (Nov 7): migrations 001 to 006 are applied on the probe branch, dev and test. Only production does not have them.** See the Results log. Every block marked `sql` below was run on the disposable local PostgreSQL (all six migrations applied there) in a session set to read-only, and returned the expected rows (VERIFIED, local only). The Step 0 probe was run once on that cluster and left nothing behind (VERIFIED for PostgreSQL's behaviour only). How the Neon SQL Editor itself treats `BEGIN`/`COMMIT` is `unverified`; Step 0 tests that on a throwaway branch before you trust it.
 
 **This runbook applies nothing. Do not run any migration until the two gates below are met.**
 
@@ -297,6 +297,7 @@ Fill in as you go. Nothing has been run yet.
 | Nov 7, ~1:10 PM ET | probe branch (copy of test) | not recorded | 001 to 006 (full rehearsal), with P1 | V1 to V6 passed; status query: all APPLIED. Step 0 probe passed: the editor rolls back a failed script, but you must click ROLLBACK. | Emmanuel |
 | Nov 7, ~1:20 PM ET | dev | P2 = 0 | 001 to 006 | V2: legacy_markers = 0 (13 holds). Status query: all APPLIED. | Emmanuel |
 | Nov 7, ~1:20 PM ET | test | n/a | skipped by choice: tests run on the local cluster through run_local_tests.py; the Neon test branch does NOT have 001–006, so plain pytest must not be used on this branch until it's migrated | n/a | Emmanuel |
+| Nov 7, ~1:35 PM ET | test | P2 = 0 | 001 to 006 | V2: legacy_markers = 0 (18 holds). Status query: all APPLIED. | Emmanuel |
 
 ## Files this runbook depends on
 
