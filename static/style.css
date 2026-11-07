@@ -1,4 +1,4 @@
-/* Last Call styles: a clean light dashboard in black and white (docs/UI_DESIGN.md section 8).
+/* Last Call styles: a black-and-white dashboard with soft grey light (docs/UI_DESIGN.md section 8).
    Phone first: the normal rules are for a phone. The one media query near the bottom
    adjusts things for laptops, from 1024px wide. */
 
@@ -12,13 +12,24 @@
   --card: #FFFFFF;         /* cards */
   --ink: #0B0B0B;          /* main text, primary buttons, featured cards, counted */
   --ink-2: #5C5C5C;        /* secondary text */
-  --ink-3: #8A8A8A;        /* 3.45:1 on white: too faint for text, so no text uses it */
+  --ink-3: #8A8A8A;        /* 3.45:1 on white: too faint for small text, so it is for large text only */
   --line: #E5E5E2;         /* borders and dividers */
   --held: #9A9A9A;         /* held but not counted, in the gauge */
   --on-ink: #FFFFFF;       /* text on black */
   --on-ink-2: #BDBDBD;     /* quieter text on black */
   --danger: #B42318;       /* only Declined, Charge failed, Needs attention, always with a word */
   --danger-bg: #FDECEA;
+
+  /* The greys that gradients are made of. No other hue appears on the page. */
+  --grey-50: #FAFAF9;
+  --grey-100: #F3F3F1;
+  --grey-200: #E8E8E5;
+  --grey-300: #D9D9D5;
+  --grey-800: #2A2A2A;
+  --grey-900: #161616;
+
+  /* Fine noise laid over every gradient, so it never shows bands. */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
 
   --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --text-display: 2.5rem;  /* 40px: the big numbers */
@@ -30,7 +41,7 @@
   --gutter: 16px;
   --card-padding: 20px;
   --card-gap: 12px;
-  --banner-height: 32px;
+  --banner-height: 28px;
   --button-height: 48px;
 
   --radius-card: 24px;
@@ -44,9 +55,8 @@
   --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08), 0 24px 48px rgba(0, 0, 0, 0.06);
   --shadow-floating: 0 2px 4px rgba(0, 0, 0, 0.05), 0 12px 32px rgba(0, 0, 0, 0.10);
   --shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.06), 0 16px 40px rgba(0, 0, 0, 0.12);
-  --button-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  --button-shadow-hover: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 16px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  --button-shadow-pressed: 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --button-lit: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 20px rgba(0, 0, 0, 0.18);
+  --button-pressed: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 2px 6px rgba(0, 0, 0, 0.18);
 
   --landing-header-height: 64px;
 
@@ -82,15 +92,28 @@ html {
 /* tabular-nums gives every digit the same width, so money and times never jump. */
 body {
   margin: 0;
-  background-color: var(--page);
-  background-image: radial-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px);
-  background-size: 20px 20px;
+  background-color: var(--grey-100);
   color: var(--ink);
   font-family: var(--font);
   font-size: var(--text-body);
   font-variant-numeric: tabular-nums;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+}
+
+/* The page's light: two soft blooms and the grain, on one layer fixed to the screen.
+   A fixed layer works on iPhones, which ignore background-attachment: fixed, and it only has to
+   be drawn once, while a fixed background is repainted on every scroll. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--grain),
+    radial-gradient(70% 70% at 8% 0%, rgba(255, 255, 255, 0.9), transparent),
+    radial-gradient(70% 70% at 95% 100%, rgba(217, 217, 213, 0.5), transparent);
+  background-size: 200px 200px, auto, auto;
+  pointer-events: none;
 }
 
 /* Some rules below set display, which would beat the browser's own [hidden] rule. */
@@ -167,20 +190,18 @@ a {
 
 /* ---------- Sandbox banner (top of every page) ---------- */
 
-/* It stays on screen while the page scrolls, so the video always shows it. */
+/* The page's one sandbox notice. It is quiet, and it scrolls away with the page. */
 .sandbox-banner {
-  position: sticky;
-  top: 0;
-  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: var(--banner-height);
   margin: 0;
   padding: env(safe-area-inset-top, 0px) var(--gutter) 0;
-  background: var(--ink);
-  color: var(--on-ink);
-  font-size: var(--text-caption);
+  background: var(--grey-100);
+  color: var(--ink-2);
+  font-size: 0.75rem;
+  font-weight: 500;
   text-align: center;
 }
 
@@ -231,7 +252,7 @@ a {
   min-height: 44px;
   padding: 0 16px;
   border-radius: 999px;
-  background: var(--card);
+  background: transparent;
   color: var(--ink-2);
   font-weight: 500;
   text-decoration: none;
@@ -249,28 +270,6 @@ a {
 /* The pills stay short on a phone, so all three fit without scrolling. */
 .nav-item .icon {
   display: none;
-}
-
-.nav-item[aria-current="page"] {
-  background: var(--ink);
-  color: var(--on-ink);
-}
-
-/* The sidebar's black card is for laptops. Phones have the banner. */
-.sandbox-card {
-  display: none;
-}
-
-.sandbox-card-title {
-  margin: 0 0 4px;
-  font-size: var(--text-card);
-  font-weight: 500;
-}
-
-.sandbox-card-text {
-  margin: 0;
-  color: var(--on-ink-2);
-  font-size: var(--text-caption);
 }
 
 .shell-content {
@@ -306,6 +305,7 @@ a {
   left: 0;
   z-index: 15;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid rgba(0, 0, 0, 0.06);
@@ -336,8 +336,9 @@ a {
 .card {
   padding: var(--card-padding);
   border-radius: var(--radius-card);
-  background: var(--card);
+  background: linear-gradient(180deg, var(--card), var(--grey-50));
   box-shadow: var(--shadow-rest), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--line);
 }
 
 .card-title {
@@ -346,18 +347,31 @@ a {
   font-weight: 500;
 }
 
-/* A black card with the ribbed picture behind it. The 60% dark layer on top keeps text
-   readable: over the picture's brightest pixel, white is 6:1 and the quieter text below
-   is 4.7:1, so quiet text is a lighter grey here than on plain black. */
-.photo-card {
-  --on-ink-2: #E5E5E5;
-  background-color: var(--ink);
-  background-image: linear-gradient(rgba(11, 11, 11, 0.6), rgba(11, 11, 11, 0.6)),
-    url("images/ribbed-dark.jpg");
-  background-position: center;
-  background-size: cover;
+/* A black card with soft light falling from the top left. .card-bloom is an empty element inside
+   the card that holds the light and the grain, and keeps them inside the rounded corners. */
+.light-card {
+  position: relative;
+  isolation: isolate;
+  border-color: rgba(255, 255, 255, 0.08);
+  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), #0B0B0B 70%);
   box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   color: var(--on-ink);
+}
+
+.card-bloom {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.card-bloom::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain), radial-gradient(circle farthest-corner at 0% 0%, rgba(255, 255, 255, 0.07), transparent 60%);
 }
 
 /* ---------- Avatars ---------- */
@@ -384,29 +398,47 @@ a {
 
 /* ---------- Buttons ---------- */
 
-/* The primary button: a black pill. .button-link is a real link that goes to another
-   page and looks the same. It presses in as soon as a finger lands. */
+/* The primary button: a black pill with light along its top edge. .button-link is a real link
+   that goes to another page and looks the same. It presses in as soon as a finger lands. */
 button,
 .button-link {
+  position: relative;
+  isolation: isolate;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   min-height: var(--button-height);
   padding: 0 20px;
-  border: 1px solid var(--ink);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 999px;
-  background: var(--ink);
-  box-shadow: var(--button-shadow);
+  background: linear-gradient(180deg, #3A3A3A, #0B0B0B);
+  box-shadow: var(--button-lit);
   color: var(--on-ink);
   font: inherit;
-  font-weight: 500;
+  font-size: var(--text-body);
+  font-weight: 600;
   text-decoration: none;
   cursor: pointer;
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
-  transition: transform 120ms var(--ease-out), background-color 200ms ease;
+  transition: transform 120ms var(--ease-out);
+}
+
+/* A layer waits on each button and fades in on hover, because fading a layer is cheap and
+   animating a gradient is not. On a primary button it brightens the pill one step. */
+button::before,
+.button-link::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.10);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
 }
 
 /* A button that can't be pressed yet looks clearly switched off. */
@@ -418,10 +450,29 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.button-secondary {
-  background: var(--card);
-  box-shadow: none;
+button:disabled::before {
+  display: none;
+}
+
+/* Frosted glass: the quiet buttons, the current menu item and the small round buttons. */
+.button-secondary,
+.icon-button,
+.nav-item[aria-current="page"] {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.65);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   color: var(--ink);
+}
+
+.button-secondary {
+  font-weight: 500;
+}
+
+/* Hover takes the glass from 65% to 85% white. */
+.button-secondary::before {
+  background: rgba(255, 255, 255, 0.57);
 }
 
 .button-full {
@@ -430,23 +481,23 @@ button:disabled {
 
 /* Leaving is the only red button, and its word says what it does. */
 .button-danger {
-  border-color: var(--danger);
   color: var(--danger);
 }
 
-/* A 40px circle. The invisible ::after ring makes the tap target 44px. */
+/* A 40px circle. Its ::after is an invisible ring that makes the tap target 46px. */
 .icon-button {
   position: relative;
+  display: inline-flex;
   flex: none;
+  align-items: center;
+  justify-content: center;
   width: 40px;
   height: 40px;
   min-height: 0;
   padding: 0;
-  border-color: var(--line);
   border-radius: 50%;
-  background: transparent;
-  box-shadow: none;
-  color: var(--ink);
+  touch-action: manipulation;
+  transition: transform 120ms var(--ease-out);
 }
 
 .icon-button::after {
@@ -456,45 +507,44 @@ button:disabled {
   border-radius: 50%;
 }
 
-.photo-card .icon-button {
-  border-color: var(--on-ink-2);
-  color: var(--on-ink);
-}
-
-a.icon-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--line);
-  transition: transform 120ms var(--ease-out), background-color 200ms ease;
-  touch-action: manipulation;
-}
-
-a.icon-button:active {
+.icon-button:active {
   transform: scale(0.97);
+}
+
+/* On a black card the small round button is dark glass. */
+.light-card .icon-button {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: var(--on-ink);
 }
 
 /* Only a real mouse gets hover looks, because a tap would leave them stuck on a phone. */
 @media (hover: hover) and (pointer: fine) {
-  button:hover:not(:disabled),
-  .button-link:hover {
-    background: #2A2A2A;
-  }
-
-  .button-secondary:hover:not(:disabled) {
-    background: var(--page);
+  button:hover:not(:disabled)::before,
+  .button-link:hover::before {
+    opacity: 1;
   }
 
   .icon-button:hover {
-    background: var(--page);
+    background: rgba(255, 255, 255, 0.85);
+  }
+
+  .light-card .icon-button:hover {
+    background: rgba(255, 255, 255, 0.2);
   }
 
   .nav-item:hover {
     color: var(--ink);
   }
+}
 
-  .nav-item[aria-current="page"]:hover {
-    color: var(--on-ink);
+/* Where glass isn't possible, a stronger white does the same job. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .button-secondary,
+  .icon-button,
+  .nav-item[aria-current="page"] {
+    background: rgba(255, 255, 255, 0.92);
   }
 }
 
@@ -547,7 +597,7 @@ textarea:focus {
 
 input:disabled,
 textarea:disabled {
-  background: var(--page);
+  background: var(--grey-100);
   color: var(--ink-2);
 }
 
@@ -627,7 +677,7 @@ input[type="checkbox"] {
   margin: 0 0 20px;
   padding: 12px 16px;
   border-radius: var(--radius-inner);
-  background: var(--page);
+  background: var(--grey-100);
 }
 
 /* The pledge page's three steps are sections of one card, split by a line. */
@@ -651,6 +701,9 @@ input[type="checkbox"] {
 
 .check-message {
   margin: 12px 0 0;
+  padding: 12px 16px;
+  border-radius: var(--radius-inner);
+  background: var(--grey-100);
 }
 
 .check-message:empty,
@@ -728,6 +781,33 @@ input.ai-filled {
   margin: 4px 0;
 }
 
+/* The last resort when a browser won't copy: the link, ready to press and hold. It takes a whole
+   line under whichever button asked for it. */
+.manual-copy {
+  flex: 1 0 100%;
+  margin-top: 8px;
+}
+
+.manual-copy p {
+  margin: 0 0 4px;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+}
+
+.manual-copy input {
+  min-height: 44px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* The hidden box the older way of copying needs. It has to exist on the page, so it sits off
+   screen. Its 16px text stops an iPhone zooming in for a moment. */
+.copy-helper {
+  position: fixed;
+  top: 0;
+  left: -9999px;
+}
+
 .private-note {
   display: flex;
   align-items: center;
@@ -748,13 +828,14 @@ input.ai-filled {
   gap: var(--card-gap);
 }
 
-/* Anchored cards stop clear of the sticky banner. */
+/* Anchored cards stop a little below the top of the screen. */
 .board [id] {
-  scroll-margin-top: calc(var(--banner-height) + 12px);
+  scroll-margin-top: 12px;
 }
 
 .card-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -763,6 +844,12 @@ input.ai-filled {
 
 .card-head .card-title {
   margin-bottom: 0;
+}
+
+.invite-hint {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
 }
 
 /* The status card */
@@ -792,10 +879,31 @@ input.ai-filled {
   container-type: inline-size;
 }
 
+/* Soft light and grain. The layer is bigger than the card, so its light can drift during last call
+   without showing an edge. */
+.countdown-card .card-bloom::before {
+  inset: -15%;
+  background-image: var(--grain),
+    radial-gradient(circle farthest-corner at 15% 10%, rgba(255, 255, 255, 0.08), transparent 60%);
+}
+
 /* The auto margins center the time in whatever height the card has. */
 .board-time {
   margin: auto 0;
   font-size: min(var(--text-display), 24cqi);
+}
+
+/* It sits with the time it explains. The rounded corners suit one line or two, because a narrow
+   card on a laptop wraps these words. */
+.demo-badge {
+  align-self: flex-start;
+  margin: 12px 0 0;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+  color: var(--on-ink-2);
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 /* The totals: a swipeable row on a phone. Each card is 78% wide so the next one peeks in.
@@ -851,7 +959,7 @@ input.ai-filled {
   font-weight: 500;
 }
 
-.photo-card .stat-caption {
+.light-card .stat-caption {
   color: var(--on-ink-2);
 }
 
@@ -1046,6 +1154,7 @@ input.ai-filled {
 
 .board-rows li[data-status="HOLD_PENDING"] .row-chip {
   border-style: dashed;
+  border-color: var(--line);
 }
 
 .board-rows li[data-status="HELD"] .row-chip {
@@ -1108,15 +1217,42 @@ input.ai-filled {
 
 /* Last call: the status card turns black. It is the same element all along, so a
    transition does it, and the 10-second refresh can't restart it. */
+.status-card {
+  position: relative;
+  isolation: isolate;
+}
+
+.status-card .card-bloom {
+  opacity: 0;
+  transition: opacity 300ms var(--ease-out);
+}
+
+.status-card .card-bloom {
+  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), #0B0B0B 70%);
+}
+
+.status-card .card-bloom::before {
+  background-image: var(--grain), radial-gradient(circle farthest-corner at 0% 0%, rgba(255, 255, 255, 0.07), transparent 60%);
+}
+
+.board[data-status="LAST_CALL"] .status-card .card-bloom {
+  opacity: 1;
+}
+
 .board[data-status="LAST_CALL"] .status-card {
-  background: var(--ink);
   color: var(--on-ink);
 }
 
 .board[data-status="LAST_CALL"] .status-button {
   border-color: var(--on-ink);
   background: var(--on-ink);
+  box-shadow: var(--shadow-floating);
   color: var(--ink);
+}
+
+/* The countdown card's light drifts slowly during last call. Only a layer moves. */
+.board[data-status="LAST_CALL"] .countdown-card .card-bloom::before {
+  animation: bloom-drift 4s ease-in-out infinite alternate;
 }
 
 /* First load: the cards rise and fade in one after another. These elements are never rebuilt,
@@ -1151,7 +1287,7 @@ input.ai-filled {
 /* The circle turns black together: no delay, so they change at the same moment. */
 .row-just-counted .row-chip,
 .row-just-counted .row-avatar {
-  animation: turn-black 200ms var(--ease-out);
+  animation: turn-counted 200ms var(--ease-out);
 }
 
 .just-pledged {
@@ -1205,8 +1341,13 @@ input.ai-filled {
   from { opacity: 0; transform: translateY(8px); }
 }
 
-@keyframes turn-black {
+@keyframes turn-counted {
   from { background-color: var(--line); color: var(--ink); }
+}
+
+@keyframes bloom-drift {
+  from { transform: translate(-5%, 4%); }
+  to { transform: translate(5%, -4%); }
 }
 
 @keyframes fade-in {
@@ -1251,16 +1392,16 @@ input.ai-filled {
 
 /* ---------- Landing page (top of S1) ---------- */
 
-/* Anchored sections stop clear of the sticky banner and header. */
+/* Anchored sections stop clear of the sticky header. */
 .landing section[id] {
-  scroll-margin-top: calc(var(--banner-height) + var(--landing-header-height) + 16px);
+  scroll-margin-top: calc(var(--landing-header-height) + 16px);
 }
 
 /* Glass: the bar stays readable because 72% white sits behind its text. Where a browser
    has no backdrop-filter, the @supports rule further down makes it solid white. */
 .landing-header {
   position: sticky;
-  top: var(--banner-height);
+  top: 0;
   z-index: 18;
   display: flex;
   align-items: center;
@@ -1314,13 +1455,15 @@ input.ai-filled {
   padding: 0 16px;
 }
 
-/* The canvas: a big rounded panel with a faint dot grid. overflow keeps the pieces inside it. */
+/* The canvas: a big rounded panel on the page's own light, a little brighter behind the logo. Its
+   ::before holds that behind everything. overflow keeps the pieces inside it. */
 .hero {
   padding: 16px 16px 0;
 }
 
 .hero-canvas {
   position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1330,13 +1473,20 @@ input.ai-filled {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 32px;
-  background-color: var(--page);
-  background-image: radial-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px);
-  background-size: 20px 20px;
+  background-color: transparent;
   text-align: center;
 }
 
-/* The logo as a raised app tile. Scrolling moves .hero-tile; hover wiggles the face inside it. */
+.hero-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--grain),
+    radial-gradient(45% 55% at 50% 35%, #FFFFFF, transparent);
+}
+
+/* The logo as a raised white tile. Scrolling moves .hero-tile; hover wiggles the face inside it. */
 .hero-tile {
   flex: none;
   width: 96px;
@@ -1352,6 +1502,7 @@ input.ai-filled {
   background: var(--card);
   box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.8);
   place-items: center;
+  border: 1px solid var(--line);
 }
 
 .hero-tile-face img {
@@ -1366,34 +1517,18 @@ input.ai-filled {
 }
 
 /* Two lines at every width: below 580px the size follows the screen, because 44px
-   "unless everyone's in." would need a third line on a phone. */
+   "unless the goal is met." would not fit a phone on one line. */
 .hero-title {
+  margin: 0 0 32px;
   font-size: min(2.75rem, 7.6vw);
-  letter-spacing: -0.04em;
+  font-weight: 800;
+  letter-spacing: -0.045em;
   line-height: 1;
 }
 
 .hero-line {
   display: block;
   white-space: nowrap;
-}
-
-/* Your #9A9A9A is 2.5:1 on this page. --ink-3 looks the same and passes for text this large. */
-.hero-line-soft {
-  color: var(--ink-3);
-}
-
-.hero-lead {
-  max-width: 46ch;
-  margin: 16px 0 20px;
-  color: var(--ink-2);
-  font-size: 1rem;
-}
-
-.hero-note {
-  margin: 8px 0 0;
-  color: var(--ink-2);
-  font-size: var(--text-caption);
 }
 
 /* The floating pieces. .piece is where it sits and what scrolling moves. .piece-body tilts
@@ -1412,6 +1547,7 @@ input.ai-filled {
   box-shadow: var(--shadow-floating), inset 0 1px 0 rgba(255, 255, 255, 0.8);
   text-align: left;
   transform: rotate(var(--tilt, 0deg)) scale(var(--piece-scale, 1));
+  border: 1px solid var(--line);
 }
 
 .piece-body p {
@@ -1455,6 +1591,7 @@ input.ai-filled {
 .piece-chip-outline {
   display: inline-block;
   border-color: var(--ink);
+  color: var(--ink);
 }
 
 .piece-avatars {
@@ -1469,9 +1606,10 @@ input.ai-filled {
 
 .piece-black {
   min-width: 140px;
-  background: var(--ink);
+  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), #0B0B0B 70%);
   box-shadow: var(--shadow-floating), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   color: var(--on-ink);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .piece-black .piece-caption {
@@ -1514,6 +1652,7 @@ input.ai-filled {
   font-size: 1.0625rem;
   font-weight: 500;
   line-height: 1.3;
+  color: var(--ink);
 }
 
 .piece-pin {
@@ -1658,17 +1797,7 @@ input.ai-filled {
   }
 }
 
-/* The pieces are glass on a bigger screen only. Blur behind something that moves is heavy on
-   a phone, and there it would only blur the dots. */
 @media (min-width: 768px) {
-  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .glass {
-      background: rgba(255, 255, 255, 0.8);
-      -webkit-backdrop-filter: blur(12px);
-      backdrop-filter: blur(12px);
-    }
-  }
-
   /* Four pieces, in the corners. The canvas keeps enough height for them to clear the words. */
   .hero-canvas {
     min-height: max(calc(100dvh - var(--banner-height) - var(--landing-header-height) - 24px), 860px);
@@ -1699,7 +1828,7 @@ input.ai-filled {
   }
 }
 
-/* Solid white where glass isn't possible. Text on it passes either way. */
+/* Solid where glass isn't possible. Text on it passes either way. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .landing-header,
   .page-actions {
@@ -1707,10 +1836,18 @@ input.ai-filled {
   }
 }
 
-/* Solid white too for anyone who asked their device for less transparency. */
+/* Solid surfaces too for anyone who asked their device for less transparency. */
 @media (prefers-reduced-transparency: reduce) {
   .landing-header,
   .page-actions {
+    background: var(--card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .button-secondary,
+  .icon-button,
+  .nav-item[aria-current="page"] {
     background: var(--card);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
@@ -1741,10 +1878,6 @@ input.ai-filled {
     font-size: 3.5rem;
   }
 
-  .hero-lead {
-    font-size: 1.125rem;
-  }
-
   .landing-nav {
     display: flex;
     position: absolute;
@@ -1766,7 +1899,10 @@ input.ai-filled {
   .hero-title {
     font-size: 4.5rem;
   }
+}
 
+/* The 72px headline needs the ring and the waiting card near the edges until here. */
+@media (min-width: 1366px) {
   .piece-ring { left: 5%; }
   .piece-waiting { right: 6%; }
 }
@@ -1875,6 +2011,230 @@ input.ai-filled {
 }
 
 
+/* ---------- The share panel (S2, S3) ---------- */
+
+/* A native dialog: it traps focus, Esc closes it, and focus goes back to the button that opened it.
+   On a phone it is a sheet along the bottom of the screen. */
+.share-panel {
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(100dvh - 24px);
+  margin: auto 0 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+}
+
+/* The page behind the panel stays still. share.js measures the scrollbar that goes away, and the
+   padding fills its place, so the page doesn't jump sideways. */
+html:has(.share-panel[open]) {
+  padding-right: var(--scrollbar-width, 0);
+  overflow: hidden;
+}
+
+.share-panel::backdrop {
+  background: rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  animation: fade-in 300ms ease;
+}
+
+.share-sheet {
+  position: relative;
+  max-height: calc(100dvh - 24px);
+  padding: 0 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  border-radius: 24px 24px 0 0;
+  background: linear-gradient(180deg, var(--card), var(--grey-50));
+  box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: transform 200ms var(--ease-out);
+}
+
+.share-sheet.is-dragging {
+  transition: none;
+}
+
+.share-panel[open] .share-sheet {
+  animation: sheet-up 300ms var(--ease-out);
+}
+
+.share-panel.is-closing .share-sheet {
+  animation: sheet-down 200ms ease-in forwards;
+}
+
+.share-panel.is-closing::backdrop {
+  animation: fade-away-now 200ms ease forwards;
+}
+
+/* The grab handle's area is 44px tall, and touch-action hands its drags to share.js. */
+.share-grab {
+  display: flex;
+  justify-content: center;
+  height: 44px;
+  margin: 0 -20px;
+  padding-top: 10px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.share-grab::before {
+  content: "";
+  flex: none;
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--grey-300);
+}
+
+.share-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.share-title {
+  margin: 0 48px 4px 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.share-note {
+  margin: 0 0 16px;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+}
+
+.share-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+/* The link with its dots in the middle: the start gives way, and the end always shows. */
+.share-link-field {
+  display: flex;
+  flex: 1 1 8rem;
+  align-items: center;
+  min-width: 0;
+  min-height: 48px;
+  margin: 0;
+  padding: 0 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-field);
+  background: var(--grey-100);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.share-link-start {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.share-link-end {
+  flex: none;
+}
+
+.share-link-row button {
+  flex: none;
+}
+
+.share-with {
+  margin: 0 0 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* The row scrolls sideways if it doesn't fit, with no visible scrollbar. */
+.share-tiles {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 -20px 16px;
+  padding: 4px 20px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-padding: 0 20px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.share-tiles::-webkit-scrollbar {
+  display: none;
+}
+
+.share-tile {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 64px;
+  border-radius: var(--radius-field);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  text-decoration: none;
+  scroll-snap-align: start;
+  touch-action: manipulation;
+  animation: card-enter 300ms var(--ease-out) backwards;
+  animation-delay: calc(var(--tile, 0) * 30ms);
+}
+
+.share-tile:nth-child(2) { --tile: 1; }
+.share-tile:nth-child(3) { --tile: 2; }
+.share-tile:nth-child(4) { --tile: 3; }
+
+.share-tile-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 50%;
+  background: var(--grey-100);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: transform 120ms var(--ease-out);
+}
+
+.share-tile:active .share-tile-icon {
+  transform: scale(0.95);
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+}
+
+@keyframes sheet-down {
+  to { transform: translateY(100%); }
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+
+@keyframes dialog-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .share-tile:hover .share-tile-icon {
+    transform: translateY(-2px);
+  }
+}
+
+
 /* ---------- Depth, hover and wiggle, site-wide ---------- */
 
 /* A card's bigger shadow lives on a layer that only fades. Animating box-shadow itself
@@ -1897,9 +2257,8 @@ input.ai-filled {
   transition: opacity 250ms var(--ease-out);
 }
 
-/* The status card also changes color during last call. */
 .board .status-card {
-  transition: transform 250ms var(--ease-out), background-color 300ms var(--ease-out), color 300ms var(--ease-out);
+  transition: transform 250ms var(--ease-out), color 300ms var(--ease-out);
 }
 
 .row-avatar {
@@ -1932,7 +2291,7 @@ input.ai-filled {
 
   .board-rows li:hover {
     border-radius: 12px;
-    background: var(--page);
+    background: var(--grey-100);
   }
 
   .board-rows li:hover .row-avatar {
@@ -1946,12 +2305,7 @@ input.ai-filled {
 
   button:hover:not(:disabled):not(.icon-button),
   .button-link:hover {
-    box-shadow: var(--button-shadow-hover);
     transform: translateY(-1px);
-  }
-
-  .button-secondary:hover:not(:disabled) {
-    box-shadow: none;
   }
 
   /* The logo wiggles when pointed at. Never money, the countdown or a status chip. */
@@ -1964,12 +2318,13 @@ input.ai-filled {
 /* A press comes last, so it beats hover. The shadow shrinks as the button goes in. */
 button:active:not(:disabled),
 .button-link:active {
-  box-shadow: var(--button-shadow-pressed);
+  box-shadow: var(--button-pressed);
   transform: scale(0.97);
 }
 
+.button-secondary:active:not(:disabled),
 .icon-button:active:not(:disabled) {
-  box-shadow: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 /* Wiggle: sometimes, never constantly. Shake is for a field with an error. */
@@ -2005,7 +2360,7 @@ button:active:not(:disabled),
   outline-offset: 2px;
 }
 
-.photo-card :focus-visible {
+.light-card :focus-visible {
   outline-color: var(--on-ink);
 }
 
@@ -2031,11 +2386,10 @@ button:active:not(:disabled),
 
   .shell-side {
     position: sticky;
-    top: var(--banner-height);
+    top: 0;
     flex: none;
     width: 248px;
-    height: calc(100dvh - var(--banner-height));
-    padding-bottom: 24px;
+    height: 100dvh;
   }
 
   .wordmark {
@@ -2050,7 +2404,7 @@ button:active:not(:disabled),
     overflow-x: visible;
   }
 
-  /* Menu items become plain lines. A 4px black bar on the left edge marks the page you're on. */
+  /* The menu fills the sidebar. The page you're on is a glass bar, the others are plain words. */
   .nav-item .icon {
     display: block;
   }
@@ -2058,36 +2412,9 @@ button:active:not(:disabled),
   .nav-item {
     display: flex;
     gap: 12px;
-    padding: 0 16px 0 var(--gutter);
-    border-radius: 0;
-    background: transparent;
-  }
-
-  .nav-item[aria-current="page"] {
-    background: transparent;
-    color: var(--ink);
-  }
-
-  .nav-item[aria-current="page"]::before {
-    content: "";
-    position: absolute;
-    top: 8px;
-    bottom: 8px;
-    left: 0;
-    width: 4px;
-    border-radius: 0 4px 4px 0;
-    background: var(--ink);
-  }
-
-  .nav-item[aria-current="page"]:hover {
-    color: var(--ink);
-  }
-
-  .sandbox-card {
-    display: block;
-    margin: auto 16px 0;
-    padding: 20px;
-    border-radius: var(--radius-card);
+    padding: 0 16px;
+    border-radius: 16px;
+    margin: 0 16px;
   }
 
   .page {
@@ -2178,6 +2505,37 @@ button:active:not(:disabled),
 }
 
 
+/* From a tablet up, the panel is a centered dialog. It has no bottom edge to slide from, so it rises
+   a little and fades, and the grab handle isn't needed. */
+@media (min-width: 768px) {
+  .share-panel {
+    width: 420px;
+    margin: auto;
+  }
+
+  .share-sheet {
+    padding: 24px;
+    border-radius: var(--radius-card);
+  }
+
+  .share-panel[open] .share-sheet {
+    animation: dialog-in 200ms var(--ease-out);
+  }
+
+  .share-panel.is-closing .share-sheet {
+    animation: dialog-out 200ms ease-in forwards;
+  }
+
+  .share-grab {
+    display: none;
+  }
+
+  .share-tiles {
+    justify-content: flex-start;
+  }
+}
+
+
 /* ---------- Wide laptops: the full dashboard ---------- */
 
 @media (min-width: 1200px) {
@@ -2196,7 +2554,7 @@ button:active:not(:disabled),
   /* The status card keeps its own height and stays in view beside a long list. */
   .board .status-card {
     position: sticky;
-    top: calc(var(--banner-height) + 12px);
+    top: 12px;
     align-self: start;
   }
 }
@@ -2213,5 +2571,14 @@ button:active:not(:disabled),
   *::after {
     animation: none !important;
     transition: none !important;
+  }
+
+  /* The share panel still needs to arrive and leave, so it fades instead of sliding. */
+  .share-panel[open] .share-sheet {
+    animation: fade-in 150ms ease !important;
+  }
+
+  .share-panel.is-closing .share-sheet {
+    animation: fade-away-now 150ms ease forwards !important;
   }
 }

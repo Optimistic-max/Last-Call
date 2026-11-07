@@ -25,19 +25,22 @@
   {%- if board.seconds_left is not none %} data-seconds-left="{{ board.seconds_left }}"{% endif %}>
 
   <div class="card status-card">
+    <span class="card-bloom" aria-hidden="true"></span>
     <h2 class="card-title">Right now</h2>
     <p class="board-banner" role="status">{{ board.banner_text }}</p>
     {{ pledge_link(board, "button-link status-button", new_tab=pledge_new_tab) }}
   </div>
 
-  <div class="card photo-card countdown-card" data-open-title="Time left" data-last-call-title="Last call" data-closed-text="Closed">
+  <div class="card light-card countdown-card" data-open-title="Time left" data-last-call-title="Last call" data-closed-text="Closed">
+    <span class="card-bloom" aria-hidden="true"></span>
     <h2 class="card-title board-time-title">{% if board.status == "LAST_CALL" %}Last call{% else %}Time left{% endif %}</h2>
     <p class="display-number board-time" role="timer">{% if board.seconds_left is none %}Closed{% endif %}</p>
+    {% if board.demo_mode %}<p class="demo-badge">Demo mode: timers are minutes, not hours</p>{% endif %}
   </div>
 
   <div class="board-stats" tabindex="0" role="group" aria-label="The totals">
-    {% set held_caption %}{% if board.status in ["DRAFT", "OPEN", "LAST_CALL"] %}PayPal is holding this. Nobody is charged yet.{% elif board.status == "SETTLED" %}Charged once.{% endif %}{% endset %}
-    {{ stat_card("Held so far", "board-held-total", board.held_total_text, "board-held-caption", held_caption, "progress", "Go to Progress", "photo-card") }}
+    {% set held_caption %}{% if board.status in ["OPEN", "LAST_CALL"] %}PayPal is holding this. Nobody is charged yet.{% elif board.status == "SETTLED" %}Charged once.{% endif %}{% endset %}
+    {{ stat_card("Held so far", "board-held-total", board.held_total_text, "board-held-caption", held_caption, "progress", "Go to Progress", "light-card") }}
     {% set counted_text %}{% if board.counted_total_text %}{{ board.counted_total_text }}{% elif counted_count == 1 %}1 person{% else %}{{ counted_count }} people{% endif %}{% endset %}
     {{ stat_card("Counted", "board-counted-total", counted_text, "", "Counts toward the goal", "whos-in", "Go to Who's in") }}
     {{ stat_card("People in", "board-people", board.rows|length, "board-waiting-count", waiting_count ~ " waiting on someone", "whos-in", "Go to Who's in") }}
@@ -76,6 +79,7 @@
     <div class="card-head">
       <h2 class="card-title">Who's in</h2>
       {{ share_button(invite_url, "Invite", class_name="button-secondary button-small board-invite", icon_name="plus", hidden=not board.pledging_open) }}
+      <p class="invite-hint"{% if board.status != "DRAFT" %} hidden{% endif %}>Invite opens when pledging starts</p>
     </div>
     <ul class="board-rows" data-max-label="{{ max_label }}" data-summary-max-label="{{ summary_max_label }}"
       data-share-label="{{ share_label }}" data-counted-label="{{ counted_label }}"

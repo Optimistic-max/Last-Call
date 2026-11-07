@@ -58,7 +58,7 @@ The pledge a friend types is sent to a third-party AI model, the AI provider set
 - `money.py` uses the sandbox fee rate (2.59% + $0.49, checked against real sandbox captures Nov 4 2026). PayPal's live US Advanced card rate on Nov 4 2026 was 2.89% + $0.29, so a live launch must re-check the rate.
 - The `pledger_token` is kept in the browser's `localStorage` after a hold. On a shared computer, the next person could open that friend's cancel page.
 
-## F7 treasurer refund controls (D91)
+## F7 treasurer refund controls (D92)
 
 The existing admin URL is not sufficient to send refunds. A separate high-entropy club approval key (32-256 characters) is provided to the treasurer outside that URL. Configure only its Werkzeug scrypt/pbkdf2 password hash as REFUND_APPROVAL_KEY_HASH. Never put the key into source, a URL, a shell argument, a screenshot, or a log. No enrollment or key reset is available through an admin link. This is a shared club credential, not personal accounts or MFA.
 

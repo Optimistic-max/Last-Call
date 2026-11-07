@@ -443,7 +443,7 @@ def finish_void_operation(conn, claim, void_answer, answer, sweep):
 
 
 # Read a void claim that is already owned. Locks are released before any PayPal call.
-# Nothing is written: a GET must not become permission to send the void again (D88).
+# Nothing is written: a GET must not become permission to send the void again (D89).
 def read_uncertain_void_claim(conn, hold_id):
     row = db.fetch_one(conn, "SELECT pledges.event_id FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
                              "WHERE holds.id = %s", (hold_id,))
@@ -646,7 +646,7 @@ def lock_and_charge(conn, event_id, now, paypal):
 # of its CREATED holds is voided by void_hold, which saves the void's PayPal-Request-Id first and reads
 # the hold back with a GET (rules 3 and 4); drop_pledges_without_a_hold then makes the pledge DROPPED.
 # A void that doesn't read back VOIDED is logged, and its pledge stays HELD with the hold CREATED.
-# An uncertain void keeps its owner; the sweep does not send it again (D88). It still can't be charged,
+# An uncertain void keeps its owner; the sweep does not send it again (D89). It still can't be charged,
 # because only `counted` is charged.
 # The log shows pledge and hold IDs only, never a name (docs/SECURITY.md).
 def void_uncounted_holds(conn, held, counted, paypal):
@@ -835,7 +835,7 @@ def expire_event(conn, event_id, now, paypal):
 
 # Cancel every hold still CREATED on this event, then drop the pledges that have no hold left (D45).
 # void_hold saves each void's request ID before the call and reads the hold back with a GET. A void that
-# doesn't read back VOIDED is logged and left as PayPal reported it (D88): an uncertain void keeps its
+# doesn't read back VOIDED is logged and left as PayPal reported it (D89): an uncertain void keeps its
 # owner, and the cleanup sweep does not send that void again. Its hold stays CREATED, so its pledge stays HELD.
 def release_holds(conn, event_id, paypal):
     holds = db.fetch_all(conn, "SELECT holds.id FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
@@ -874,7 +874,7 @@ def drop_pledges_without_a_hold(conn, event_id):
 # The pledge is DROPPED BEFORE the void goes out: a lock that starts during the void then no longer sees
 # the pledge as HELD, so it can never be counted or charged. If the void doesn't read back VOIDED, the
 # pledge stays DROPPED with its hold CREATED. An uncertain void stays claimed; the sweep does not send
-# it again (D88). Nothing here ever
+# it again (D89). Nothing here ever
 # captures (rule 6). Returns {"outcome": ...}: LEFT (with pledge_id), ALREADY_LEFT, CLOSED, COUNTED,
 # NOT_LEFT (the pledge changed under us) or NOT_FOUND.
 def leave_pledge(conn, pledger_token, now, paypal):
@@ -929,7 +929,7 @@ def drop_for_leave(conn, pledger_token, now):
 # Step 2. Cancel every CREATED hold of the pledge the normal way: claim_hold first (so the sweep stays off
 # it for VOID_RETRY_AFTER, D80), then void_hold, which saves the void's request ID before the call and
 # saves the status the GET reads back (rules 3, 4 and 5). Returns True if every hold read back VOIDED.
-# An uncertain void keeps its owner. The sweep does not send it again (D88).
+# An uncertain void keeps its owner. The sweep does not send it again (D89).
 # A pledge with no CREATED hold (unpaid, declined, or a hold still being placed) needs no PayPal call; a
 # hold that comes back later is voided by give_back_hold (F11). Logs IDs only.
 def cancel_holds_after_leave(conn, pledge_id, now, paypal):
@@ -1174,7 +1174,7 @@ def warn_about_lost_authorizations(conn, now):
 # CREATED holds that should be cancelled, oldest first, at most SWEEP_MAX_HOLDS. A hold qualifies when:
 # its event is finished, or its pledge is DROPPED (and the event is not mid-lock: LOCKING and CHARGING
 # belong to the lock and its D27 resume). A FAILED pledge's hold is never listed (D28 c). A hold that
-# already has a void_run_token is not listed: an uncertain void must not take the one slot (D88).
+# already has a void_run_token is not listed: an uncertain void must not take the one slot (D89).
 # A hold the sweep tried less than VOID_RETRY_AFTER ago is also skipped. That wait still spaces a
 # definite authentication-refusal retry. It does not retry an uncertain void.
 def stranded_created_holds(conn, now):
@@ -1207,7 +1207,7 @@ def claim_hold(conn, hold_id, now):
 # saves what the GET says, not what the void answered (rules 3, 4 and 5). Then:
 # - closed (VOIDED, EXPIRED, DENIED): on a finished event, drop the pledges left with no open hold;
 # - money moved (CAPTURED): we never captured it, so a person did. The pledge is FAILED and it's logged;
-# - still CREATED, or no answer: the owner stays. The next sweep does not send this void again (D88).
+# - still CREATED, or no answer: the owner stays. The next sweep does not send this void again (D89).
 #   A definite authentication refusal is the exception: its owner is cleared and a later sweep may retry.
 def sweep_one_hold(conn, hold, now, paypal):
     if not claim_hold(conn, hold["id"], now):
@@ -1433,7 +1433,7 @@ def charge_net_cents(conn, event_id):
     return nets
 
 
-# ---------- F7: refund-all (D28, D87, D88) ----------
+# ---------- F7: refund-all (D28, D88, D89) ----------
 # The treasurer's screen is not built here. Tests call these functions directly.
 # A refund never calls capture. PayPal calls happen only while the connection is idle.
 

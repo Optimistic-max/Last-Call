@@ -104,7 +104,7 @@ def test_f2_a_dropped_pledges_hold_is_voided_on_a_live_event(test_db):
         delete_event(test_db, event_id)
 
 
-# ---------- F12: an uncertain void stays claimed; the sweep does not resend it (D88) ----------
+# ---------- F12: an uncertain void stays claimed; the sweep does not resend it (D89) ----------
 
 # F12: a 204 followed by CREATED is uncertain; a later sweep must not resend the void.
 def test_f12_an_unconfirmed_void_is_blocked_for_review(test_db):
