@@ -126,6 +126,23 @@ CREATE TABLE refunds (
 
 ## F7 Stage 3 browser commands (D92)
 
-refund_web_actions is separate from refunds: a browser command is not a PayPal refund identity. Migration 005 adds it without rewriting application rows. Fields are action_hash (primary key; hash of signed single-use form), event_id (event FK), session_hash, action_type (START/CONTINUE/CHECK), target_refund_id (refund FK for CHECK only), state (CLAIMED/FINISHED), created_at and finished_at. A partial unique index permits only one CLAIMED command per event. A trigger prevents changing identity, reopening FINISHED commands or changing their completion evidence; CHECK targets must belong to the event.
+refund_web_actions is separate from refunds: a browser command is not a PayPal refund identity. Migration 005 adds it without rewriting application rows. Fields are action_hash (primary key; hash of signed single-use form), event_id (event FK), session_hash, action_type (START/CONTINUE/CHECK, plus CANCEL_HOLD from migration 006), target_refund_id (refund FK for CHECK only), state (CLAIMED/FINISHED), created_at and finished_at. A partial unique index permits only one CLAIMED command per event. A trigger prevents changing identity, reopening FINISHED commands or changing their completion evidence; CHECK targets must belong to the event.
 
 The application locks the event before claiming a command. FINISHED history remains against replay while a new command can occupy the event slot. CLAIMED has no expiry. A worker crash may require offline investigation even when no PayPal call began. No startup migration, automatic claim cleanup or browser maintenance exists. Preserve the table and evidence when rolling back the interface; stop browser refund actions rather than dropping uncertain commands. Migration 005's actual SQL still requires Malama review before shared deployment. No Neon application is authorized.
+
+## F7 Stage 3 corrections (D93, migration 006)
+
+Migration 006 (`migrations/006_f7_bounded_refund_preflight.sql`, also appended to `schema.sql` after the marker "Stage 3 corrections (migration 006)") changes only `refund_web_actions` and its guard function. It is additive: code written for the 005 schema keeps working. **Applied only to the disposable local PostgreSQL; not applied to any Neon branch.** Status: VERIFIED locally by `tests/test_refund_migration006.py`; Malama's review of the actual SQL is still required.
+
+| Object | Definition | Why |
+|---|---|---|
+| `target_hold_id` | nullable INTEGER, FK `holds(id)` | A CANCEL_HOLD command names the one hold it cancels. |
+| `claimed_refund_id` | nullable INTEGER, FK `refunds(id)`, `UNIQUE` (`refund_web_actions_one_command_per_refund`) | Which refund a START/CONTINUE claimed in the same transaction as the command. Recovery uses it. A refund is claimed for sending once. |
+| action type | `CANCEL_HOLD` added (`refund_web_actions_action_type`) | Cancelling an open hold is its own explicit command. |
+| `refund_web_actions_cancel_target` | CANCEL_HOLD needs a hold; every other type must have none | A cancel with no hold is meaningless. |
+| `refund_web_actions_claim_kind` | only START/CONTINUE may have `claimed_refund_id` | Only they send a refund. It is optional for CONTINUE until migration 007 (LATER.md). |
+| `protect_refund_web_action()` | replaced; every 005 rule kept | The two link columns never change. On INSERT: a CANCEL_HOLD needs a hold of the same event with `void_run_token` and `void_request_id` already saved; a claimed refund must be IN_FLIGHT, with `first_send_started_at`, on the same event. On finishing (G4): no linked refund may be IN_FLIGHT/UNCERTAIN/CHECK_ONLY and no linked hold may still have `void_run_token`. |
+
+**`holds.refund_check_status = 'PENDING'` now has a meaning (D93, Malama's answer 1):** the preflight read the authorization from PayPal and it was still `CREATED`, so it needs cancelling by the treasurer. The CHECK constraint already allowed the value; nothing wrote it before. `RESOLVED` and `MANUAL_REVIEW` keep their old meanings. A hold read as `PENDING` and later cancelled (status no longer `CREATED`) is read again by the next preflight request. `NULL` means not read yet. "Checked N of M" counts the holds whose check is neither `NULL` nor a cancelled `PENDING`.
+
+**How to verify after applying (local or any future database):** the two columns exist and are nullable; `refund_web_actions_one_command_per_refund` is `UNIQUE (claimed_refund_id)`; the action-type constraint lists four values; `pg_get_functiondef('public.protect_refund_web_action'::regproc)` contains the four new rules; trigger `refund_web_actions_protect` is enabled; every existing row has NULL in both new columns; and the existing suite passes unchanged.

@@ -71,7 +71,17 @@ def unlock(client, case):
     return result
 
 
+# Stand-in for a finished preflight (D93): marks every hold that is not an open authorization as checked.
+# The real preflight has its own tests in test_refund_stage3_fixes.py.
+def mark_checked(case):
+    db.run(case["conn"], "UPDATE holds SET refund_check_status = 'RESOLVED' WHERE refund_check_status IS NULL "
+                         "AND status <> 'CREATED' AND pledge_id IN (SELECT id FROM pledges WHERE event_id = %s)",
+           (case["event_id"],))
+
+
 def action_form(client, case, suffix="/confirm"):
+    if suffix == "/confirm":
+        mark_checked(case)
     page = get(client, path(case, suffix))
     assert page.status_code == 200
     return {"csrf_token": field(page, "csrf_token"), "action_token": field(page, "action_token")}
@@ -223,7 +233,7 @@ def test_same_and_independent_clicks_cannot_overlap(web_case, test_db_url, monke
     try:
         assert entered.wait(10)
         assert post(second, path(web_case, "/start"), other_form).status_code == 409
-        assert fake_paypal.calls[-1]["function"] != "refund_capture"
+        assert all(call["function"] != "refund_capture" for call in fake_paypal.calls)
     finally:
         release.set()
         worker.join(10)
@@ -296,12 +306,13 @@ def test_pending_check_timeout_finishes_read_command_without_blocking_independen
 
 
 def test_crash_after_web_claim_before_lifecycle_stays_blocked(web_case, monkeypatch):
+    insert_person(web_case["conn"], web_case["event_id"], "CHARGED", "CAPTURED", "COMPLETED")
     client = app.app.test_client()
     unlock(client, web_case)
     form = action_form(client, web_case)
     def stopped(*args):
         raise RuntimeError("synthetic worker interruption")
-    monkeypatch.setattr(lifecycle, "begin_refund_all", stopped)
+    monkeypatch.setattr(lifecycle, "post_refund", stopped)
     assert post(client, path(web_case, "/start"), form).status_code == 503
     assert db.fetch_one(web_case["conn"], "SELECT state FROM refund_web_actions WHERE event_id = %s", (web_case["event_id"],))["state"] == "CLAIMED"
     assert post(client, path(web_case, "/start"), form).status_code == 409
@@ -323,37 +334,34 @@ def test_stale_tampered_wrong_action_and_csrf_forms_do_not_execute(web_case, mon
     assert fake_paypal.calls == []
 
 
-def test_maintenance_fence_after_browser_web_claim_cannot_be_adopted(web_case, monkeypatch):
+def test_maintenance_fence_during_the_browser_check_cannot_be_adopted(web_case, monkeypatch):
     _, row = saved_refund(web_case, "ANSWERED")
     client = app.app.test_client()
     unlock(client, web_case)
     form = action_form(client, web_case, "")
-    import refund_web
-    original = refund_web.claim_action
-    def fenced(*args, **kwargs):
-        result = original(*args, **kwargs)
+    def fenced(refund_id):
         db.run(web_case["conn"], "UPDATE refunds SET send_state = 'CHECK_ONLY', operation_revision = operation_revision + 1 WHERE id = %s", (row["id"],))
-        return result
-    monkeypatch.setattr(refund_web, "claim_action", fenced)
+        return fake_paypal.record_and_answer("get_refund", {"refund_id": refund_id}, fake_paypal.refund_result(refund_id, "COMPLETED"))
+    monkeypatch.setattr(fake_paypal, "get_refund", fenced)
     assert post(client, path(web_case, "/" + str(row["id"]) + "/check"), form).status_code == 503
-    assert fake_paypal.calls == []
-    assert refund_rows(web_case["conn"], web_case["event_id"])[0]["send_state"] == "CHECK_ONLY"
+    assert fake_paypal.called_functions() == ["get_refund"]
+    current = refund_rows(web_case["conn"], web_case["event_id"])[0]
+    assert current["send_state"] == "CHECK_ONLY" and current["status"] == "PENDING"
 
 
-def test_changed_revision_after_web_claim_is_not_adopted(web_case, monkeypatch):
+def test_changed_revision_during_the_browser_check_is_not_adopted(web_case, monkeypatch):
     _, row = saved_refund(web_case, "ANSWERED")
     client = app.app.test_client()
     unlock(client, web_case)
     form = action_form(client, web_case, "")
-    import refund_web
-    original = refund_web.claim_action
-    def newer(*args, **kwargs):
-        result = original(*args, **kwargs)
+    def newer(refund_id):
         db.run(web_case["conn"], "UPDATE refunds SET operation_revision = operation_revision + 1 WHERE id = %s", (row["id"],))
-        return result
-    monkeypatch.setattr(refund_web, "claim_action", newer)
+        return fake_paypal.record_and_answer("get_refund", {"refund_id": refund_id}, fake_paypal.refund_result(refund_id, "COMPLETED"))
+    monkeypatch.setattr(fake_paypal, "get_refund", newer)
     assert post(client, path(web_case, "/" + str(row["id"]) + "/check"), form).status_code == 503
-    assert fake_paypal.calls == []
+    assert fake_paypal.called_functions() == ["get_refund"]
+    current = refund_rows(web_case["conn"], web_case["event_id"])[0]
+    assert current["status"] == "PENDING" and current["send_state"] == "ANSWERED"
 
 
 def test_missing_refund_inventory_blocks_continue(web_case):
@@ -478,12 +486,13 @@ def test_inconsistent_completed_event_does_not_claim_financial_resolution(web_ca
 
 
 def test_web_claim_is_durable_before_lifecycle(web_case, test_db_url, monkeypatch):
+    insert_person(web_case["conn"], web_case["event_id"], "CHARGED", "CAPTURED", "COMPLETED")
     observed = []
     def inspect_claim(*args):
         with db.connect(test_db_url) as other:
             row = db.fetch_one(other, "SELECT state FROM refund_web_actions WHERE event_id = %s", (web_case["event_id"],))
             observed.append(None if row is None else row["state"])
-    monkeypatch.setattr(lifecycle, "begin_refund_all", inspect_claim)
+    monkeypatch.setattr(lifecycle, "post_refund", inspect_claim)
     client = app.app.test_client()
     unlock(client, web_case)
     assert post(client, path(web_case, "/start"), action_form(client, web_case)).status_code == 303
@@ -572,14 +581,10 @@ def test_form_expiry_after_successful_claim_does_not_break_pending_check(web_cas
     client = app.app.test_client()
     unlock(client, web_case)
     form = action_form(client, web_case, "")
-    import refund_web
-    original = refund_web.claim_action
-    def claimed(*args, **kwargs):
-        result = original(*args, **kwargs)
+    def slow(refund_id):
         monkeypatch.setattr(app, "utc_now", lambda: NOW + timedelta(minutes=11))
-        return result
-    monkeypatch.setattr(refund_web, "claim_action", claimed)
-    fake_paypal.next_answers["get_refund"] = [fake_paypal.refund_result(row["refund_id"], "PENDING")]
+        return fake_paypal.record_and_answer("get_refund", {"refund_id": refund_id}, fake_paypal.refund_result(refund_id, "PENDING"))
+    monkeypatch.setattr(fake_paypal, "get_refund", slow)
     assert post(client, path(web_case, "/" + str(row["id"]) + "/check"), form).status_code == 303
     assert fake_paypal.called_functions() == ["get_refund"]
 

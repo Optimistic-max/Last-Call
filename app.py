@@ -607,7 +607,9 @@ def refund_progress(event_id):
     return show_refunds(event_id, False)
 
 
-# A committed web claim precedes all lifecycle calls; errors retain that claim for investigation.
+# D93: the command and its payment (or void) claim are saved in ONE transaction before any PayPal call.
+# The PayPal call runs with no transaction open. Its result and the command's finish are saved in ONE
+# transaction. A crash in between leaves the command CLAIMED; GET-only recovery finishes it.
 def run_refund_command(event_id, kind, target=None):
     refusal = refund_request_refusal()
     if refusal is not None:
@@ -618,31 +620,65 @@ def run_refund_command(event_id, kind, target=None):
             event = refund_web.authorized_event(conn, event_id, utc_now())
             if event is None:
                 return refund_response("Treasurer refund authorization is required for this event.", 403)
-            action = refund_web.read_action(token, event_id, kind, utc_now(), target)
-            if action is None:
+            if refund_web.read_action(token, event_id, kind, utc_now(), target) is None:
                 return refund_response("This form is stale. Open a fresh refund page.", 409)
-            claim = refund_web.claim_action(conn, event_id, kind, token, utc_now(), target)
-            if claim == "REPLAY":
-                return refund_response(redirect(url_for("refund_progress", event_id=event_id), code=303))
-            if claim != "CLAIMED":
+            command = refund_web.claim_command(conn, event_id, kind, token, utc_now(), target)
+            where = "refund_confirmation" if kind == "CANCEL_HOLD" else "refund_progress"
+            if command["state"] == "REPLAY":
+                return refund_response(redirect(url_for(where, event_id=event_id), code=303))
+            if command["state"] != "CLAIMED":
                 return refund_response("This command is blocked or its form is stale. View refund status before continuing.", 409)
-            if kind == "START":
-                lifecycle.begin_refund_all(conn, event["admin_token"], paypal_client)
-            elif kind == "CONTINUE":
-                lifecycle.resume_refund_all(conn, event["admin_token"], paypal_client)
-            else:
-                result = lifecycle.reconcile_refund_for_treasurer(
-                    conn, event_id, target, action["operation_revision"], paypal_client)
-                if result is None:
-                    # An inconclusive GET cannot create another payment; finish its read command
-                    # when the original POST remains durably ANSWERED/PENDING.
-                    refund_web.finish_action(conn, event_id, token)
-                    return refund_unavailable()
-            refund_web.finish_action(conn, event_id, token)
-        return refund_response(redirect(url_for("refund_progress", event_id=event_id), code=303))
+            if not refund_web.carry_out(conn, command, paypal_client):
+                # No usable answer. Nothing was sent again, and the claim stays for investigation.
+                return refund_unavailable()
+        return refund_response(redirect(url_for(where, event_id=event_id), code=303))
     except (RuntimeError, psycopg.Error) as error:
         logger.warning("refund command requires review (%s)", type(error).__name__)
         return refund_unavailable()
+
+
+# One short, bounded request (D93): at most one PayPal GET, no money action, no command. The page's
+# script calls this again until every hold is checked. It needs the same session, CSRF and origin checks.
+@app.route("/admin/events/<int:event_id>/refunds/preflight", methods=["POST"])
+def refund_preflight(event_id):
+    refusal = refund_request_refusal()
+    if refusal is not None:
+        return refusal
+    try:
+        with db.connect(config.DATABASE_URL) as conn:
+            if refund_web.authorized_event(conn, event_id, utc_now()) is None:
+                return refund_response("Treasurer refund authorization is required for this event.", 403)
+            answer = lifecycle.preflight_next_hold(conn, event_id, paypal_client)
+        if answer is None:
+            return refund_response("Refund review is not available for this event.", 409)
+        return refund_response(jsonify(answer))
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("refund preflight unavailable (%s)", type(error).__name__)
+        return refund_unavailable()
+
+
+# Cancelling an open authorization is its own decision, shown for one hold at a time (D93).
+@app.route("/admin/events/<int:event_id>/refunds/holds/<int:hold_id>/cancel")
+def refund_cancel_confirmation(event_id, hold_id):
+    refusal = refund_request_refusal()
+    if refusal is not None:
+        return refusal
+    try:
+        with db.connect(config.DATABASE_URL) as conn:
+            if refund_web.authorized_event(conn, event_id, utc_now()) is None:
+                return refund_response("Treasurer refund authorization is required for this event.", 403)
+            screen = refund_web.cancel_view(conn, event_id, hold_id, utc_now())
+        if screen is None:
+            return refund_response("This authorization cannot be cancelled now. Review the refund page first.", 409)
+        return refund_response(render_template("refund_cancel.html", **screen))
+    except (RuntimeError, psycopg.Error) as error:
+        logger.warning("refund cancel view unavailable (%s)", type(error).__name__)
+        return refund_unavailable()
+
+
+@app.route("/admin/events/<int:event_id>/refunds/holds/<int:hold_id>/cancel", methods=["POST"])
+def refund_cancel(event_id, hold_id):
+    return run_refund_command(event_id, "CANCEL_HOLD", hold_id)
 
 
 # Start only after consuming the treasurer's confirmed single-use action.

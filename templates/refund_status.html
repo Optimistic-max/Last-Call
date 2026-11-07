@@ -9,7 +9,8 @@
     <p>No captured payments required refunds. The event's authorizations are resolved.</p>
     {% elif complete %}<p>The event's refunds and authorizations are resolved.</p>
     {% else %}<p>Refunding is incomplete. Read each payment's status below.</p>{% endif %}
-    <p>Recorded captured payments: {{ totals.amount_cents|dollars }}.</p>
+    {% if totals_known %}<p>Recorded captured payments: {{ totals.amount_cents|dollars }}.</p>
+    {% else %}<p role="alert">Recorded captured payments: incomplete records, total unknown.</p>{% endif %}
     <p>No refunds are retried automatically. Refreshing this page sends no payment requests.</p>
     {% for message in blockers %}<p role="alert">{{ message }}</p>{% endfor %}
     {% if active_command %}<p role="alert">A command is active or unresolved. Further commands are blocked for investigation.</p>{% endif %}

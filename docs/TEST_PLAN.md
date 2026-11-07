@@ -402,3 +402,47 @@ Migration 005's design approval is not approval of its final SQL or shared deplo
 Final read-only cleanup and integrity checks: VERIFIED. f7_runtime contained 0 events, 0 pledges, 0 conditions, 0 holds, 0 captures, 0 refunds and 0 refund_web_actions after the final suite. No manual cleanup was performed. The live action guard matched schema.sql; final source bytes matched their restored mutation backups. Pre-existing lifecycle/money functions and migrations 001-004 remained unchanged. The original postgresql-x64-18 service remained Stopped; the pre-existing disposable server was retained. git diff --check found no whitespace errors. All Stage 3 changes remain uncommitted.
 
 Final full command: .venv\Scripts\python.exe "$env:TEMP/last-call-f7-stage2a-2505cd322d704e479ee139d5889fca8d/run_local_tests.py" --tb=short -q -rs. Focused selection: test_refund_web.py, test_refund_web_database.py, test_refund_lifecycle.py, test_refund_safety.py and test_refund_dispatch.py. Payment selection: test_paypal_client.py, test_lifecycle.py, test_capture_retry.py, test_resume.py, test_leave.py, test_sweep.py, test_money.py, test_conditions.py, test_db.py, test_routes.py, test_health.py, test_void_ownership.py and every test_refund_* module. Each used the same verified runner and --tb=short -q.
+
+## F7 Stage 3 corrections (Nov 7, D93)
+
+All execution used the guarded `run_local_tests.py` against the verified disposable PostgreSQL 18.3 cluster at 127.0.0.1:55439 (database `f7_runtime`), with fake PayPal and outside HTTP blocked. Migration 006 was applied **only** to that cluster. It was not applied to any Neon branch.
+
+Tests first, before any code: `tests/test_refund_migration006.py` and `tests/test_refund_stage3_fixes.py` failed for the right reasons. After fixing one mistake in my own test file (a missing fixture import that produced 35 setup errors), the failures grouped as: 22 missing preflight/cancel routes (a JSON answer expected, none returned), 16 missing `target_hold_id` column, 5 missing `refund_web_actions_cancel_target` constraint, 3 missing migration file, plus the real $0.00 totals bug. These counts are grouped error lines, not a pass/fail total.
+
+| Check | Status | Actual result |
+|---|---|---|
+| Existing suite on the new schema, before the new code existed | VERIFIED | `--ignore` of the new web test file, old code, migration 006 applied: 601 passed, 6 failed, 1 error, 1 skipped. Of the 6 failures, 2 were existing tests that I had rewritten for the new flow and that need the new code (`lifecycle.post_refund`); the other 4 failures and the 1 error were defects in my first draft of the migration tests (a committed stray row and unscoped UPDATEs), fixed afterwards. No pre-existing test failed because of the schema. |
+| New migration tests, `tests/test_refund_migration006.py` | VERIFIED | 25 passed. Includes: downgrade to 005 then apply 006 gives exactly the current catalog; existing rows unchanged; missing table, disabled trigger, and a wrong action-type list each abort and change nothing; a late failure rolls everything back; the lock wait is bounded; each constraint and each trigger rule rejects bad rows in rolled-back transactions; `schema.sql` contains the migration objects verbatim. |
+| New behaviour tests, `tests/test_refund_stage3_fixes.py` | VERIFIED | 36 passed. Preflight is GET-only, one authorization per request, CSRF/origin-protected; START waits for the preflight and never cancels; cancel is a separate single-use form bound to its hold; the claim and the command (and the result and the finish) are atomic, with no transaction open during PayPal; three crash cases recover with GET only and the command then finishes; START/CONTINUE always record the refund they claimed (for 007); incomplete records never show $0.00 or a partial sum. |
+| Existing tests changed because the flow changed | VERIFIED | `test_refund_web.py`: `action_form` marks holds checked first (a stand-in for a finished preflight); `test_crash_after_web_claim_before_lifecycle_stays_blocked` and `test_web_claim_is_durable_before_lifecycle` patch `lifecycle.post_refund` instead of `begin_refund_all`; the two maintenance-fence/revision tests and the form-expiry test now inject the change during the GET, because the claim and the lifecycle claim are now one transaction; the overlap test no longer reads `calls[-1]`. `test_refund_web_database.py`: the 005-versus-schema comparison stops at the 006 marker. Intent of each was kept. |
+| Full pytest `--tb=short -rs` | VERIFIED | 643 passed, 0 failed, 1 skipped in 144.01s. Skip: `tests/test_ai_accuracy.py:156`, `tests/ai_test_messages.json` is not written yet (D74). |
+| Neon test or main branch, migration 006 | NOT RUN | Deliberately not applied or run. |
+| Real browser, phone, keyboard, and the preflight script's loop | NOT RUN | `refund_preflight.js` was never executed; Flask test-client HTML is not browser verification. |
+| Live sandbox refund, voids and deployed request duration | NOT RUN | Local fake-PayPal results do not verify live provider behaviour or the real 120 s worker limit. |
+
+Mutation checks: each change was made, the matching tests run, and the file restored. For source files the restore was proven byte-identical by SHA-256; for the database the catalog (function text and constraint definitions) was compared before and after.
+
+| Fix | Deliberate break | Caught by |
+|---|---|---|
+| 1 | preflight also voids an open hold | `test_preflight_uses_only_get_and_writes_only_the_check_result` |
+| 1 | START no longer waits for every hold to be checked | `test_confirm_page_shows_checked_n_of_m_and_start_waits_for_the_check` |
+| 2 | preflight keeps going after one hold | `test_each_preflight_request_checks_exactly_one_authorization` |
+| 3 | cancel form usable for a different hold | `test_a_cancel_form_works_only_for_its_own_hold_and_action` |
+| 3 | locked cancel claim stops requiring a PENDING hold | `test_the_locked_claim_refuses_a_hold_the_preflight_has_not_seen_open` (the first draft of the tests did NOT catch this; the web layer's own check hid it, so this lifecycle-level test was added and the mutation re-run) |
+| 4 | claim and command no longer one transaction | `test_failed_command_insert_rolls_back_the_payment_claim`, `..._the_void_claim` |
+| 4 | START result and finish in separate transactions | `test_failed_finish_rolls_back_the_saved_result_with_it` |
+| 4 | cancel result and finish in separate transactions | `test_failed_finish_rolls_back_the_cancel_result_with_it` |
+| 4 | refund recovery stops finishing the command | `test_crash_after_a_start_payment_is_recovered_...`, `test_crash_after_a_pending_check_is_recovered_...` |
+| 4 | void recovery stops finishing the command | `test_crash_after_a_cancel_is_recovered_with_get_only_and_the_command_finishes` |
+| 4 (for 007) | new code stops recording the refund it claimed | `test_start_and_continue_always_record_the_refund_they_claimed` |
+| 5 | totals always "complete" | `test_missing_capture_record_does_not_show_a_zero_total` (2), `test_partial_records_...` (2), `test_an_unresolved_capture_attempt_...` |
+| DB rule | a command may finish while its refund is unresolved (G4) | `test_command_cannot_finish_while_its_refund_is_unresolved[IN_FLIGHT]` |
+| DB rule | a cancel may finish while the void owner remains (G4) | `test_cancel_command_cannot_finish_while_the_void_owner_remains` |
+| DB rule | a cancel may exist without its void claim | `test_cancel_hold_needs_the_void_claim_committed_first` |
+| DB rule | a refund command may exist without its refund claim | `test_claimed_refund_must_be_in_flight_and_belong_to_the_event` |
+| DB rule | the link columns may change | `test_link_columns_cannot_change_after_insert` |
+| DB constraint | `claim_kind` dropped | `test_only_start_and_continue_may_claim_a_refund` |
+| DB constraint | `cancel_target` dropped | `test_other_actions_cannot_carry_a_hold` |
+| DB constraint | `one_command_per_refund` dropped | `test_one_command_per_claimed_refund_is_declared_and_enforced` |
+
+Note for the DB rows: `test_migration_applied_on_005_gives_exactly_the_current_schema` also fails on any of these changes, because it compares whole catalogs. It is not counted as the catcher; the dedicated behaviour test in the right-hand column is.

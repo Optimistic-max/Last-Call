@@ -95,7 +95,9 @@ def test_migration005_matches_fresh_schema():
     sql = migration()
     schema = (ROOT / "schema.sql").read_text(encoding="utf-8")
     objects = sql.split("-- Browser commands", 1)[1].rsplit("COMMIT;", 1)[0].strip()
-    assert schema.split("-- Browser commands", 1)[1].strip() == objects
+    # schema.sql ends with migration 006's block (test_refund_migration006.py checks that one).
+    fresh = schema.split("-- Browser commands", 1)[1].split("-- Stage 3 corrections (migration 006)", 1)[0]
+    assert fresh.strip() == objects
     assert sql.index("BEGIN;") < sql.index("LOCK TABLE") < sql.index("DO $$") < sql.index("CREATE TABLE")
     assert "SET LOCAL lock_timeout = '5s'" in sql and sql.rstrip().endswith("COMMIT;")
 

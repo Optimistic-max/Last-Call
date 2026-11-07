@@ -154,41 +154,95 @@ def active_command(conn, event_id):
     return db.fetch_one(conn, "SELECT action_hash FROM refund_web_actions WHERE event_id = %s AND state = 'CLAIMED'", (event_id,))
 
 
-# Event-first locking serializes different forms and identical copied submissions.
-def claim_action(conn, event_id, kind, token, now, target=None):
+# Claim the payment or void a command needs. Runs inside claim_command's transaction, so the claim and
+# the command are saved together or not at all (D93). Returns None when nothing may be claimed (nothing written).
+def claim_payment(conn, event_id, kind, action, target):
+    if kind in ("START", "CONTINUE"):
+        run = lifecycle.claim_start(conn, event_id) if kind == "START" else lifecycle.claim_continue(conn, event_id)
+        if run is None:
+            return None
+        linked = None if run["claim"] is None else run["claim"]["id"]
+        return {"run": run, "claimed_refund_id": linked, "target_hold_id": None}
+    if kind == "CHECK":
+        row = lifecycle.claim_treasurer_refund_check(conn, event_id, target, action["operation_revision"])
+        if row is None:
+            return None
+        return {"check": row, "claimed_refund_id": None, "target_hold_id": None}
+    cancel = lifecycle.claim_cancel_hold(conn, event_id, target)
+    if cancel is None:
+        return None
+    return {"cancel": cancel, "claimed_refund_id": None, "target_hold_id": target}
+
+
+# Record the command with a link to the claim it made. The database refuses a link to a claim that is
+# not committed in the same transaction (migration 006).
+def insert_command(conn, event_id, kind, action_hash, session_hash, target, claimed):
+    target_refund_id = target if kind == "CHECK" else None
+    db.run(conn, "INSERT INTO refund_web_actions (action_hash, event_id, session_hash, action_type, "
+                 "target_refund_id, target_hold_id, claimed_refund_id) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+           (action_hash, event_id, session_hash, kind, target_refund_id, claimed["target_hold_id"],
+            claimed["claimed_refund_id"]))
+
+
+# ONE transaction, event lock first: check the form, claim the payment or void, record the command.
+# No PayPal call happens here. If any step fails, none of it is saved (D93).
+def claim_command(conn, event_id, kind, token, now, target=None):
     action = read_action(token, event_id, kind, now, target)
     if action is None:
-        return "STALE"
+        return {"state": "STALE"}
     action_hash = fingerprint(token)
     with conn.transaction():
         db.fetch_one(conn, "SELECT id FROM events WHERE id = %s FOR UPDATE", (event_id,))
         if authorized_event(conn, event_id, now) is None:
-            return "STALE"
+            return {"state": "STALE"}
         previous = db.fetch_one(conn, "SELECT state FROM refund_web_actions WHERE action_hash = %s", (action_hash,))
         if previous is not None:
-            return "REPLAY" if previous["state"] == "FINISHED" else "BUSY"
+            return {"state": "REPLAY" if previous["state"] == "FINISHED" else "BUSY"}
         if active_command(conn, event_id) is not None:
-            return "BUSY"
+            return {"state": "BUSY"}
         records = inventory(conn, event_id)
         if inventory_digest(records) != action["digest"] or not action_allowed(records, kind, target):
-            return "STALE"
-        db.run(conn, "INSERT INTO refund_web_actions (action_hash, event_id, session_hash, action_type, target_refund_id) "
-                     "VALUES (%s, %s, %s, %s, %s)", (action_hash, event_id, action["session_hash"], kind, target))
-    return "CLAIMED"
+            return {"state": "STALE"}
+        claimed = claim_payment(conn, event_id, kind, action, target)
+        if claimed is None:
+            return {"state": "STALE"}
+        insert_command(conn, event_id, kind, action_hash, action["session_hash"], target, claimed)
+    return {"state": "CLAIMED", "kind": kind, "event_id": event_id, "token": token, "claimed": claimed}
+
+
+# After the claim is committed: do the PayPal call (no transaction open), then save the result and finish
+# the command in ONE transaction (D93). A crash in between leaves the command CLAIMED, and the existing
+# GET-only recovery finishes it. Returns True when the command finished with a usable result.
+def carry_out(conn, command, paypal):
+    event_id = command["event_id"]
+    claimed = command["claimed"]
+    kind = command["kind"]
+    if kind in ("START", "CONTINUE"):
+        run = claimed["run"]
+        outcome = None
+        if run["claim"] is not None:
+            outcome = lifecycle.post_refund(conn, run["claim"], paypal)
+        with conn.transaction():
+            lifecycle.save_refund_outcome(conn, outcome)
+            lifecycle.finish_refunding(conn, event_id, run["owner"], run["revision"])
+            finish_action(conn, event_id, command["token"])
+        return True
+    if kind == "CHECK":
+        outcome = lifecycle.read_refund_status(conn, claimed["check"], paypal)
+        with conn.transaction():
+            saved = None if outcome is None else lifecycle.save_get_outcome(conn, outcome)
+            finish_action(conn, event_id, command["token"])
+        return saved is not None
+    outcome = lifecycle.void_and_read(conn, claimed["cancel"], paypal)
+    with conn.transaction():
+        lifecycle.save_cancel_result(conn, outcome)
+        finished = finish_action(conn, event_id, command["token"])
+    return finished
 
 
 # Finish only a definitely returned command with no unresolved external sender.
 def finish_action(conn, event_id, token):
-    with conn.transaction():
-        db.fetch_one(conn, "SELECT id FROM events WHERE id = %s FOR UPDATE", (event_id,))
-        if lifecycle.refund_in_flight(conn, event_id) is not None:
-            return False
-        uncertain_void = db.fetch_one(conn, "SELECT holds.id FROM holds JOIN pledges ON pledges.id = holds.pledge_id "
-                                           "WHERE pledges.event_id = %s AND holds.void_run_token IS NOT NULL LIMIT 1", (event_id,))
-        if uncertain_void is not None:
-            return False
-        return db.run(conn, "UPDATE refund_web_actions SET state = 'FINISHED', finished_at = statement_timestamp() "
-                            "WHERE action_hash = %s AND event_id = %s AND state = 'CLAIMED'", (fingerprint(token), event_id)) == 1
+    return lifecycle.finish_web_command(conn, event_id, fingerprint(token))
 
 
 # Local warnings guide the screen; locked lifecycle preflight remains the final authority.
@@ -248,10 +302,12 @@ def action_allowed(records, kind, target=None):
     status = records["event"]["status"]
     if kind == "CHECK":
         return status == "REFUNDING" and pending_refund(records, target) is not None
+    if kind == "CANCEL_HOLD":
+        return status == "NEEDS_ATTENTION" and open_hold(records, target) is not None
     if blockers(records):
         return False
     if kind == "START":
-        return status == "NEEDS_ATTENTION" and not records["refunds"]
+        return status == "NEEDS_ATTENTION" and not records["refunds"] and all_holds_checked(records)
     return (kind == "CONTINUE" and status == "REFUNDING"
             and any(refund_is_unsent(row) for row in records["refunds"]))
 
@@ -261,6 +317,66 @@ def refund_is_unsent(row):
     return (row["send_state"] == "READY" and row["status"] == "PENDING" and row["refund_id"] is None
             and row["send_started_at"] is None and row["first_send_started_at"] is None
             and row["operation_revision"] == 0)
+
+
+# A hold the preflight read as still open (PENDING) and nobody has started cancelling.
+def open_hold(records, hold_id):
+    for hold in records["holds"]:
+        if (hold["id"] == hold_id and hold["status"] == "CREATED" and hold["refund_check_status"] == "PENDING"
+                and hold["void_run_token"] is None and isinstance(hold["auth_id"], str) and hold["auth_id"].strip()):
+            return hold
+    return None
+
+
+# A hold with no saved check yet, or cancelled since it was read as open. Mirrors lifecycle.UNCHECKED_HOLD_SQL.
+def hold_needs_check(hold):
+    if hold["refund_check_status"] is None:
+        return True
+    return hold["refund_check_status"] == "PENDING" and hold["status"] != "CREATED"
+
+
+# "Checked N of M" for the confirm page.
+def preflight_progress(records):
+    total = len(records["holds"])
+    unchecked = len([hold for hold in records["holds"] if hold_needs_check(hold)])
+    return {"checked": total - unchecked, "total": total}
+
+
+# START needs every hold read and settled. A hold that was never placed needs no PayPal read.
+def all_holds_checked(records):
+    for hold in records["holds"]:
+        never_placed = hold["status"] == "NOT_PLACED" and hold["auth_id"] is None and hold["authorize_request_id"] is None
+        if hold["refund_check_status"] != "RESOLVED" and not never_placed:
+            return False
+    return True
+
+
+# The open holds the treasurer may choose to cancel, with just the words and amount to show.
+def open_hold_view(records):
+    found = []
+    for hold in records["holds"]:
+        if open_hold(records, hold["id"]) is None:
+            continue
+        pledge = next(row for row in records["pledges"] if row["id"] == hold["pledge_id"])
+        found.append({"hold_id": hold["id"], "name": pledge["name"], "amount_cents": hold["amount_cents"]})
+    return found
+
+
+# A total is shown only when every captured-payment record is complete. Otherwise "$0.00" or a partial
+# sum would look like a real number (D93). The sum itself stays in money.refund_summary_cents.
+def totals_are_complete(records):
+    if any(lifecycle.capture_is_unknown(row) for row in records["captures"]):
+        return False
+    known = [row for row in records["captures"] if row["status"] in ("COMPLETED", "REFUNDED")]
+    for pledge in records["pledges"]:
+        hold_ids = [row["id"] for row in records["holds"] if row["pledge_id"] == pledge["id"]]
+        owned = [row for row in known if row["hold_id"] in hold_ids]
+        if pledge["status"] in ("CHARGED", "REFUNDED") and not owned:
+            return False
+    for hold in records["holds"]:
+        if hold["status"] == "CAPTURED" and len([row for row in known if row["hold_id"] == hold["id"]]) != 1:
+            return False
+    return True
 
 
 # An outcome is confirmed only when its refund and captured-payment records agree.
@@ -325,6 +441,23 @@ def view(conn, event_id, now, confirmation=False):
                     checks[target] = make_action(records, "CHECK", now, target)
     return {"event_id": event_id, "title": records["event"]["title"], "event_status": records["event"]["status"],
             "complete": records["event"]["status"] == "REFUNDED" and not blockers(records),
-            "people": people, "totals": money.refund_summary_cents(payments), "blockers": blockers(records),
+            "people": people, "totals": money.refund_summary_cents(payments),
+            "totals_known": totals_are_complete(records),
+            "progress": preflight_progress(records), "open_holds": open_hold_view(records),
+            "blockers": blockers(records),
             "active_command": active, "checks": checks, "csrf_token": csrf_token(),
             "action_token": make_action(records, kind, now) if not active and action_allowed(records, kind) else None}
+
+
+# The cancel confirmation for ONE open hold: its owner's name and amount, and a single-use form.
+def cancel_view(conn, event_id, hold_id, now):
+    records = inventory(conn, event_id)
+    hold = open_hold(records, hold_id)
+    if hold is None or records["event"]["status"] != "NEEDS_ATTENTION":
+        return None
+    pledge = next(row for row in records["pledges"] if row["id"] == hold["pledge_id"])
+    active = active_command(conn, event_id) is not None
+    allowed = not active and action_allowed(records, "CANCEL_HOLD", hold_id)
+    return {"event_id": event_id, "title": records["event"]["title"], "hold_id": hold_id, "name": pledge["name"],
+            "amount_cents": hold["amount_cents"], "active_command": active, "csrf_token": csrf_token(),
+            "action_token": make_action(records, "CANCEL_HOLD", now, hold_id) if allowed else None}

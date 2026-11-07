@@ -362,7 +362,7 @@ Ids to keep: `leave-message` and `leave-button`. An unknown token (including the
 
 ## F7 Stage 3 private refund interface (D92)
 
-Emmanuel implemented the approved security flow; Samuel's visual and wording review is pending. Existing shared styles are reused, without new JavaScript or changes to board.js.
+Emmanuel implemented the approved security flow; Samuel's visual and wording review is pending. Existing shared styles are reused. D93 adds one small script, `static/js/refund_preflight.js`; board.js is unchanged.
 
 S2 links to /admin/<admin_token>/refund-access only for NEEDS_ATTENTION, REFUNDING or REFUNDED. That link alone grants no refund permission. The independent club key unlocks a 15-minute event-scoped session. Subsequent private pages use /admin/events/<event_id>/refunds (progress) and /refunds/confirm (confirmation). They display recorded captured payments, never held maximums or estimated shares. Known original fees are displayed; missing fees say "Fee information unavailable."
 
@@ -370,4 +370,10 @@ The confirmation explains full participant refunds, retained original processing
 
 Per-payment words distinguish Not sent yet, Request started/result not confirmed, PayPal processing, PayPal-confirmed Refunded, failed/cancelled requiring review, Result unknown, and Maintenance status check required. Per-person completion requires all recorded payments to agree and no local accounting blockers. D47 captured money, missing records and unresolved authorizations get investigation messages; no missing payment amount is invented. A resolved zero-capture event explicitly says no captured payments required refunds. Public board additions are only generic Refunding/Refunded status words; private request IDs and recovery diagnostics are excluded.
 
-The new templates are refund_access.html, refund_confirm.html, refund_status.html and the private refund_people.html partial. No auto-submit, automatic status check, or automatic continuation exists. Double-click correctness comes from database claims, rather than JavaScript. Keyboard/mobile layout and actual browser behavior remain NOT RUN.
+The new templates are refund_access.html, refund_confirm.html, refund_status.html and the private refund_people.html partial. The only automatic action is the read-only preflight (D93); no money command is ever sent automatically. Double-click correctness comes from database claims, rather than JavaScript. Keyboard/mobile layout and actual browser behavior remain NOT RUN.
+
+### D93 changes to the refund review (Samuel review pending)
+
+- The confirm page now works in three steps: (1) **Checked N of M authorizations**, where a small script (or the "Check next authorization" button without JavaScript) reads one authorization per request; (2) an **Open authorizations** list, each with a "Review and cancel" link to its own page, "Cancel this authorization", which names the person and amount and cancels only that hold; (3) "Confirm refund everyone", which appears only when every hold is checked and none is open. Placeholder wording (D57) until Samuel approves it.
+- The captured-payments line reads "Recorded captured payments: incomplete records, total unknown" when any payment record is missing or unresolved. It never shows $0.00 for that case.
+- New template `refund_cancel.html`. Real browser, keyboard and phone behaviour is NOT RUN.

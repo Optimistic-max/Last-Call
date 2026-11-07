@@ -70,9 +70,9 @@ Important code, in execution order:
 2. approve verifies the independent key, clears the old session, rotates CSRF, and saves only an event ID, credential fingerprints, issue time and random session nonce in the signed cookie. Signed Flask cookies are readable; no private credential goes there.
 3. authorized_event checks the event ID and 15-minute expiry, then compares the current admin-token and approval-hash fingerprints. Credential rotation revokes an existing grant.
 4. make_action signs a random form bound to the event, session, command, target and reviewed inventory. For a pending check it includes the exact reviewed operation revision. Unused forms expire after 10 minutes.
-5. claim_action locks the event, rechecks authorization and current records, checks consumed/active commands, and inserts the durable action hash. Its transaction commits before lifecycle or PayPal work.
+5. claim_command (D93) locks the event, rechecks authorization and current records, checks consumed/active commands, claims the payment or void the command needs, and inserts the durable action hash with a link to that claim. This is one transaction, and it commits before any PayPal work.
 6. The partial unique index is a second guard: only one CLAIMED browser command per event can exist across processes.
-7. run_refund_command invokes only the explicit start, continuation or restricted GET integration. The previously checked form payload remains valid for that claimed invocation even if its unused-form deadline subsequently passes.
+7. run_refund_command invokes only the explicit start, continuation, cancel-one-hold or restricted GET integration. carry_out calls PayPal with no transaction open, then saves the result and finishes the command in one transaction. The previously checked form payload remains valid for that claimed invocation even if its unused-form deadline subsequently passes.
 8. finish_action retains the consumed action as FINISHED after a returned command when no active/uncertain refund or void remains. New independent commands can then proceed; replay cannot execute the completed action again.
 9. An exception, unresolved POST or uncertain void leaves CLAIMED evidence. No timer, refresh, new browser, session expiry or refund status page releases it. An inconclusive GET for a durably known pending refund can finish its read command; it does not authorize another POST for that refund.
 10. claim_treasurer_refund_check locks event then refund and checks event association, ANSWERED/PENDING, a known ID and the exact operation revision. It commits before GET. Existing owner/revision fences control the result write.
@@ -81,3 +81,11 @@ Important code, in execution order:
 There is no browser maintenance, retry or claim-release endpoint. A crash can conservatively block otherwise unsent work. Releasing a browser command requires a separately reviewed offline procedure: establish that the original worker cannot resume, inspect exact command identity and payment/void evidence, reconcile known resources, and keep unknown POST outcomes blocked. Do not manually delete claims simply because they are old. Existing F7 maintenance authorization is not granted by the browser session.
 
 These protections apply to the new refund interface. Existing non-refund admin actions retain their previous authorization design. Real browser, proxy and deployment verification remain NOT RUN; see TEST_PLAN.md for actual local results.
+
+### D93 corrections
+
+- **Preflight (`POST /refunds/preflight`):** same session, CSRF and exact-origin checks as every refund POST; it takes no action token and no command slot because it only reads. It makes at most one PayPal GET per request and saves only `refund_check_status`. It never voids, captures or refunds.
+- **Cancelling a hold (`POST /refunds/holds/<id>/cancel`)** is a separate single-use command bound to that hold. A form for one hold, or for START, cannot be used for another. The void request id is saved before the call (rule 3), and the same id is reused on any retry (rule 4).
+- **Atomicity:** a command and its payment/void claim are saved together; its result and its finish are saved together. A crash between leaves the command CLAIMED, never silently half-saved. The database enforces both directions (migration 006). Recovery stays GET-only: `reconcile_refund` or `reconcile_uncertain_void` saves the answer and finishes the command.
+- **Totals:** when any captured-payment record is missing or unresolved the screen shows "total unknown", never $0.00 or a partial sum.
+- Real browser, proxy and deployed-timeout behaviour of the preflight script is NOT RUN.
