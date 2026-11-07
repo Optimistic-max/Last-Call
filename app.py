@@ -785,6 +785,7 @@ def board_for_event(facts, now):
         "event_id": event["id"],
         "title": event["title"],
         "status": event["status"],
+        "demo_mode": event["demo_mode"],
         "banner_text": banner_text(facts, seconds),
         "seconds_left": seconds,
         "goal_text": GOAL_TEXT % (dollars(facts["goal_cents"]), dollars(event["deposit_cents"])),

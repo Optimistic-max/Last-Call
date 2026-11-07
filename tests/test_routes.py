@@ -368,14 +368,14 @@ def test_s2_shows_the_open_button_only_for_a_draft(monkeypatch, test_db, test_db
 # ---------- Step 5b C: the board (S3, board.json, and S2's panel) ----------
 
 # The exact keys of docs/UI_DESIGN.md section 10. A key may be added there later, never renamed.
-BOARD_KEYS = {"event_id", "title", "status", "banner_text", "seconds_left", "goal_text", "held_total_text", "counted_total_text",
+BOARD_KEYS = {"event_id", "title", "status", "demo_mode", "banner_text", "seconds_left", "goal_text", "held_total_text", "counted_total_text",
               "progress_percent", "pledging_open", "rows"}
 ROW_KEYS = {"name", "status", "status_word", "max_text", "estimated_share_text", "counted", "waiting_on_text"}
 
 
 # Hand-made board facts for the text tests below, so they need no database.
 def facts_for(status, any_hold_created=False, club_net_cents=None):
-    event = {"id": 7, "title": "Cabin (made up)", "status": status, "deposit_cents": 30000,
+    event = {"id": 7, "title": "Cabin (made up)", "status": status, "demo_mode": False, "deposit_cents": 30000,
              "hard_deadline": NOW + timedelta(minutes=9, seconds=30),
              "last_call_ends": NOW + timedelta(minutes=4, seconds=59)}
     return {"event": event, "rows": [], "held_total_cents": 0, "counted_total_cents": 0, "goal_cents": 31001, "progress_percent": 0,
@@ -515,6 +515,26 @@ def test_board_json_keys_match_the_contract(monkeypatch, test_db, test_db_url):
         assert board["pledging_open"] is True
     finally:
         delete_event(test_db, event_id)
+
+
+# E9 (server part): board.json carries demo_mode, and Samuel's demo badge (D87) renders on S2 and S3 for a
+# demo-mode event only. The browser look is NOT RUN.
+def test_demo_mode_reaches_board_json_and_the_badge_shows_only_for_demo_events(monkeypatch, test_db, test_db_url):
+    use_test_setup(monkeypatch, test_db_url)
+    fake_paypal.reset()
+    client = app.app.test_client()
+    badge_text = "Demo mode: timers are minutes, not hours"
+    events = {demo: make_open_event(test_db, demo_mode=demo) for demo in (True, False)}
+    try:
+        for demo, event_id in events.items():
+            token = db.fetch_one(test_db, "SELECT admin_token FROM events WHERE id = %s", (event_id,))["admin_token"]
+            assert client.get("/e/%d/board.json" % event_id).get_json()["demo_mode"] is demo
+            for text in [client.get("/e/%d" % event_id).get_data(as_text=True), client.get("/admin/" + token).get_data(as_text=True)]:
+                assert (badge_text in text) is demo
+                assert ('class="demo-badge"' in text) is demo
+    finally:
+        for event_id in events.values():
+            delete_event(test_db, event_id)
 
 
 # No token and no email ever reach the board: not the admin_token, not any pledger_token, and no key
