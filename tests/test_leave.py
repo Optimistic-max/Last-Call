@@ -572,7 +572,9 @@ def test_s6_shows_the_right_text_for_each_state(monkeypatch, test_db, test_db_ur
         assert str(escape(app.LEAVE_DONE_TEXT)) in get_page(token).get_data(as_text=True)
 
         closed_token, order_id, result = pledge_and_authorize(test_db, closed_event, "Ana", 4000)
-        set_event_status(test_db, closed_event, "SETTLED")
+        # Pledging time is up but the event is not settled yet: still "too late". A settled or other
+        # finished event shows the friend's receipt instead (D95, tests/test_receipt.py).
+        db.run(test_db, "UPDATE events SET hard_deadline = %s WHERE id = %s", (NOW - timedelta(minutes=1), closed_event))
         html = get_page(closed_token).get_data(as_text=True)
         assert str(escape(app.LEAVE_CLOSED_TEXT)) in html
         assert 'id="leave-button"' not in html

@@ -67,6 +67,24 @@ LEAVE_COUNTED_TEXT = "You're counted, so you can't leave during last call."
 LEAVE_DONE_TEXT = "You're out. Your hold is cancelled, and nothing will be charged."
 LEAVE_CANCELLING_TEXT = "You're out. Cancelling your hold\u2026"
 LEAVE_CLOSED_TEXT = "It's too late to cancel here: pledging has ended for this event."
+# D95: the receipt on S6. Placeholders until Samuel approves them (D57). Every amount is a saved record,
+# formatted by dollars(); the released amount is worked out by money.released_cents only.
+RECEIPT_TEXTS = {
+    "PAID": "You paid %s (your max was %s). Nobody paid more than their max.",
+    "REFUNDED": "You were charged %s, and it was refunded in full.",
+    "REFUND_IN_PROGRESS": "You were charged %s. Your refund is in progress.",
+    "REFUND_REVIEW": "You were charged %s. The treasurer is looking into your refund.",
+    "FAILED": "Your card couldn't be charged, so you paid nothing. The treasurer has been told.",
+    "NOT_CHARGED_CANCELLED": "You weren't charged. Your hold was cancelled.",
+    "NOT_CHARGED_CANCELLING": "You weren't charged. Your hold is being cancelled.",
+    "NOT_CHARGED_NO_HOLD": "You weren't charged.",
+    "EXPIRED_CANCELLED": "The goal wasn't reached, so nobody paid. Your hold was cancelled.",
+    "EXPIRED_CANCELLING": "The goal wasn't reached, so nobody paid. Your hold is being cancelled.",
+    "EXPIRED_NO_HOLD": "The goal wasn't reached, so nobody paid.",
+    "CHARGING": "Shares are being charged now. Check back in a minute.",
+    "UNDER_REVIEW": "We're checking what happened to your payment. The treasurer has been told.",
+}
+REFUND_RECEIPT_KINDS = ("REFUNDED", "REFUND_IN_PROGRESS", "REFUND_REVIEW")
 LEAVE_MESSAGES = {"CAN_LEAVE": LEAVE_ASK_TEXT, "COUNTED": LEAVE_COUNTED_TEXT, "LEFT": LEAVE_DONE_TEXT,
                   "LEFT_CANCELLING": LEAVE_CANCELLING_TEXT, "CLOSED": LEAVE_CLOSED_TEXT}
 # The board's texts, copied from docs/UI_DESIGN.md section 10. DRAFT_TEXT and the time formats are
@@ -242,9 +260,32 @@ def leave_page(pledger_token):
         return ERROR_TEXT, 503
     if state["state"] == "NOT_FOUND":
         return ERROR_TEXT, 404
-    return render_template("leave.html", title=state["title"], message=LEAVE_MESSAGES[state["state"]],
+    trail = None
+    if state["state"] == "RECEIPT":
+        message, trail = receipt_view(state["receipt"])
+    else:
+        message = LEAVE_MESSAGES[state["state"]]
+    return render_template("leave.html", title=state["title"], message=message, trail=trail,
                            can_leave=state["state"] == "CAN_LEAVE", button_text=LEAVE_BUTTON_TEXT,
-                           leave_url=url_for("leave_submit", pledger_token=pledger_token))
+                           leave_url=url_for("leave_submit", pledger_token=pledger_token),
+                           board_url=url_for("board_page", event_id=state["event_id"]))
+
+
+# D95: the receipt line and, for a paid friend only, the 3-step money trail. Formatting only: the amounts
+# are saved records, and the released amount comes from money.released_cents (rule 2).
+def receipt_view(facts):
+    kind = facts["kind"]
+    if kind == "PAID":
+        return RECEIPT_TEXTS[kind] % (dollars(facts["paid_cents"]), dollars(facts["max_cents"])), money_trail(facts)
+    if kind in REFUND_RECEIPT_KINDS:
+        return RECEIPT_TEXTS[kind] % dollars(facts["paid_cents"]), None
+    return RECEIPT_TEXTS[kind], None
+
+
+# "Held $15.00 -> Charged $10.77 -> Released $4.23" as three finished texts.
+def money_trail(facts):
+    return {"held": dollars(facts["max_cents"]), "charged": dollars(facts["paid_cents"]),
+            "released": dollars(money.released_cents(facts["max_cents"], facts["paid_cents"]))}
 
 
 # The leave itself. Whatever happened, the answer is a redirect (303) back to the page, which shows the

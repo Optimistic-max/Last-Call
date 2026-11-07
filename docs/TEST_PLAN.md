@@ -487,3 +487,32 @@ Helper: `tests/sandbox_lock_with_one_refusal.py`, run by hand only (pytest never
 | Real sandbox refund-all on dev, localhost (event 35): $30 demo event, 3 friends (Ana, Bo, Cy) with sandbox test cards; lock with this helper so two are charged and one is refused; then preflight, cancel the refused friend's hold, START, CONTINUE; verify with SQL on dev | VERIFIED (Nov 7, Neon dev, real PayPal sandbox, run by Emmanuel; the one refusal is SIMULATED, so F22 stays NOT RUN) | Lock with one simulated refusal: the event ended NEEDS_ATTENTION, and the refused capture was tried twice (attempt 1 and its one retry). Preflight read the holds. Cy's open hold was cancelled with its own confirmation and read back VOIDED. START and CONTINUE each sent one refund: Ana $10.77 and Bo $10.78 were refunded in full and confirmed by PayPal. The event ended REFUNDED, and all the browser commands (cancel, start, continue) ended FINISHED. The SQL checks on dev matched the expected results listed in the plan. The PayPal sandbox merchant dashboard is only a cross-check, not the record (rule 9). |
 | Bug found by this run, fixed (Nov 7): the S2 "Review refunds" link was nearly invisible | VERIFIED (fix + test, local) | After the merge with Samuel's redesign the link was a plain `text-link`: no underline until hover, so it looked like a caption. It is now a `button-link`. `tests/test_refund_web.py::test_admin_page_shows_the_review_refunds_button_only_when_refunds_apply` checks that a NEEDS_ATTENTION admin page shows the button linking to `/refund-access` and an OPEN event does not. Note for Samuel in `docs/TEAM.md`. |
 | Bug found by this run, fixed (Nov 7): `Referrer-Policy: no-referrer` made browsers send `Origin: null` on every refund form POST, so the exact-origin check refused the approval key every time | VERIFIED (fix + tests, local); the real-browser retry is what completed this run | The Flask test client sets Origin by hand, so the tests had never seen it. Refund responses now send `Referrer-Policy: same-origin`; the Origin check is unchanged and still refuses `null`. Tests: `test_every_refund_response_uses_a_referrer_policy_that_keeps_origin_on_same_origin_posts`, `test_origin_null_is_still_refused_on_the_approval_form_and_the_preflight`. Recorded in D93 and `docs/SECURITY.md`. |
+
+## S6 receipt (Nov 7, D95)
+
+Local disposable PostgreSQL through `run_local_tests.py`, fake PayPal. Tests were written first: 39 of 40 failed (no `money.released_cents`, and S6 still said "too late"); the one that passed was the no-IDs guard, which can only pass before the feature exists (mutation R9 shows it can fail).
+
+| Check | Status | Actual result |
+|---|---|---|
+| `tests/test_receipt.py` | VERIFIED | 40 passed. Every end state: paid (SETTLED and NEEDS_ATTENTION, with the trail Held $15.00 → Charged $10.77 → Released $4.23 from saved records), refunded, refund in progress (READY, IN_FLIGHT, UNCERTAIN, CHECK_ONLY, ANSWERED/PENDING), refund failed or cancelled, failed, failed with a CAPTURED hold (under review, never "paid nothing"), not charged (cancelled, being cancelled for DROPPED and HELD, no hold for PENDING_PAY and DECLINED, a DENIED hold counts as no hold), expired (all three), locking and charging, and under review (unresolved capture, share mismatch, above the max, no recorded capture). The trail shows only for paid; its released amount comes from `money.released_cents` (the page shows money.py's value when it is replaced). The route writes nothing and calls no PayPal (`db.run` made to fail during the request). No PayPal id, request id, pledger token or admin token appears. Before lock the leave button and texts are unchanged; every S6 page links back to `/e/<id>`. `money.released_cents`: max minus paid, refuses above-the-hold, negative and non-integer amounts. |
+| `tests/test_leave.py` | VERIFIED | Unchanged except one case: "too late" is now checked on an OPEN event whose time is up but which is not settled yet (a settled event shows the receipt instead). |
+| Real browser and phone look of the receipt and trail | NOT RUN | |
+
+Mutation checks (each break made, matching tests run, file restored and proven byte-identical):
+
+| Deliberate break | Caught by |
+|---|---|
+| R1 the max is shown as what was paid | `test_paid_shows_the_saved_amounts_and_the_money_trail` (2) |
+| R2 share-equals-capture check removed | `test_a_capture_that_differs_from_the_saved_share_is_under_review` |
+| R3 D47 guard removed | `test_failed_with_a_captured_hold_never_says_nothing_was_paid` |
+| R4 a refund in progress shown as refunded | `test_a_refund_in_progress_says_so_and_never_says_refunded` (5) |
+| R5 a CREATED hold treated as cancelled | the "being cancelled" tests (3) |
+| R6 the no-hold variant dropped | the "without a hold" tests (4) |
+| R7 receipt shown before lock | `test_before_lock_there_is_no_receipt_and_the_leave_button_still_shows` |
+| R8 a write inside `receipt_facts` | `test_the_receipt_request_writes_nothing_and_calls_no_paypal` |
+| R9 the leave form (with the token) shown on receipts | `test_no_paypal_id_request_id_or_token_is_shown` |
+| R10 the money trail shown for refund receipts | refund tests (6) |
+| R11 released worked out in `app.py` instead of `money.py` | `test_released_on_the_page_comes_from_money_py` |
+| R12 `money.released_cents` no longer refuses a charge above the hold | `test_released_refuses_impossible_amounts[1500-1501]` |
+
+The template cannot work out the released amount itself: it only receives three finished texts, never cents.

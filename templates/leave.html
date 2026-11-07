@@ -2,7 +2,9 @@
 {# S6, "I'm out" (docs/UI_DESIGN.md sections 3 and 10, D82). The button is shown only when the pledger
    can leave; every other state shows one line of text. app.py reads nothing from this form, but keep
    leave-message and leave-button: the tests look for them. The texts are placeholders until Samuel
-   approves them (D57). This page gets no event id, so it has no menu and no link to the board. #}
+   approves them (D57). Once the event is charging or finished, the message is the friend's receipt (D95),
+   and a paid friend also sees the 3-step money trail. Samuel: style the trail and the back link; on phones,
+   stack the three steps vertically. Keep money-trail-step and the board link: the tests look for them. #}
 
 {% block title %}Your pledge: {{ title }}{% endblock %}
 
@@ -12,11 +14,21 @@
     <h1>{{ title }}</h1>
     <p id="leave-message" class="info-box" role="status">{{ message }}</p>
 
+    {% if trail %}
+    <ol class="money-trail">
+      <li class="money-trail-step">Held {{ trail.held }}</li>
+      <li class="money-trail-step"><span class="money-trail-arrow" aria-hidden="true">&rarr;</span> Charged {{ trail.charged }}</li>
+      <li class="money-trail-step"><span class="money-trail-arrow" aria-hidden="true">&rarr;</span> Released {{ trail.released }}</li>
+    </ol>
+    {% endif %}
+
     {% if can_leave %}
     <form method="post" action="{{ leave_url }}">
       <button id="leave-button" class="button-secondary button-danger button-full" type="submit">{{ button_text }}</button>
     </form>
     {% endif %}
+
+    <p class="back-to-board"><a class="back-to-board-link" href="{{ board_url }}">&larr; Back to board</a></p>
   </div>
 </main>
 {% endblock %}

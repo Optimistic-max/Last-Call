@@ -384,3 +384,23 @@ The new templates are refund_access.html, refund_confirm.html, refund_status.htm
 - If PayPal has no final answer the page says so and nothing changes; if it reports failed or cancelled it says "review required".
 - A frozen payment with no saved PayPal refund id shows: "No PayPal refund id was saved, so this cannot be checked here. Nothing was changed: a developer must investigate." No button.
 - Placeholder wording (D57) until Samuel approves it. Real browser and phone behaviour is NOT RUN.
+
+### S6 receipt (D95, Samuel review pending)
+
+Once the event is charging or finished, S6's `leave-message` is the friend's receipt, and there is no leave button. Placeholder texts (D57), from `RECEIPT_TEXTS` in `app.py`:
+
+| What happened | Text |
+|---|---|
+| paid (also shows the money trail) | "You paid $X (your max was $Y). Nobody paid more than their max." |
+| refunded | "You were charged $X, and it was refunded in full." |
+| refund in progress | "You were charged $X. Your refund is in progress." |
+| refund failed or cancelled | "You were charged $X. The treasurer is looking into your refund." |
+| card couldn't be charged | "Your card couldn't be charged, so you paid nothing. The treasurer has been told." |
+| not charged, hold cancelled / being cancelled / never held | "You weren't charged. Your hold was cancelled." / "... Your hold is being cancelled." / "You weren't charged." |
+| goal not reached (the same three) | "The goal wasn't reached, so nobody paid. Your hold was cancelled." / "... Your hold is being cancelled." / "The goal wasn't reached, so nobody paid." |
+| locking or charging | "Shares are being charged now. Check back in a minute." |
+| anything the records can't prove | "We're checking what happened to your payment. The treasurer has been told." |
+
+**Money trail (paid only):** an `<ol class="money-trail">` with three `money-trail-step` items, "Held $max", "→ Charged $paid", "→ Released $released" (the arrows are `money-trail-arrow`, hidden from screen readers). Bare markup, no styling yet: stack the steps vertically on phones.
+
+**Back link:** every S6 page now ends with "← Back to board" (`back-to-board-link`) to `/e/<id>`. Real browser and phone look: NOT RUN.

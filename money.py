@@ -17,6 +17,18 @@ def refund_summary_cents(payments):
             fee_cents += payment["fee_cents"]
     return {"amount_cents": amount_cents, "fee_cents": fee_cents}
 
+# D95: what PayPal releases from a hold after the one charge: the max that was held minus what was charged.
+# Whole cents only (rule 1). A charge above the hold, or a negative amount, cannot happen by design, so it is
+# refused instead of showing a negative or made-up number on a friend's receipt.
+def released_cents(max_cents, paid_cents):
+    for value in (max_cents, paid_cents):
+        if type(value) is not int:
+            raise TypeError("amounts must be whole cents")
+    if max_cents < 0 or paid_cents < 0 or paid_cents > max_cents:
+        raise ValueError("a charge is never negative and never above the hold")
+    return max_cents - paid_cents
+
+
 # Basis points are hundredths of a percent, so 10000 basis points is 100%.
 BASIS_POINTS_IN_100_PERCENT = 10000
 
