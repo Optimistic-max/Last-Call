@@ -40,7 +40,6 @@ Agents check this list before editing a file and mention any open to-do on it (`
 | Samuel | `docs/UI_DESIGN.md`, `templates/board_panel.html` | Consider a short line by the goal explaining that it rises a little with each person, because PayPal takes a fixed fee from each charge (D76: the goal uses the current held count) (Nov 2). |
 | Samuel | `templates/pledge.html`, `docs/UI_DESIGN.md` | Approve or replace `leave.html`'s four placeholder texts (D57). On the pledge page after 'Held', add a 'Copy link' button next to the friend's own link (changes to 'Copied ✓'), and on phones a 'Send to myself' button using navigator.share; fall back to copy. The styling is done (Nov 5). |
 | Samuel | `templates/refund_confirm.html`, `templates/refund_cancel.html`, `templates/refund_status.html`, `static/js/refund_preflight.js`, `docs/UI_DESIGN.md` | Review the D93 refund review (Nov 7): the three steps, "Checked N of M", the cancel page and the "total unknown" wording are placeholders (D57). Emmanuel wrote the templates and script; they are yours after review. Not yet tried in a real browser or on a phone. |
-| Malama | `migrations/006_f7_bounded_refund_preflight.sql`, `schema.sql` | Review the actual SQL of migration 006 (D93), which you approved as a design Nov 7. Never apply it to a Neon branch before that review. |
 
 Emmanuel is over capacity through Nov 8 (about 14 h over). Revisit Wed Nov 4, 9 PM ET.
 
