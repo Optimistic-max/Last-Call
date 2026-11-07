@@ -60,12 +60,22 @@ def click(client, case, refund, form=None):
     return post(client, recheck_path(case, refund["id"]), form or recheck_form(client, case))
 
 
+# This event's own captures, by event id. The test database may be shared and may hold other tests' leftovers,
+# so a test must never read a whole table.
+def own_capture_statuses(case):
+    return [row["status"] for row in db.fetch_all(
+        case["conn"], "SELECT captures.status FROM captures JOIN holds ON holds.id = captures.hold_id "
+                      "JOIN pledges ON pledges.id = holds.pledge_id WHERE pledges.event_id = %s ORDER BY captures.id",
+        (case["event_id"],))]
+
+
 def snapshot(case):
     conn = case["conn"]
-    return (db.fetch_all(conn, "SELECT * FROM refunds ORDER BY id"),
+    return (refund_rows(conn, case["event_id"]),
             db.fetch_all(conn, "SELECT * FROM refund_web_actions WHERE event_id = %s ORDER BY action_hash", (case["event_id"],)),
             db.fetch_one(conn, "SELECT status, refund_run_token, refund_revision FROM events WHERE id = %s", (case["event_id"],)),
-            db.fetch_all(conn, "SELECT status FROM captures ORDER BY id"), db.fetch_all(conn, "SELECT status FROM pledges ORDER BY id"))
+            own_capture_statuses(case),
+            db.fetch_all(conn, "SELECT status FROM pledges WHERE event_id = %s ORDER BY id", (case["event_id"],)))
 
 
 def get_answer(refund, status):
@@ -92,11 +102,11 @@ def test_completed_answer_finishes_the_refund_and_the_existing_command(web_case,
     [after] = refund_rows(web_case["conn"], web_case["event_id"])
     assert (after["send_state"], after["status"]) == ("ANSWERED", "COMPLETED")
     assert after["request_id"] == refund["request_id"] and after["refund_id"] == refund["refund_id"]
-    assert db.fetch_one(web_case["conn"], "SELECT count(*) AS n FROM refunds")["n"] == 1
+    assert len(refund_rows(web_case["conn"], web_case["event_id"])) == 1
     [command] = commands(web_case["conn"], web_case["event_id"])
     assert command["action_hash"] == command_before["action_hash"] and command["state"] == "FINISHED"
     assert db.fetch_one(web_case["conn"], "SELECT status FROM events WHERE id = %s", (web_case["event_id"],))["status"] == "REFUNDED"
-    assert [row["status"] for row in db.fetch_all(web_case["conn"], "SELECT status FROM captures")] == ["REFUNDED"]
+    assert own_capture_statuses(web_case) == ["REFUNDED"]
 
 
 def test_no_new_browser_command_is_created(web_case, monkeypatch):
