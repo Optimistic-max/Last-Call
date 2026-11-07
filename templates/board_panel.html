@@ -40,7 +40,15 @@
 
   <div class="board-stats" tabindex="0" role="group" aria-label="The totals">
     {% set held_caption %}{% if board.status in ["OPEN", "LAST_CALL"] %}PayPal is holding this. Nobody is charged yet.{% elif board.status == "SETTLED" %}Charged once.{% endif %}{% endset %}
-    {{ stat_card("Held so far", "board-held-total", board.held_total_text, "board-held-caption", held_caption, "progress", "Go to Progress", "light-card") }}
+    {# D97, bare: from the lock on, this first card says Charged and shows charged_total_text (and what was refunded);
+       before that it stays Held so far. board.js makes the same choice on every refresh (showStats). Samuel: restyle
+       both, but keep the choice and the board-held-title / board-held-total / board-held-caption hooks. #}
+    {% if board.charged_total_text %}
+    {% set charged_caption = ("Refunded " ~ board.refunded_total_text) if board.refunded_total_text else "Charged once." %}
+    {{ stat_card("Charged", "board-held-total", board.charged_total_text, "board-held-caption", charged_caption, "progress", "Go to Progress", "light-card", title_class="board-held-title") }}
+    {% else %}
+    {{ stat_card("Held so far", "board-held-total", board.held_total_text, "board-held-caption", held_caption, "progress", "Go to Progress", "light-card", title_class="board-held-title") }}
+    {% endif %}
     {% set counted_text %}{% if board.counted_total_text %}{{ board.counted_total_text }}{% elif counted_count == 1 %}1 person{% else %}{{ counted_count }} people{% endif %}{% endset %}
     {{ stat_card("Counted", "board-counted-total", counted_text, "", "Counts toward the goal", "whos-in", "Go to Who's in") }}
     {{ stat_card("People in", "board-people", board.rows|length, "board-waiting-count", waiting_count ~ " waiting on someone", "whos-in", "Go to Who's in") }}

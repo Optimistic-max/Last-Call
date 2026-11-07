@@ -101,6 +101,7 @@ CANCELLING_TEXT = "Cancelling holds…"                                         
 EXPIRED_TEXT = "Goal not reached. Every hold was cancelled. Nobody paid."
 GOAL_TEXT = "Goal %s so the club gets a full %s after fees"
 CHARGED_WORD = "Charged %s"
+CHARGED_CHECKING_TEXT = "Total being checked"                                     # D97, D57
 WAITING_ON_TEXT = "Waiting on %s"    # D79, a placeholder (D57)
 BOARD_STATUS_WORDS = {"PENDING_PAY": "Pledged", "HELD": "Held", "DECLINED": "Declined",
                       "FAILED": "Charge failed", "REFUNDED": "Refunded"}
@@ -820,6 +821,7 @@ def board_for_event_id(event_id):
 def board_for_event(facts, now):
     event = facts["event"]
     seconds = seconds_left(event, now)
+    charged_total_text, refunded_total_text = charged_texts(facts)
     counted_total_text = ""
     if event["status"] in ("OPEN", "LAST_CALL"):
         counted_total_text = dollars(facts["counted_total_cents"])
@@ -833,11 +835,28 @@ def board_for_event(facts, now):
         "goal_text": GOAL_TEXT % (dollars(facts["goal_cents"]), dollars(event["deposit_cents"])),
         "held_total_text": dollars(facts["held_total_cents"]),
         "counted_total_text": counted_total_text,
+        "charged_total_text": charged_total_text,
+        "refunded_total_text": refunded_total_text,
         "progress_percent": facts["progress_percent"],
         "pledging_open": lifecycle.pledging_is_open(event, now),
         "links": board_links(facts),
         "rows": board_row_texts(facts),
     }
+
+
+# D97: the first card's money text after the lock, from saved rows (lifecycle.charged_totals), formatted here. ""
+# before the lock (the card stays "Held so far"). A total that cannot be trusted is "Total being checked", never a
+# number and never $0.00. The refunded text is "" until PayPal has confirmed a refund.
+def charged_texts(facts):
+    totals = facts["charged"]
+    if totals is None:
+        return "", ""
+    if totals["unresolved"]:
+        return CHARGED_CHECKING_TEXT, ""
+    refunded = ""
+    if totals["refunded_cents"] > 0:
+        refunded = dollars(totals["refunded_cents"])
+    return dollars(totals["charged_cents"]), refunded
 
 
 # D79: a row is counted if the circle rule counts it, or it was already charged or failed at lock (it was

@@ -41,11 +41,11 @@
 
 {# One of the four totals on the board. number_class and caption_class are board.js's hooks. target is
    the id of the card the arrow scrolls to. #}
-{% macro stat_card(title, number_class, number, caption_class, caption, target, target_label, extra_class="") -%}
+{% macro stat_card(title, number_class, number, caption_class, caption, target, target_label, extra_class="", title_class="") -%}
 <div class="card stat-card {{ extra_class }}">
   {%- if extra_class %}<span class="card-bloom" aria-hidden="true"></span>{% endif %}
   <div class="stat-top">
-    <h2 class="card-title">{{ title }}</h2>
+    <h2 class="card-title{% if title_class %} {{ title_class }}{% endif %}">{{ title }}</h2>
     <a class="icon-button" href="#{{ target }}" aria-label="{{ target_label }}">{{ icon("arrow-up-right") }}</a>
   </div>
   <p class="display-number stat-number {{ number_class }}">{{ number }}</p>

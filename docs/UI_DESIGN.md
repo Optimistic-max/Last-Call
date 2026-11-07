@@ -274,6 +274,8 @@ Both get the same `board` object, and `board.json` is exactly this object, so th
 | `goal_text` | text | `"Goal $310.01 so the club gets a full $300.00 after fees"` |
 | `held_total_text` | text: HELD money only (D31, D43). It is `$0.00` after lock, because holds become charges | `"$120.00"` |
 | `counted_total_text` | finished money text: the sum of eligible counted held maximums during OPEN and LAST_CALL (D86). Waiting, unpaid, declined, dropped and ineligible holds add nothing. `""` at every other status, preserving the existing people-count fallback; it is not a confirmed-payment total | `"$45.00"` |
+| `charged_total_text` | finished money text (D97): from the lock on (`SETTLED`, `NEEDS_ATTENTION`, `REFUNDING`, `REFUNDED`) the sum of the event's saved charges, counting `COMPLETED` and `REFUNDED` captures. `"Total being checked"` (placeholder) when any capture or payment record is unresolved: never `$0.00` for that. `""` at every other status, where the first card stays "Held so far" | `"$32.33"` |
+| `refunded_total_text` | finished money text (D97): the sum of refunds PayPal has confirmed, or `""` when there are none (or while the total is being checked) | `"$21.55"` |
 | `progress_percent` | a whole number from 0 to 100. It is 100 only when the goal is reached (D54), and 100 from `LAST_CALL` on (§5) | `39` |
 | `demo_mode` | true while the event runs on minute timers. Shows the demo mode badge. **Not sent yet** (`TEAM.md`); with no key, the badge stays off | `true` |
 | `pledging_open` | true or false: whether to show the link to `/e/<id>/pledge` | `true` |
@@ -412,3 +414,7 @@ Once the event is charging or finished, S6's `leave-message` is the friend's rec
 #### `links` and the fallback list (D96, Samuel to draw and style)
 
 `links` is names and a flag only, with no ids or tokens. The end of a chain matches "Waiting on …" (D79): follow the links from an uncounted held person through held-but-uncounted people to names nobody holds for. Placeholder fallback in `board_panel.html` (inside the "Who's in" card, shown only when `links` is not empty): `<ul class="board-links">` with one `<li class="board-link" data-met="true|false">` per link, "Ana → Jay ✓" or "Bo → Cy (waiting)". Keep the data the same when you restyle or replace it. It is drawn at page load only, so redraw a diagram from `board.json` on each 10-second refresh; names are user text, so always use `textContent`, never `innerHTML`. On phones a list (or stacked chips) is the fallback for the diagram.
+
+#### The first card after the lock (D97, Samuel to restyle)
+
+While `charged_total_text` is `""` the first card is "Held so far" with `held_total_text`, as before. Once it is not empty, the card's label becomes "Charged", the value is `charged_total_text`, and the caption is "Refunded $X" when `refunded_total_text` is not empty, otherwise "Charged once." (placeholders, D57). `held_total_text` keeps meaning HELD money only (so it is `$0.00` after the lock). The same choice is made in `templates/board_panel.html` (page load) and `static/js/board.js` `showStats` (every refresh, `textContent` only). Hooks to keep: `board-held-title`, `board-held-total`, `board-held-caption`. "Total being checked" is a value, not a number: do not format it as money.

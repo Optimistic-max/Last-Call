@@ -544,3 +544,32 @@ Mutation checks (each break made, matching tests run, file restored and proven b
 | L11 a second conditions query per board read | the one-extra-query test |
 
 Known limit: `board.js` does not refresh the fallback list, so it shows the state at page load until the page is reloaded; a diagram should redraw from `board.json`.
+
+## The charged card after the lock (Nov 7, D97)
+
+Local disposable PostgreSQL through `run_local_tests.py`, fake PayPal; Node for the JavaScript. Tests were written first: 56 of 57 failed (no new keys, no card switch); the one that passed is the regression guard that `board.js` never writes HTML, which already held and is mutation-checked (C13).
+
+| Check | Status | Actual result |
+|---|---|---|
+| `tests/test_board_charged.py` | VERIFIED | Settled: three charges of $10.77, $10.78, $10.78 give "$32.33", held stays "$0.00". Partly failed: failed attempts add nothing. Refunds: charged stays "$32.33" (REFUNDED captures count) and refunded shows only confirmed refunds ("$10.77", then "$32.33" when all are refunded); READY, IN_FLIGHT, UNCERTAIN, CHECK_ONLY, ANSWERED/PENDING, FAILED and CANCELLED refunds are not counted. The total follows capture rows, not saved shares. "Total being checked" (never a number, refunded empty) for an unresolved capture, a FAILED pledge whose hold is CAPTURED (D47), and a CHARGED pledge with no recorded payment. The SQL unresolved rule agrees with `capture_is_unknown` on all 32 combinations of status, capture id and amount. Before the lock (DRAFT, OPEN, LAST_CALL, LOCKING, CHARGING, EXPIRED) both keys are empty and the held total is unchanged. No capture, hold, request or refund id reaches `board.json`. S3 shows "Charged" and "Refunded $X" after the lock and "Held so far" before. |
+| `tests/test_board_js.py` | VERIFIED | The first card switches to Charged with the refunded caption, to "Total being checked", and back to "Held so far" with the old captions; `board.js` never uses `.innerHTML`. (The fake DOM got a `held-title` element.) |
+| `tests/test_routes.py` | VERIFIED | `BOARD_KEYS` lists the two keys; `facts_for` has `charged: None`. |
+| Real browser and phone look of the card | NOT RUN | |
+
+Mutation checks (each break made, matching tests run, file restored and proven byte-identical):
+
+| Deliberate break | Caught by |
+|---|---|
+| C1 FAILED captures summed as charged | the partly-failed test |
+| C2 only COMPLETED counted | the refunds test |
+| C3 total summed from saved shares | the capture-rows-not-shares test |
+| C4 unresolved-capture check removed | the unresolved tests (29) |
+| C5 D47 check removed | the D47 test |
+| C6 unconfirmed refunds counted as refunded | the not-confirmed tests (7) |
+| C7 status gate removed (charged shown before the lock) | the before-the-lock tests (7) |
+| C8 "Total being checked" replaced by $0.00 | the unresolved-capture test |
+| C9 SQL rule drifts from `capture_is_unknown` | the SQL-agreement tests |
+| C10 `board.js` stops switching the card | the JS card test |
+| C11 CHARGED-without-a-payment check removed | its test |
+| C12 the template no longer switches the card | the S3 page test |
+| C13 `board.js` writes the title as HTML | both JS tests |

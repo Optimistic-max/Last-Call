@@ -140,6 +140,15 @@ function heldCaptionText(status) {
 }
 
 
+// D97: the caption under the charged total, after the lock. Server text only (textContent, never HTML).
+function chargedCaptionText(answer) {
+  if (answer.refunded_total_text) {
+    return "Refunded " + answer.refunded_total_text;
+  }
+  return "Charged once.";
+}
+
+
 // "1 person" or "3 people". Only a count of rows, so this is not money.
 function peopleText(count) {
   if (count === 1) {
@@ -158,8 +167,18 @@ function showStats(answer) {
   const waitingRows = answer.rows.filter(function (row) {
     return row.waiting_on_text !== "";
   });
-  board.querySelector(".board-held-total").textContent = answer.held_total_text;
-  board.querySelector(".board-held-caption").textContent = heldCaptionText(answer.status);
+  // D97: from the lock on the first card says Charged and shows charged_total_text; before that, Held so far.
+  // Bare version for Samuel to restyle: keep the choice, and use textContent only.
+  const title = board.querySelector(".board-held-title");
+  if (answer.charged_total_text) {
+    title.textContent = "Charged";
+    board.querySelector(".board-held-total").textContent = answer.charged_total_text;
+    board.querySelector(".board-held-caption").textContent = chargedCaptionText(answer);
+  } else {
+    title.textContent = "Held so far";
+    board.querySelector(".board-held-total").textContent = answer.held_total_text;
+    board.querySelector(".board-held-caption").textContent = heldCaptionText(answer.status);
+  }
   board.querySelector(".board-counted-total").textContent =
     answer.counted_total_text || peopleText(countedRows.length);
   board.querySelector(".board-people").textContent = answer.rows.length;
