@@ -180,6 +180,7 @@ Two sizes sit outside that scale on purpose: form labels (14px) and the status c
 - **Black cards** ("Held so far", the countdown, the status card in last call): `--grey-800` at the top left to `#0B0B0B` at the bottom right, with white light at 7% and grain. In last call the countdown's light drifts on an 8-second loop.
 - **No grid or line textures on the page (D87):** no dot grid and no ribbed lines on the page background or the hero. The blooms and the grain keep the background from looking flat. The half ring's still-needed stripes stay, because they carry meaning.
 - **Ribbed black cards (D98):** the black cards (`.light-card`: Held so far and the countdown, plus the status card during last call) show `static/images/ribbed-dark.jpg` under a 60% dark layer (white text 6:1, quieter text `#E5E5E5` 4.7:1). With a mouse or trackpad, the ribs slide up to 14px against the pointer and a faint light follows it (`static/js/ribs.js`, transform only, 700ms ease-out). Nothing moves on touch screens or with reduced motion.
+- **Liquid glass header (D99):** only the landing page's sticky header bends what scrolls under it (SVG noise and displacement inside `backdrop-filter`), in Chrome-family browsers only. Safari and Firefox keep the frosted glass. Never on buttons, cards or anything with text behind it that must stay readable.
 
 The black cards' light sits on `.card-bloom`, an empty element inside the card. It is a separate layer, so it can move without repainting the card.
 

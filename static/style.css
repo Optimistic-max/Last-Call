@@ -1474,6 +1474,25 @@ input.ai-filled {
   backdrop-filter: blur(16px) saturate(1.4);
 }
 
+/* Liquid glass on the sticky header (D99). The SVG filter in create_event.html bends the page as it
+   scrolls under the bar, like a wavy glass window. Only Chrome-family browsers can use an SVG filter
+   inside backdrop-filter, and others may drop the whole rule, so landing.js adds .liquid-glass to
+   <html> only there. Everyone else keeps the frosted glass above. The 72% white behind the text
+   stays, so the header's text is as readable as before. */
+.glass-filter {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-transparency: no-preference) {
+  .liquid-glass .landing-header {
+    -webkit-backdrop-filter: url(#liquid-glass) blur(10px) saturate(1.4);
+    backdrop-filter: url(#liquid-glass) blur(10px) saturate(1.4);
+  }
+}
+
 .landing-brand {
   display: inline-flex;
   align-items: center;
