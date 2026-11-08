@@ -374,6 +374,65 @@ a {
   background-image: var(--grain), radial-gradient(circle farthest-corner at 0% 0%, rgba(255, 255, 255, 0.07), transparent 60%);
 }
 
+/* The ribbed picture behind the black cards (Samuel's own file, static/images/ribbed-dark.jpg).
+   It sits on its own layer, bigger than the card, so static/js/ribs.js can slide it sideways when the
+   pointer moves over the card: like looking through fluted glass while moving your head. Only a
+   transform changes, so the text never repaints. The 60% dark layer on top keeps text readable:
+   over the picture's brightest pixel, white is 6:1 and the quieter text (#E5E5E5) is 4.7:1. */
+@property --ribs-glow {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+.light-card,
+.board[data-status="LAST_CALL"] .status-card {
+  --on-ink-2: #E5E5E5;
+  --ribs-x: 0px;
+  --ribs-mx: 50%;
+  --ribs-my: 0%;
+  transition: --ribs-glow 400ms var(--ease-out);
+}
+
+.light-card .card-bloom::after,
+.board[data-status="LAST_CALL"] .status-card .card-bloom::after {
+  content: "";
+  position: absolute;
+  inset: -24px;
+  z-index: -1;
+  background: linear-gradient(rgba(11, 11, 11, 0.6), rgba(11, 11, 11, 0.6)),
+    url("images/ribbed-dark.jpg") center / cover;
+  transform: translate3d(var(--ribs-x), 0, 0) scale(1.04);
+  transition: transform 700ms var(--ease-out);
+}
+
+/* A faint light that follows the pointer, faded in and out through --ribs-glow. */
+.light-card .card-bloom,
+.board[data-status="LAST_CALL"] .status-card .card-bloom {
+  background-image: radial-gradient(320px 240px at var(--ribs-mx) var(--ribs-my),
+    rgba(255, 255, 255, calc(0.07 * var(--ribs-glow))), transparent 70%);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .light-card:hover,
+  .board[data-status="LAST_CALL"] .status-card:hover {
+    --ribs-glow: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .light-card .card-bloom::after,
+  .board[data-status="LAST_CALL"] .status-card .card-bloom::after {
+    transform: scale(1.04);
+    transition: none;
+  }
+
+  .light-card:hover,
+  .board[data-status="LAST_CALL"] .status-card:hover {
+    --ribs-glow: 0;
+  }
+}
+
 /* ---------- Avatars ---------- */
 
 .avatar {
