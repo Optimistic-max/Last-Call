@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import icon %}
+{% from "macros.html" import logo_pair, theme_switch, icon %}
 {# S1: the landing page, then the create form further down the same page (#create).
    app.py reads the field names title, deposit and demo_mode, so keep them. Demo mode starts ticked:
    app.py sends demo_mode_checked=False for a fresh page, so error_text tells the two cases apart, and
@@ -10,31 +10,28 @@
    and amount in them is made up. #}
 
 {% block shell %}
-{# The liquid glass filter for the sticky header (D99). Noise makes a bumpy "sheet of glass", and the
-   displacement map bends whatever scrolls under the header by those bumps. landing.js switches it
-   on only in Chrome-family browsers; everyone else keeps the plain frosted glass. #}
-<svg class="glass-filter" width="0" height="0" aria-hidden="true" focusable="false">
-  <filter id="liquid-glass" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
-    <feTurbulence type="fractalNoise" baseFrequency="0.006 0.02" numOctaves="2" seed="7" result="noise"></feTurbulence>
-    <feGaussianBlur in="noise" stdDeviation="2" result="soft-noise"></feGaussianBlur>
-    <feDisplacementMap in="SourceGraphic" in2="soft-noise" scale="22" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
-  </filter>
-</svg>
-<header class="landing-header">
-  <a class="landing-brand" href="#top">
-    <span class="landing-logo-wrap"><img class="landing-logo" src="{{ url_for('static', filename='img/logo.svg') }}" alt="" width="45" height="28"></span>
+{# The island at the top (D103): home, two links, the theme switch, and Start a pledge in amber. It sticks
+   while the page scrolls and shrinks a little after 80px. #}
+<header class="landing-header island-top">
+  <a class="landing-brand" href="/">
+    <span class="landing-logo-wrap">{{ logo_pair("landing-logo") }}</span>
     <span class="landing-name">Last Call</span>
+    <span class="visually-hidden">, home</span>
   </a>
-  <nav class="landing-nav" aria-label="Menu">
+  <nav class="landing-nav" aria-label="Main">
     <a class="text-link" href="#how">How it works</a>
     <a class="text-link" href="#create">Try the demo</a>
   </nav>
-  <a class="button-link landing-start btn" href="#create">Start a pledge</a>
+  {{ theme_switch() }}
+  <a class="button-link button-amber landing-start" href="#create">Start a pledge</a>
 </header>
 
 <main id="top" class="landing">
   <section class="hero" aria-labelledby="hero-title">
-    <div class="hero-canvas">
+    <div class="hero-canvas hero-ribs">
+      {# The moving ribs (D103): the ribbed picture behind the hero only. static/js/ribs.js slides it against
+         the pointer; it also drifts on its own. Under a shade, so the headline stays readable. #}
+      <div class="hero-ribs-layer" aria-hidden="true"><div class="hero-ribs-drift"></div></div>
 
       <div class="piece piece-pledge" aria-hidden="true">
         <div class="piece-body">
@@ -49,7 +46,7 @@
 
       <div class="hero-tile">
         <div class="hero-tile-face">
-          <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="Last Call logo" width="195" height="120">
+          {{ logo_pair("hero-logo", "Last Call logo") }}
         </div>
       </div>
 
@@ -58,7 +55,7 @@
           <span class="hero-line">Nobody pays</span>
           <span class="hero-line">unless the goal is met.</span>
         </h1>
-        <a class="button-link btn" href="#create">Start a pledge</a>
+        <a class="button-link button-amber" href="#create">Start a pledge</a>
       </div>
 
       <div class="piece piece-countdown" aria-hidden="true">

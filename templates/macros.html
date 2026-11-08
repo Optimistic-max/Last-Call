@@ -100,3 +100,21 @@
 <svg class="hold-ring" viewBox="0 0 72 72" aria-hidden="true" focusable="false"><circle class="hold-track" cx="36" cy="36" r="33"></circle><circle class="prog" cx="36" cy="36" r="33"></circle></svg>
 {{- icon("check") }}<span class="hold-label">{{ label }}</span><span class="hold-hint">, press and hold to confirm</span>
 {%- endmacro %}
+
+{# The handshake mark in both colours: white on dark, black on light. The CSS shows the right one for the
+   theme (D103), so the page never waits for a script. #}
+{% macro logo_pair(class_name="", alt="") -%}
+<img class="logo-mark logo-on-dark {{ class_name }}" src="{{ url_for('static', filename='img/logo-white.svg') }}" alt="{{ alt }}" width="51" height="32">
+<img class="logo-mark logo-on-light {{ class_name }}" src="{{ url_for('static', filename='img/logo.svg') }}" alt="{{ alt }}" width="51" height="32">
+{%- endmacro %}
+
+{# The home link on every page: the mark, with words for screen readers (D103). #}
+{% macro home_mark() -%}
+<a class="home-mark" href="/">{{ logo_pair() }}<span class="visually-hidden">Last Call, home</span></a>
+{%- endmacro %}
+
+{# The theme switch (D103): checked is dark mode. static/js/theme.js keeps it, data-theme on <html> and
+   localStorage in step. The sun shows in light mode and the moon in dark mode. #}
+{% macro theme_switch(switch_id="theme-switch") -%}
+<label class="switch sw-17"><input type="checkbox" role="switch" id="{{ switch_id }}" class="theme-input" checked><span class="track"><span class="thumb">{{ icon("sun") }}{{ icon("moon") }}</span></span><span class="sr-only">Dark mode</span></label>
+{%- endmacro %}

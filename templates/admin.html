@@ -11,17 +11,15 @@
 
 {% block title %}Treasurer: {{ title }}{% endblock %}
 
-{% block body_class %}page-dark{% endblock %}
-{% block theme_color %}#121212{% endblock %}
 
 {# Overview is an anchor on this page, so the page's own address is never printed. #}
 {% block nav %}
-<nav class="shell-nav" aria-label="Menu">
   {{ nav_item("#overview", "Overview", "layout-dashboard", current=true) }}
   {{ nav_item(url_for('board_page', event_id=board.event_id), "Public board", "external-link", new_tab=true) }}
   {{ nav_item("#share-link-card", "Share link", "link") }}
-</nav>
 {% endblock %}
+
+{% block island_action %}{{ share_button(share_link, "Share", class_name="island-action button-amber", icon_name="copy") }}{% endblock %}
 
 {% block content %}
 <main>

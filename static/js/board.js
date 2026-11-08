@@ -22,6 +22,8 @@ const WALLET_FACES = 4;           // faces in the wallet's people row before "+N
 const board = document.querySelector("section.board");
 
 let fetching = false;   // true while a board.json request is waiting, so requests never pile up
+let liveSlots = [];     // the island's live slot, in the phone's top bar and in the laptop island (D103)
+const liveState = { status: "", timeText: "", everyoneIn: false, kind: "" };
 let lastRows = new Map();   // what each person's row said last time: name -> {counted, share}
 
 // The countdown, set from the server's latest seconds_left. textBefore and textAfter are the
@@ -51,6 +53,13 @@ function startBoard() {
   if (board.dataset.secondsLeft !== undefined) {   // the attribute is left out when seconds_left is null
     seconds = Number(board.dataset.secondsLeft);
   }
+  // The test page has no document.querySelectorAll; a real page always does.
+  if (typeof document.querySelectorAll === "function") {
+    liveSlots = Array.from(document.querySelectorAll(".live-slot"));
+  }
+  liveState.everyoneIn = lastRows.size > 0 && Array.from(lastRows.values()).every(function (row) {
+    return row.counted;
+  });
   const wallet = board.querySelector(".wallet");
   if (wallet && wallet.dataset.windowSeconds !== undefined) {
     countdown.windowSeconds = Number(wallet.dataset.windowSeconds);
@@ -455,6 +464,10 @@ function showRows(answer) {
   slideRows(groups, before);
   showSummary(answer);
   showLinkList(answer.links || []);
+  liveState.everyoneIn = answer.rows.length > 0 && answer.rows.every(function (row) {
+    return row.counted;
+  });
+  showLiveSlot();
   lastRows = rememberRows(answer.rows);
 }
 
@@ -871,12 +884,15 @@ function setCountdown(status, bannerText, seconds) {
   banner.textContent = bannerText;
   banner.removeAttribute("aria-live");
   showTimeTitle(status);
+  liveState.status = status;
   countdown.running = false;
   countdown.inBanner = false;
   if ((status !== "OPEN" && status !== "LAST_CALL") || seconds === null) {
     const closedText = board.querySelector(".countdown-card").dataset.closedText;
     board.querySelector(".board-time").textContent = closedText;
     showWalletTime(null, closedText);
+    liveState.timeText = "";
+    showLiveSlot();
     return;
   }
   countdown.status = status;
@@ -916,6 +932,8 @@ function showCountdownTime(seconds) {
   const timeText = countdownText(seconds, countdown.status);
   board.querySelector(".board-time").textContent = timeText;
   showWalletTime(seconds, timeText + " left");
+  liveState.timeText = timeText;
+  showLiveSlot();
   if (countdown.inBanner) {
     board.querySelector(".board-banner").textContent = countdown.textBefore + timeText + countdown.textAfter;
   }
@@ -956,6 +974,66 @@ function twoDigits(number) {
     return "0" + number;
   }
   return String(number);
+}
+
+
+// ---------- The island's live slot (D103) ----------
+
+// What the island says now, from text this file already has. kind tells a real change, which morphs the
+// island, from the clock ticking, which only changes the words.
+function liveSlotContent() {
+  if (liveState.status === "SETTLED") {
+    return { kind: "charged", text: "Charged" };
+  }
+  if (liveState.status === "LAST_CALL" && liveState.timeText) {
+    return { kind: "lastcall", text: "Last call " + liveState.timeText };
+  }
+  if (liveState.status === "OPEN" && liveState.everyoneIn) {
+    return { kind: "everyone", text: "Everyone's in" };
+  }
+  if (liveState.status === "OPEN" && liveState.timeText) {
+    return { kind: "open", text: liveState.timeText + " left" };
+  }
+  return { kind: "", text: "" };
+}
+
+
+// Write the slot. When its kind changes, the island morphs to the new width (a view transition, where the
+// browser has them and motion is welcome), and the change is read out once.
+function showLiveSlot() {
+  if (liveSlots.length === 0) {
+    return;
+  }
+  const content = liveSlotContent();
+  const changed = content.kind !== liveState.kind;
+  const firstTime = liveState.kind === "";
+  const update = function () {
+    for (const slot of liveSlots) {
+      slot.textContent = content.text;
+      slot.classList.toggle("is-last-call", content.kind === "lastcall");
+    }
+  };
+  const motionWelcome = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (changed && !firstTime && document.startViewTransition && motionWelcome) {
+    document.startViewTransition(update);
+  } else {
+    update();
+  }
+  if (changed && !firstTime) {
+    announceLive(content.kind);
+  }
+  liveState.kind = content.kind;
+}
+
+
+// Only the big moments are read out: last call starting, and everyone being in. Not every second.
+function announceLive(kind) {
+  const news = document.querySelector(".live-news");
+  if (kind === "lastcall") {
+    news.textContent = "Last call has started";
+  } else if (kind === "everyone") {
+    news.textContent = "Everyone's in";
+  }
 }
 
 

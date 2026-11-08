@@ -5,7 +5,7 @@
 // It runs only with a mouse or trackpad, never on touch, and never when reduced motion is on.
 // One listener on the whole page (event delegation), so cards that board.js updates keep working.
 
-var RIBS_CARDS = ".light-card, .board[data-status='LAST_CALL'] .status-card";
+var RIBS_CARDS = ".light-card, .board[data-status='LAST_CALL'] .status-card, .hero-ribs";
 var RIBS_MAX_SHIFT_PX = 28;  // the full range, so the picture moves at most 14px either way
 
 var finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");

@@ -5,15 +5,11 @@
    Jinja escapes every value it fills in, so a title like "<script>" shows as text and never runs. #}
 
 {% block title %}Pledge: {{ event.title }}{% endblock %}
-{% block body_class %}page-dark{% endblock %}
-{% block theme_color %}#121212{% endblock %}
 
 {% block nav %}
-<nav class="shell-nav" aria-label="Menu">
   {{ nav_item(url_for('board_page', event_id=event.id), "Board", "layout-dashboard") }}
   {{ nav_item(url_for('pledge_page', event_id=event.id), "Pledge", "hand-coins", current=true) }}
   {{ nav_item(url_for('board_page', event_id=event.id) ~ "#how-it-works", "How it works", "circle-help") }}
-</nav>
 {% endblock %}
 
 {% block content %}

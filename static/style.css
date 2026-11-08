@@ -8,27 +8,81 @@
 /* Every value on the site comes from these variables, so changing one line here
    changes it everywhere. Contrast ratios are in UI_DESIGN.md section 8. */
 :root {
-  --page: #F3F3F1;         /* page background */
-  --card: #FFFFFF;         /* cards */
-  --ink: #0B0B0B;          /* main text, primary buttons, featured cards, counted */
-  --ink-2: #5C5C5C;        /* secondary text */
-  --ink-3: #8A8A8A;        /* 3.45:1 on white: too faint for small text, so it is for large text only */
-  --line: #E5E5E2;         /* borders and dividers */
-  --held: #9A9A9A;         /* held but not counted, in the gauge */
-  --on-ink: #FFFFFF;       /* text on black */
-  --on-ink-2: #BDBDBD;     /* quieter text on black */
+  /* Colours, dark theme: the default (D103). Every component uses these tokens, so the light theme
+     below only has to give them other values. */
+  --page: #0A0A0A;         /* page background */
+  --card: #141414;         /* cards */
+  --raised: #1C1C1C;       /* a solid surface one step up (reduced transparency) */
+  --ink: #F5F5F3;          /* main text, and the fill of the Counted chip */
+  --ink-2: #A6A6A2;        /* quiet text */
+  --ink-3: #74746F;        /* too faint for small text, so it is for large text only */
+  --line: rgba(255, 255, 255, 0.09);
+  --held: #6E6E6E;         /* held but not counted, in the gauge */
+  --on-ink: #0B0B0B;       /* text on an --ink fill */
+  --on-ink-2: #BDBDBD;     /* quieter text on the black photo cards, in both themes */
   --amber: #F5B300;        /* light, not paint: glows, rims, the main action (D100) */
   --amber-deep: #B86E00;   /* the dark end of an amber gradient */
   --amber-soft: rgba(245, 179, 0, 0.18);
   --amber-glow: rgba(245, 179, 0, 0.35);
-  --danger: #B42318;       /* only Declined, Charge failed, Needs attention, always with a word */
-  --danger-bg: #FDECEA;
+  --amber-shadow: rgba(184, 110, 0, 0.28);
+  --on-accent: #0B0B0B;    /* words on amber, in both themes */
+  --danger: #FF8A7A;       /* only Declined, Charge failed, Needs attention, always with a word */
+  --danger-bg: #3A1F1B;    /* solid, so the red words stay readable over anything behind them */
 
-  /* The greys that gradients are made of. No other hue appears on the page. */
-  --grey-50: #FAFAF9;
-  --grey-100: #F3F3F1;
-  --grey-200: #E8E8E5;
-  --grey-300: #D9D9D5;
+  --glass: rgba(255, 255, 255, 0.07);          /* quiet buttons, the current menu item, round buttons */
+  --glass-strong: rgba(255, 255, 255, 0.14);   /* glass on hover */
+  --glass-layer: rgba(255, 255, 255, 0.06);    /* the hover layer on a quiet button */
+  --glass-line: rgba(255, 255, 255, 0.12);
+  --glass-hi: rgba(255, 255, 255, 0.08);       /* light along a glass edge */
+  --card-hi: rgba(255, 255, 255, 0.05);        /* light along a card's top edge */
+  --banner: #121212;                            /* the sandbox banner and the browser's bar */
+  --bar: rgba(10, 10, 10, 0.72);                /* floating bars */
+  --bar-line: rgba(255, 255, 255, 0.08);
+  --island: rgba(255, 255, 255, 0.08);          /* the floating island's glass */
+  --amber-rim: rgba(245, 179, 0, 0.28);         /* faint amber light along the island's top edge */
+  --row: rgba(255, 255, 255, 0.07);             /* a Who's in row */
+  --row-hover: rgba(255, 255, 255, 0.1);
+  --row-press: rgba(255, 255, 255, 0.03);
+  --soft: rgba(255, 255, 255, 0.05);            /* small pills, the overview of links */
+  --track: rgba(255, 255, 255, 0.1);            /* an empty bar */
+  --bar-start: #FFFFFF;                         /* where a progress bar and the ring start, before amber */
+  --face: #2E2E2E;                              /* a face in the Who's in cluster */
+  --face-ink: #FFFFFF;
+  --face-more: #3A3A3A;
+  --face-ring: #121212;
+  --summary: rgba(255, 255, 255, 0.08);         /* the Who's in summary glass */
+  --summary-line: rgba(255, 255, 255, 0.1);
+  --wave: #F5F5F2;                              /* the wave on a quiet button, and the words on it */
+  --wave-ink: #0A0A0A;
+  --vignette: rgba(245, 179, 0, 0.11);          /* the warm edge of the page */
+  --blob: rgba(168, 146, 120, 0.22);            /* the warm grey blob behind Who's in */
+  --hero-glow: rgba(255, 255, 255, 0.05);       /* a little light behind the landing logo */
+  --hero-shade: rgba(10, 10, 10, 0.72);         /* over the hero's ribs, so the headline stays readable */
+  --hero-ribs-opacity: 1;
+  --hero-ribs-filter: none;
+  --note: #1E1C17;                              /* the landing's paper note */
+  --scrim: rgba(0, 0, 0, 0.35);
+  --shadow-ink: rgba(0, 0, 0, 0.35);
+
+  /* Constants: the same in both themes. The black photo cards and their insides stay dark. */
+  --night: #0B0B0B;
+  --paper: #FFFFFF;
+  --fog: #F5F5F2;
+  --photo-line: rgba(255, 255, 255, 0.08);
+  --photo-glass: rgba(255, 255, 255, 0.07);
+  --photo-glass-line: rgba(255, 255, 255, 0.14);
+  --photo-light: rgba(255, 255, 255, 0.07);
+  --photo-ink-2: #E5E5E5;
+  --photo-face: #2E2E2E;
+  --photo-face-more: #3A3A3A;
+  --photo-face-ring: #121212;
+  --photo-shade: rgba(11, 11, 11, 0.6);
+
+  /* The greys that gradients are made of. */
+  --grey-50: #171717;
+  --grey-100: #1C1C1C;
+  --grey-200: #262626;
+  --grey-300: #333333;
   --grey-800: #2A2A2A;
   --grey-900: #161616;
 
@@ -68,6 +122,57 @@
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
+/* Colours, light theme (D103): the same design turned around, with the same amber. */
+:root[data-theme="light"] {
+  --page: #F3F3F1;
+  --card: #FFFFFF;
+  --raised: #FAFAF9;
+  --ink: #0B0B0B;
+  --ink-2: #5C5C5C;
+  --ink-3: #8A8A8A;
+  --line: #E5E5E2;
+  --held: #9A9A9A;
+  --on-ink: #FFFFFF;
+  --danger: #B42318;
+  --danger-bg: #FDECEA;
+  --glass: rgba(11, 11, 11, 0.05);
+  --glass-strong: rgba(11, 11, 11, 0.1);
+  --glass-layer: rgba(11, 11, 11, 0.04);
+  --glass-line: rgba(11, 11, 11, 0.1);
+  --glass-hi: rgba(255, 255, 255, 0.7);
+  --card-hi: rgba(255, 255, 255, 0.8);
+  --banner: #E8E8E5;
+  --bar: rgba(255, 255, 255, 0.72);
+  --bar-line: rgba(0, 0, 0, 0.06);
+  --island: rgba(11, 11, 11, 0.06);
+  --row: rgba(11, 11, 11, 0.04);
+  --row-hover: rgba(11, 11, 11, 0.07);
+  --row-press: rgba(11, 11, 11, 0.03);
+  --soft: rgba(11, 11, 11, 0.04);
+  --track: rgba(11, 11, 11, 0.08);
+  --bar-start: #0B0B0B;
+  --face: #E8E8E5;
+  --face-ink: #0B0B0B;
+  --face-more: #D9D9D5;
+  --face-ring: #FFFFFF;
+  --summary: rgba(255, 255, 255, 0.6);
+  --summary-line: rgba(11, 11, 11, 0.08);
+  --wave: #0B0B0B;
+  --wave-ink: #F3F3F1;
+  --vignette: rgba(245, 179, 0, 0.14);
+  --blob: rgba(168, 146, 120, 0.18);
+  --hero-glow: #FFFFFF;
+  --hero-shade: rgba(243, 243, 241, 0.74);
+  --hero-ribs-opacity: 0.4;
+  --hero-ribs-filter: invert(1);
+  --note: #FFFDF5;
+  --shadow-ink: rgba(0, 0, 0, 0.12);
+  --grey-50: #FAFAF9;
+  --grey-100: #F3F3F1;
+  --grey-200: #E8E8E5;
+  --grey-300: #D9D9D5;
+}
+
 
 /* ---------- Page basics ---------- */
 
@@ -96,7 +201,7 @@ html {
 /* tabular-nums gives every digit the same width, so money and times never jump. */
 body {
   margin: 0;
-  background-color: var(--grey-100);
+  background-color: var(--page);
   color: var(--ink);
   font-family: var(--font);
   font-size: var(--text-body);
@@ -114,9 +219,8 @@ body::before {
   inset: 0;
   z-index: -1;
   background-image: var(--grain),
-    radial-gradient(70% 70% at 8% 0%, rgba(255, 255, 255, 0.9), transparent),
-    radial-gradient(70% 70% at 95% 100%, rgba(217, 217, 213, 0.5), transparent);
-  background-size: 200px 200px, auto, auto;
+    radial-gradient(130% 100% at 50% 40%, transparent 55%, var(--vignette));
+  background-size: 200px 200px, auto;
   pointer-events: none;
 }
 
@@ -202,7 +306,7 @@ a {
   min-height: var(--banner-height);
   margin: 0;
   padding: env(safe-area-inset-top, 0px) var(--gutter) 0;
-  background: var(--grey-100);
+  background: var(--banner);
   color: var(--ink-2);
   font-size: 0.75rem;
   font-weight: 500;
@@ -216,35 +320,6 @@ a {
   display: flex;
   flex-direction: column;
   min-height: calc(100dvh - var(--banner-height));
-}
-
-.shell-side {
-  display: flex;
-  flex-direction: column;
-}
-
-.wordmark {
-  display: flex;
-  align-items: center;
-  min-height: 56px;
-  margin: 0;
-  padding-left: var(--gutter);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-}
-
-/* A row of pills that scrolls sideways if it doesn't fit. */
-.shell-nav {
-  display: flex;
-  gap: 8px;
-  padding: 0 var(--gutter) 8px;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-}
-
-.shell-nav::-webkit-scrollbar {
-  display: none;
 }
 
 .nav-item {
@@ -312,8 +387,8 @@ a {
   flex-wrap: wrap;
   gap: 8px;
   padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.72);
+  border-top: 1px solid var(--bar-line);
+  background: var(--bar);
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
   backdrop-filter: blur(16px) saturate(1.4);
 }
@@ -341,7 +416,7 @@ a {
   padding: var(--card-padding);
   border-radius: var(--radius-card);
   background: linear-gradient(180deg, var(--card), var(--grey-50));
-  box-shadow: var(--shadow-rest), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-shadow: var(--shadow-rest), inset 0 1px 0 var(--card-hi);
   border: 1px solid var(--line);
 }
 
@@ -356,9 +431,9 @@ a {
 .light-card {
   position: relative;
   isolation: isolate;
-  border-color: rgba(255, 255, 255, 0.08);
-  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), #0B0B0B 70%);
-  box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border-color: var(--photo-line);
+  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), var(--night) 70%);
+  box-shadow: var(--shadow-raised), inset 0 1px 0 var(--photo-line);
   color: var(--on-ink);
 }
 
@@ -375,7 +450,7 @@ a {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: var(--grain), radial-gradient(circle farthest-corner at 0% 0%, rgba(255, 255, 255, 0.07), transparent 60%);
+  background-image: var(--grain), radial-gradient(circle farthest-corner at 0% 0%, var(--photo-light), transparent 60%);
 }
 
 /* The ribbed picture behind the black cards (Samuel's own file, static/images/ribbed-dark.jpg).
@@ -385,7 +460,7 @@ a {
    over the picture's brightest pixel, white is 6:1 and the quieter text (#E5E5E5) is 4.7:1. */
 .light-card,
 .board[data-status="LAST_CALL"] .status-card {
-  --on-ink-2: #E5E5E5;
+  --on-ink-2: var(--photo-ink-2);
   --ribs-x: 0px;
   --ribs-mx: 50%;
   --ribs-my: 0%;
@@ -397,7 +472,7 @@ a {
   position: absolute;
   inset: -24px;
   z-index: -1;
-  background: linear-gradient(rgba(11, 11, 11, 0.6), rgba(11, 11, 11, 0.6)),
+  background: linear-gradient(var(--photo-shade), var(--photo-shade)),
     url("images/ribbed-dark.jpg") center / cover;
   transform: translate3d(var(--ribs-x), 0, 0) scale(1.04);
   transition: transform 700ms var(--ease-out);
@@ -409,7 +484,7 @@ a {
 .board .card.light-card::after,
 .board[data-status="LAST_CALL"] .card.status-card::after {
   z-index: -1;
-  background: radial-gradient(320px 240px at var(--ribs-mx) var(--ribs-my), rgba(255, 255, 255, 0.07), transparent 70%);
+  background: radial-gradient(320px 240px at var(--ribs-mx) var(--ribs-my), var(--photo-light), transparent 70%);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -461,9 +536,9 @@ button,
   gap: 8px;
   min-height: var(--button-height);
   padding: 0 20px;
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  border: 1px solid var(--photo-line);
   border-radius: 999px;
-  background: linear-gradient(180deg, #3A3A3A, #0B0B0B);
+  background: linear-gradient(180deg, var(--photo-face-more), var(--night));
   box-shadow: var(--button-lit);
   color: var(--on-ink);
   font: inherit;
@@ -486,7 +561,7 @@ button::before,
   inset: -1px;
   z-index: -1;
   border-radius: inherit;
-  background: rgba(255, 255, 255, 0.10);
+  background: var(--photo-light);
   opacity: 0;
   pointer-events: none;
   transition: opacity 200ms ease;
@@ -509,9 +584,9 @@ button:disabled::before {
 .button-secondary,
 .icon-button,
 .nav-item[aria-current="page"] {
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.65);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--glass-line);
+  background: var(--glass);
+  box-shadow: inset 0 1px 0 var(--glass-hi);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   color: var(--ink);
@@ -523,7 +598,7 @@ button:disabled::before {
 
 /* Hover takes the glass from 65% to 85% white. */
 .button-secondary::before {
-  background: rgba(255, 255, 255, 0.57);
+  background: var(--glass-layer);
 }
 
 .button-full {
@@ -564,9 +639,9 @@ button:disabled::before {
 
 /* On a black card the small round button is dark glass. */
 .light-card .icon-button {
-  border-color: rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  border-color: var(--photo-glass-line);
+  background: var(--photo-glass);
+  box-shadow: inset 0 1px 0 var(--photo-line);
   color: var(--on-ink);
 }
 
@@ -578,11 +653,11 @@ button:disabled::before {
   }
 
   .icon-button:hover {
-    background: rgba(255, 255, 255, 0.85);
+    background: var(--glass-strong);
   }
 
   .light-card .icon-button:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--photo-glass-line);
   }
 
   .nav-item:hover {
@@ -595,7 +670,7 @@ button:disabled::before {
   .button-secondary,
   .icon-button,
   .nav-item[aria-current="page"] {
-    background: rgba(255, 255, 255, 0.92);
+    background: var(--raised);
   }
 }
 
@@ -928,7 +1003,7 @@ input.ai-filled {
   align-self: flex-start;
   margin: 12px 0 0;
   padding: 4px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid var(--glass-line);
   border-radius: 12px;
   color: var(--on-ink-2);
   font-size: 0.75rem;
@@ -1117,7 +1192,7 @@ input.ai-filled {
 .row-list > li {
   position: relative;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--row);
 }
 
 /* The row itself: avatar, name with the grey line under it, the chip, and a chevron when it opens.
@@ -1294,11 +1369,11 @@ button.row-main::before {
 }
 
 .status-card .card-bloom {
-  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), #0B0B0B 70%);
+  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), var(--night) 70%);
 }
 
 .status-card .card-bloom::before {
-  background-image: var(--grain), radial-gradient(circle farthest-corner at 0% 0%, rgba(255, 255, 255, 0.07), transparent 60%);
+  background-image: var(--grain), radial-gradient(circle farthest-corner at 0% 0%, var(--photo-light), transparent 60%);
 }
 
 .board[data-status="LAST_CALL"] .status-card .card-bloom {
@@ -1455,29 +1530,10 @@ button.row-main::before {
   gap: 12px;
   height: var(--landing-header-height);
   padding: 0 var(--gutter);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.72);
+  border-bottom: 1px solid var(--bar-line);
+  background: var(--bar);
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
   backdrop-filter: blur(16px) saturate(1.4);
-}
-
-/* Liquid glass on the sticky header (D99). The SVG filter in create_event.html bends the page as it
-   scrolls under the bar, like a wavy glass window. Only Chrome-family browsers can use an SVG filter
-   inside backdrop-filter, and others may drop the whole rule, so landing.js adds .liquid-glass to
-   <html> only there. Everyone else keeps the frosted glass above. The 72% white behind the text
-   stays, so the header's text is as readable as before. */
-.glass-filter {
-  position: absolute;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-}
-
-@media (prefers-reduced-transparency: no-preference) {
-  .liquid-glass .landing-header {
-    -webkit-backdrop-filter: url(#liquid-glass) blur(10px) saturate(1.4);
-    backdrop-filter: url(#liquid-glass) blur(10px) saturate(1.4);
-  }
 }
 
 .landing-brand {
@@ -1548,7 +1604,9 @@ button.row-main::before {
   inset: 0;
   z-index: -1;
   background-image: var(--grain),
-    radial-gradient(45% 55% at 50% 35%, #FFFFFF, transparent);
+    radial-gradient(45% 55% at 50% 35%, var(--hero-glow), transparent),
+    radial-gradient(120% 90% at 50% 45%, transparent 50%, var(--amber-soft)),
+    linear-gradient(var(--hero-shade), var(--hero-shade));
 }
 
 /* The logo as a raised white tile. Scrolling moves .hero-tile; hover wiggles the face inside it. */
@@ -1565,7 +1623,7 @@ button.row-main::before {
   height: 100%;
   border-radius: 24px;
   background: var(--card);
-  box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-shadow: var(--shadow-raised), inset 0 1px 0 var(--card-hi);
   place-items: center;
   border: 1px solid var(--line);
 }
@@ -1609,7 +1667,7 @@ button.row-main::before {
   padding: 14px;
   border-radius: 18px;
   background: var(--card);
-  box-shadow: var(--shadow-floating), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-shadow: var(--shadow-floating), inset 0 1px 0 var(--card-hi);
   text-align: left;
   transform: rotate(var(--tilt, 0deg)) scale(var(--piece-scale, 1));
   border: 1px solid var(--line);
@@ -1671,10 +1729,10 @@ button.row-main::before {
 
 .piece-black {
   min-width: 140px;
-  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), #0B0B0B 70%);
-  box-shadow: var(--shadow-floating), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), var(--night) 70%);
+  box-shadow: var(--shadow-floating), inset 0 1px 0 var(--photo-line);
   color: var(--on-ink);
-  border-color: rgba(255, 255, 255, 0.08);
+  border-color: var(--photo-line);
 }
 
 .piece-black .piece-caption {
@@ -1713,7 +1771,7 @@ button.row-main::before {
   position: relative;
   max-width: 200px;
   padding-top: 20px;
-  background: #FFFDF5;
+  background: var(--note);
   font-size: 1.0625rem;
   font-weight: 500;
   line-height: 1.3;
@@ -2100,7 +2158,7 @@ html:has(.share-panel[open]) {
 }
 
 .share-panel::backdrop {
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--scrim);
   -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
   animation: fade-in 300ms ease;
@@ -2113,7 +2171,7 @@ html:has(.share-panel[open]) {
   overflow-y: auto;
   border-radius: 24px 24px 0 0;
   background: linear-gradient(180deg, var(--card), var(--grey-50));
-  box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-shadow: var(--shadow-raised), inset 0 1px 0 var(--card-hi);
   transition: transform 200ms var(--ease-out);
 }
 
@@ -2260,10 +2318,10 @@ html:has(.share-panel[open]) {
   justify-content: center;
   width: 56px;
   height: 56px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--glass-line);
   border-radius: 50%;
   background: var(--grey-100);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 1px 0 var(--glass-hi);
   transition: transform 120ms var(--ease-out);
 }
 
@@ -2353,7 +2411,7 @@ html:has(.share-panel[open]) {
   }
 
   .row-list > li:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--row-hover);
   }
 
   .row-list > li:hover .row-avatar {
@@ -2386,7 +2444,7 @@ button:active:not(:disabled),
 
 .button-secondary:active:not(:disabled),
 .icon-button:active:not(:disabled) {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 1px 0 var(--glass-hi);
 }
 
 /* Wiggle: sometimes, never constantly. Shake is for a field with an error. */
@@ -2428,10 +2486,10 @@ button:not(.button-secondary):not(.icon-button)::before,
 
 /* The page's one most important action: Hold my max, Create. A solid amber pill with black words. */
 .button-amber {
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: var(--photo-glass-line);
   background: var(--amber);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 8px 20px rgba(184, 110, 0, 0.28);
-  color: #0B0B0B;
+  box-shadow: inset 0 1px 0 var(--card-hi), 0 8px 20px var(--amber-shadow);
+  color: var(--on-accent);
 }
 
 /* A warm glow under the landing page's logo tile. */
@@ -2447,7 +2505,7 @@ button:not(.button-secondary):not(.icon-button)::before,
   bottom: -44px;
   left: -60%;
   height: 96px;
-  background-image: var(--grain), radial-gradient(closest-side at 50% 40%, rgba(245, 179, 0, 0.55), transparent);
+  background-image: var(--grain), radial-gradient(closest-side at 50% 40%, var(--amber-glow), transparent);
   background-size: 200px 200px, auto;
   -webkit-mask-image: radial-gradient(closest-side, #000, transparent);
   mask-image: radial-gradient(closest-side, #000, transparent);
@@ -2457,55 +2515,23 @@ button:not(.button-secondary):not(.icon-button)::before,
 
 /* ---------- The dark pages: S2, S3 and the pledge page (D100) ---------- */
 
-/* Near-black with the colours turned around, so every card, chip and line follows the tokens. --on-ink
-   turns black here, because what uses --ink as a fill (the Counted chip, a counted avatar) is now light. */
-.page-dark {
-  --card: #141414;
-  --grey-50: #171717;
-  --grey-100: #1C1C1C;
-  --grey-200: #262626;
-  --grey-300: #333333;
-  --ink: #F5F5F3;
-  --ink-2: #A6A6A2;
-  --ink-3: #74746F;
-  --line: rgba(255, 255, 255, 0.09);
-  --held: #6E6E6E;
-  --on-ink: #0B0B0B;
-  --danger: #FF8A7A;
-  --danger-bg: #3A1F1B;   /* solid, so the red words stay readable over anything behind them */
-  --radius-card: 32px;
-  background-color: #0A0A0A;
-  color: var(--ink);
-}
-
-/* Black centre, warm edges: an amber vignette at about 11%, with the grain on top so it doesn't band. */
-.page-dark::before {
-  background-image: var(--grain),
-    radial-gradient(130% 100% at 50% 40%, transparent 55%, rgba(245, 179, 0, 0.11));
-  background-size: 200px 200px, auto;
-}
-
 /* Black things keep white words: the black cards, the dark buttons, and the status card in last call. */
-.page-dark .light-card,
-.page-dark button:not(.button-secondary):not(.icon-button):not(.row-main),
-.page-dark .button-link,
-.page-dark .board[data-status="LAST_CALL"] .status-card {
-  --on-ink: #FFFFFF;
+.light-card,
+.piece-black,
+button:not(.button-secondary):not(.icon-button):not(.row-main),
+.button-link,
+.board[data-status="LAST_CALL"] .status-card {
+  --on-ink: var(--paper);
 }
 
 /* The white Join last call pill keeps black words. */
-.page-dark .board[data-status="LAST_CALL"] .status-card {
-  --ink: #0B0B0B;
-}
-
-/* Dark cards: the white highlight along the top edge would glare here, so it is much fainter. */
-.page-dark .card {
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+.board[data-status="LAST_CALL"] .status-card {
+  --ink: var(--night);
 }
 
 /* The pledge form stays a light card. PayPal draws its card fields in its own frames with dark text,
    which a dark card would hide. */
-.page-dark .form-card {
+:root:not([data-theme="light"]) #pledge {
   --card: #FFFFFF;
   --grey-50: #FAFAF9;
   --grey-100: #F3F3F1;
@@ -2519,39 +2545,19 @@ button:not(.button-secondary):not(.icon-button)::before,
   --on-ink: #FFFFFF;
   --danger: #B42318;
   --danger-bg: #FDECEA;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  --glass: rgba(255, 255, 255, 0.65);
+  --glass-line: rgba(0, 0, 0, 0.08);
+  --glass-hi: rgba(255, 255, 255, 0.9);
+  --glass-layer: rgba(255, 255, 255, 0.57);
+  --wave: #0B0B0B;
+  --wave-ink: #F3F3F1;
+  --card-hi: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 var(--card-hi);
   color: var(--ink);
-}
-
-.page-dark .sandbox-banner {
-  background: #121212;
-}
-
-/* The quiet buttons become dark glass. Inside the light pledge form they stay white glass. */
-.page-dark .button-secondary,
-.page-dark .icon-button {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  color: var(--ink);
-}
-
-.page-dark .button-secondary::before {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.page-dark .form-card .button-secondary {
-  border-color: rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.65);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
-}
-
-.page-dark .form-card .button-secondary::before {
-  background: rgba(255, 255, 255, 0.57);
 }
 
 /* The menu on a phone: the page you're on keeps white words and gets an amber line that glows. */
-.page-dark .nav-item[aria-current="page"] {
+.nav-item[aria-current="page"] {
   border-color: transparent;
   background: transparent;
   box-shadow: none;
@@ -2560,7 +2566,7 @@ button:not(.button-secondary):not(.icon-button)::before,
   color: var(--ink);
 }
 
-.page-dark .nav-item[aria-current="page"]::after {
+.nav-item[aria-current="page"]::after {
   content: "";
   position: absolute;
   right: 16px;
@@ -2573,22 +2579,14 @@ button:not(.button-secondary):not(.icon-button)::before,
 }
 
 /* The phone's bottom bar is dark glass. */
-@media (max-width: 1023.98px) {
-  .page-dark .page-actions {
-    border-top-color: rgba(255, 255, 255, 0.08);
-    background: rgba(10, 10, 10, 0.72);
-  }
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .page-dark .icon-button:hover {
-    background: rgba(255, 255, 255, 0.14);
-  }
-}
-
 /* The counted arc goes from white to amber along the stroke. The still-needed stripes stay grey. */
-.page-dark .ring-counted {
+.ring-counted {
   stroke: url(#ring-amber);
+}
+
+/* The ring starts in the page's ink (white on dark, black on light) and ends in amber. */
+.ring-stop-start {
+  stop-color: var(--bar-start);
 }
 
 
@@ -2639,7 +2637,7 @@ button:not(.button-secondary):not(.icon-button)::before,
 /* Amber light from the hero's bottom edge, on the layer above the ribbed picture, under the grain. */
 .wallet-hero .card-bloom::before {
   background-image: var(--grain),
-    radial-gradient(90% 55% at 45% 110%, rgba(245, 179, 0, 0.3), transparent);
+    radial-gradient(90% 55% at 45% 110%, var(--amber-glow), transparent);
 }
 
 .wallet-top {
@@ -2658,9 +2656,9 @@ button:not(.button-secondary):not(.icon-button)::before,
   min-height: 32px;
   margin: 0;
   padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--photo-glass-line);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--photo-glass);
   font-size: var(--text-caption);
   font-weight: 500;
 }
@@ -2737,9 +2735,9 @@ button:not(.button-secondary):not(.icon-button)::before,
 .wallet-goal {
   margin: 12px 0 0;
   padding: 4px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--photo-glass-line);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--photo-glass);
   color: var(--on-ink-2);
   font-size: var(--text-caption);
   font-weight: 500;
@@ -2761,9 +2759,9 @@ button:not(.button-secondary):not(.icon-button)::before,
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: #FFFFFF;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-  color: #0B0B0B;
+  background: var(--paper);
+  box-shadow: 0 6px 18px var(--scrim);
+  color: var(--night);
 }
 
 .wallet-invite .icon {
@@ -2786,7 +2784,7 @@ button:not(.button-secondary):not(.icon-button)::before,
   min-height: 48px;
   padding-left: 12px;
   border-radius: 999px;
-  color: #FFFFFF;
+  color: var(--paper);
   text-decoration: none;
 }
 
@@ -2799,9 +2797,9 @@ button:not(.button-secondary):not(.icon-button)::before,
   width: 48px;
   height: 48px;
   margin-left: -12px;
-  border: 2px solid #121212;
+  border: 2px solid var(--photo-face-ring);
   border-radius: 50%;
-  background: #2E2E2E;
+  background: var(--photo-face);
   font-size: var(--text-caption);
   font-weight: 600;
 }
@@ -2816,7 +2814,7 @@ button:not(.button-secondary):not(.icon-button)::before,
 }
 
 .wallet-more {
-  background: #3A3A3A;
+  background: var(--photo-face-more);
 }
 
 /* The Pledge card peeking 56px out under the hero: the real Pledge link (pledge_link), hidden while
@@ -2836,8 +2834,8 @@ button:not(.button-secondary):not(.icon-button)::before,
   border-radius: 32px;
   background-image: var(--grain), radial-gradient(130% 120% at 30% 100%, var(--amber), var(--amber-deep));
   background-size: 200px 200px, auto;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 16px 40px rgba(184, 110, 0, 0.3);
-  color: #0B0B0B;
+  box-shadow: inset 0 1px 0 var(--photo-glass-line), 0 16px 40px var(--amber-shadow);
+  color: var(--on-accent);
   font-size: 1.0625rem;
   font-weight: 600;
   text-decoration: none;
@@ -2870,7 +2868,7 @@ button:not(.button-secondary):not(.icon-button)::before,
   height: 6px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--track);
 }
 
 /* Without window_seconds the Time bar has no fill, and its empty track only keeps the two bars level. */
@@ -2882,7 +2880,7 @@ button:not(.button-secondary):not(.icon-button)::before,
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #FFFFFF, var(--amber));
+  background: linear-gradient(90deg, var(--bar-start), var(--amber));
   transform: scaleX(var(--bar, 0));
   transform-origin: left;
   transition: transform 600ms var(--ease-out);
@@ -2905,7 +2903,7 @@ button:not(.button-secondary):not(.icon-button)::before,
 
 .wallet .demo-badge {
   margin: 0;
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--glass-line);
   color: var(--ink-2);
 }
 
@@ -3003,14 +3001,14 @@ button:not(.button-secondary):not(.icon-button)::before,
 .who-backdrop span:first-child {
   top: -25%;
   left: -30%;
-  background: radial-gradient(closest-side, rgba(245, 179, 0, 0.2), transparent);
+  background: radial-gradient(closest-side, var(--amber-soft), transparent);
   animation: blob-drift-a 20s ease-in-out infinite alternate;
 }
 
 .who-backdrop span:last-child {
   right: -30%;
   bottom: -20%;
-  background: radial-gradient(closest-side, rgba(168, 146, 120, 0.22), transparent);
+  background: radial-gradient(closest-side, var(--blob), transparent);
   animation: blob-drift-b 20s ease-in-out infinite alternate;
 }
 
@@ -3029,9 +3027,9 @@ button:not(.button-secondary):not(.icon-button)::before,
   gap: 12px;
   margin: 8px 0 24px;
   padding: 20px 16px 18px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--summary-line);
   border-radius: 28px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--summary);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
   backdrop-filter: blur(20px) saturate(1.4);
   text-align: center;
@@ -3068,10 +3066,10 @@ button:not(.button-secondary):not(.icon-button)::before,
   justify-content: center;
   width: calc(var(--d) / 300 * 100cqi);
   height: calc(var(--d) / 300 * 100cqi);
-  border: 2px solid #121212;
+  border: 2px solid var(--face-ring);
   border-radius: 50%;
-  background: #2E2E2E;
-  color: #FFFFFF;
+  background: var(--face);
+  color: var(--face-ink);
   font-size: calc(var(--d) / 300 * 36cqi);
   font-weight: 600;
   transform: translate(-50%, -50%);
@@ -3096,7 +3094,7 @@ button:not(.button-secondary):not(.icon-button)::before,
 }
 
 .bubble-more {
-  background: #3A3A3A;
+  background: var(--face-more);
 }
 
 /* When everyone is in, a soft amber glow comes up behind the faces for a moment. */
@@ -3170,17 +3168,17 @@ button:not(.button-secondary):not(.icon-button)::before,
   padding: 6px 12px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--soft);
   font-size: var(--text-caption);
   font-weight: 500;
 }
 
 /* Counted: a white chip with black words and a thin amber ring. */
 .row-list > li[data-status="HELD"][data-counted="true"] .row-chip {
-  border-color: #FFFFFF;
-  background: #FFFFFF;
+  border-color: var(--paper);
+  background: var(--paper);
   box-shadow: 0 0 0 1.5px var(--amber);
-  color: #0B0B0B;
+  color: var(--night);
 }
 
 /* A new face pops in, and a new row slides into its group (.row-new). */
@@ -3190,20 +3188,20 @@ button:not(.button-secondary):not(.icon-button)::before,
 
 @media (hover: hover) and (pointer: fine) {
   button.row-main:hover {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--row-press);
   }
 }
 
 /* Reduced transparency: solid surfaces instead of see-through ones. */
 @media (prefers-reduced-transparency: reduce) {
   .who-summary {
-    background: #1E1E1E;
+    background: var(--raised);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
 
   .row-list > li {
-    background: #1C1C1C;
+    background: var(--raised);
   }
 }
 
@@ -3247,8 +3245,8 @@ button:not(.button-secondary):not(.icon-button)::before,
    board.js rewrites, so a label span can't be relied on. --bink is the wave, --bsurf the words on it.
    Not on the solid amber action, and not on hold-to-confirm buttons, which have their own ring. */
 .btn {
-  --bink: #0B0B0B;
-  --bsurf: var(--grey-100);
+  --bink: var(--wave);
+  --bsurf: var(--wave-ink);
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -3256,28 +3254,21 @@ button:not(.button-secondary):not(.icon-button)::before,
     border-color 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.page-dark .btn {
-  --bink: #F5F5F2;
-  --bsurf: #0A0A0A;
-}
-
 /* Dark pills (Pledge, Review refunds, the refund checks) get a light wave on every page. */
 .btn:not(.button-secondary) {
-  --bink: #F5F5F2;
-  --bsurf: #0B0B0B;
+  --bink: var(--fog);
+  --bsurf: var(--night);
 }
 
 /* The amber variant, for the white Join last call pill, where a white wave wouldn't show. */
 .btn-amber,
 .status-button.btn {
   --bink: var(--amber);
-  --bsurf: #0B0B0B;
+  --bsurf: var(--night);
 }
 
-/* These three selectors match the older hover layers they replace, so the wave wins over them. */
-.btn::before,
-.page-dark .btn::before,
-.page-dark .form-card .btn::before {
+/* Later in the file than the older hover layer it replaces, so the wave wins over it. */
+.btn::before {
   content: "";
   position: absolute;
   inset: auto -10% 0;
@@ -3379,7 +3370,7 @@ button:not(.button-secondary):not(.icon-button)::before,
 }
 
 .button-amber .prog {
-  stroke: #0B0B0B;
+  stroke: var(--on-accent);
 }
 
 .hold-btn.done .hold-ring {
@@ -3417,6 +3408,527 @@ button:not(.button-secondary):not(.icon-button)::before,
 }
 
 
+/* ---------- One theme, the switch, the home mark and the island (D103) ---------- */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The handshake mark: white on dark, black on light. */
+.logo-on-light {
+  display: none;
+}
+
+:root[data-theme="light"] .logo-on-dark {
+  display: none;
+}
+
+:root[data-theme="light"] .logo-on-light {
+  display: inline-block;
+}
+
+/* The home link on every page: the mark, 32px tall, with a 44px target. */
+.home-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 999px;
+}
+
+.home-mark .logo-mark {
+  width: auto;
+  height: 32px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .home-mark:hover .logo-mark {
+    animation: wiggle 450ms ease-in-out;
+  }
+}
+
+/* The theme switch, as given, with our tokens. Checked is dark mode. The label is padded to 44px tall for a
+   finger; the track stays 28px. */
+.switch {
+  --primary: var(--amber);
+  --secondary: var(--night);
+  --surface: var(--fog);
+  --on: var(--amber);
+  --off: color-mix(in srgb, var(--secondary) 22%, var(--surface));
+  --thumb: var(--surface);
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch .track {
+  position: relative;
+  width: 52px;
+  height: 28px;
+  border-radius: 9999px;
+  background: var(--off);
+  transition: background 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.switch .thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--thumb);
+  place-items: center;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.switch input:checked + .track {
+  background: var(--on);
+}
+
+.switch input:checked + .track .thumb {
+  transform: translateX(24px);
+  background: var(--secondary);
+}
+
+.switch input:focus-visible + .track {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.sw-17 .thumb {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), width 0.2s ease, background 0.3s ease;
+}
+
+.sw-17 .track:active .thumb {
+  width: 32px;
+}
+
+.sw-17 input:checked + .track:active .thumb {
+  transform: translateX(14px);
+}
+
+/* A small sun in light mode, a moon in dark mode. */
+.switch .thumb .icon {
+  display: none;
+  width: 12px;
+  height: 12px;
+}
+
+.switch input:not(:checked) + .track .thumb .icon:first-child {
+  display: block;
+  color: var(--amber-deep);
+}
+
+.switch input:checked + .track .thumb .icon:last-child {
+  display: block;
+  color: var(--amber);
+}
+
+/* The island: one floating glass pill that holds the menu, the live slot, the switch and the main action. */
+.island,
+.landing-header.island-top {
+  border: 1px solid var(--glass-line);
+  background: var(--island);
+  box-shadow: 0 12px 32px var(--shadow-ink), inset 0 1px 0 var(--amber-rim);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+}
+
+.island-nav {
+  display: flex;
+  gap: 2px;
+}
+
+.island .nav-item .icon {
+  display: block;
+}
+
+/* The page's main action, in amber, on a phone. */
+.island-action {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* The live slot: the time left, last call, everyone in, or charged. Empty means it isn't shown. */
+.live-slot {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.live-slot:empty {
+  display: none;
+}
+
+.live-slot.is-last-call::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 8px var(--amber-glow);
+}
+
+::view-transition-group(live-slot) {
+  animation-duration: 350ms;
+  animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* On a phone: a top bar with the home mark, the live slot and the switch; the island floats at the bottom
+   with the menu and the main action, the only bar on the screen. */
+@media (max-width: 1023.98px) {
+  .shell-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px var(--gutter);
+  }
+
+  .shell-top .live-slot {
+    padding: 6px 12px;
+    border: 1px solid var(--glass-line);
+    border-radius: 999px;
+    background: var(--island);
+    view-transition-name: live-slot;
+  }
+
+  .island {
+    position: fixed;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    max-width: calc(100% - 24px);
+    padding: 6px;
+    border-radius: 999px;
+    transform: translateX(-50%);
+  }
+
+  .island > .home-mark,
+  .island > .switch,
+  .island-slot {
+    display: none;
+  }
+
+  .island .nav-item {
+    flex-direction: column;
+    gap: 0;
+    min-height: 48px;
+    padding: 4px 10px;
+    font-size: 0.6875rem;
+  }
+
+  .island .nav-item .icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .island .nav-item[aria-current="page"]::after {
+    bottom: 2px;
+  }
+
+  /* The main action already says Pledge, so the menu doesn't repeat it. */
+  .island:has(.island-action) .nav-item.board-pledge {
+    display: none;
+  }
+
+  /* The header's buttons sit in the page now, not in a bar of their own. */
+  .page-actions {
+    position: static;
+    padding: 0;
+    margin-top: 16px;
+    border: 0;
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  /* On the board the island carries Pledge, and the wallet and Who's in carry Invite. */
+  .page-actions-board {
+    display: none;
+  }
+}
+
+/* On a laptop: the island floats at the left, centred, and the page takes the width the sidebar had. */
+@media (min-width: 1024px) {
+  .shell-top {
+    display: none;
+  }
+
+  .island {
+    position: fixed;
+    top: 50%;
+    left: 20px;
+    z-index: 15;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 64px;
+    padding: 10px 0;
+    border-radius: 32px;
+    transform: translateY(-50%);
+  }
+
+  .island-nav {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  /* Each link is a round icon; its words slide out beside it on hover and keyboard focus. */
+  .island .nav-item {
+    justify-content: center;
+    width: 44px;
+    min-height: 44px;
+    margin: 0;
+    padding: 0;
+    border-radius: 50%;
+  }
+
+  .island .nav-item > span {
+    position: absolute;
+    top: 50%;
+    left: calc(100% + 14px);
+    padding: 6px 12px;
+    border: 1px solid var(--glass-line);
+    border-radius: 999px;
+    background: var(--card);
+    box-shadow: 0 8px 20px var(--shadow-ink);
+    color: var(--ink);
+    font-size: var(--text-caption);
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-6px, -50%);
+    transition: opacity 200ms ease, transform 200ms var(--ease-out);
+  }
+
+  .island .nav-item:focus-visible > span {
+    opacity: 1;
+    transform: translate(0, -50%);
+  }
+
+  .island .nav-item[aria-current="page"] {
+    border-color: transparent;
+    background: var(--ink);
+    color: var(--on-ink);
+  }
+
+  .island .nav-item[aria-current="page"]::after {
+    display: none;
+  }
+
+  /* The live slot fits the island's width: two short lines at most. */
+  .island-slot {
+    width: 56px;
+    font-size: 0.6875rem;
+    line-height: 1.25;
+    text-align: center;
+    white-space: normal;
+    view-transition-name: live-slot;
+  }
+
+  .island-slot.is-last-call::before {
+    display: block;
+    margin: 0 auto 4px;
+  }
+
+  .island-action {
+    display: none;
+  }
+
+  .shell-content {
+    padding-left: 96px;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (min-width: 1024px) {
+  .island .nav-item:hover > span {
+    opacity: 1;
+    transform: translate(0, -50%);
+  }
+}
+
+/* The landing page's island, at the top: home, two links, the switch and Start a pledge in amber. It sticks
+   while the page scrolls and shrinks a little after 80px (transform only). */
+.landing-header.island-top {
+  position: sticky;
+  top: 12px;
+  z-index: 18;
+  justify-content: flex-start;
+  gap: 16px;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  height: auto;
+  margin: 12px auto 0;
+  padding: 6px 6px 6px 16px;
+  border-radius: 999px;
+  transform-origin: top center;
+}
+
+.landing-header.island-top .landing-start {
+  min-height: 44px;
+}
+
+/* In the island the two links sit in the row, not centred across the page as they were in the old header. */
+.landing-header.island-top .landing-nav {
+  position: static;
+  gap: 20px;
+  transform: none;
+}
+
+.landing-nav a,
+.landing-name,
+.landing-header.island-top .landing-start {
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .landing-header.island-top {
+    gap: 10px;
+    padding-left: 12px;
+  }
+
+  .landing-header.island-top .landing-start {
+    padding: 0 14px;
+  }
+}
+
+/* Where glass isn't possible, or someone asked for less transparency, the island is solid. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .island,
+  .landing-header.island-top {
+    background: var(--card);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .island,
+  .landing-header.island-top {
+    background: var(--card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: scroll()) {
+    .landing-header.island-top {
+      animation: island-shrink linear both;
+      animation-range: 0 80px;
+      animation-timeline: scroll(root);
+    }
+  }
+}
+
+.scroll-fallback .landing-header.island-top {
+  transform: scale(calc(1 - 0.06 * min(1, var(--progress, 0) * 7.5)));
+}
+
+@keyframes island-shrink {
+  to {
+    transform: scale(0.94);
+  }
+}
+
+/* The moving ribs behind the hero only (D103): the ribbed picture, inverted and fainter in light mode, under
+   the shade. ribs.js slides the outer layer up to 20px against the pointer; the inner one drifts on a 40s
+   loop. Transform only, and both stop with reduced motion. */
+.hero-ribs-layer {
+  position: absolute;
+  inset: -40px;
+  z-index: -2;
+  pointer-events: none;
+  transform: translate3d(calc(var(--ribs-x, 0px) * 20 / 14), 0, 0);
+  transition: transform 700ms var(--ease-out);
+}
+
+.hero-ribs-drift {
+  position: absolute;
+  inset: 0;
+  background: url("images/ribbed-dark.jpg") center / cover;
+  filter: var(--hero-ribs-filter);
+  opacity: var(--hero-ribs-opacity);
+  animation: ribs-drift 40s ease-in-out infinite alternate;
+}
+
+@keyframes ribs-drift {
+  from {
+    transform: translateX(-14px);
+  }
+
+  to {
+    transform: translateX(14px);
+  }
+}
+
+/* More amber on the landing page, as light: amber icons in How it works, an amber glow under the pieces and
+   an amber edge on hover. */
+.how-step .icon {
+  color: var(--amber);
+}
+
+.piece-body {
+  box-shadow: var(--shadow-floating), 0 18px 40px var(--amber-soft), inset 0 1px 0 var(--card-hi);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .how-step:hover {
+    border-color: var(--amber-soft);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch .track,
+  .switch .thumb {
+    transition-duration: 0.01ms !important;
+  }
+
+  .sw-17 .track:active .thumb {
+    width: 22px;
+  }
+
+  .sw-17 input:checked + .track:active .thumb {
+    transform: translateX(24px);
+  }
+}
+
+
 /* ---------- Keyboard focus ---------- */
 
 /* A black ring around whatever the keyboard is on. :focus-visible shows it
@@ -3443,43 +3955,6 @@ button:not(.button-secondary):not(.icon-button)::before,
     --card-padding: 24px;
     --card-gap: 20px;
     --button-height: 44px;
-  }
-
-  /* The menu is a row of pills across the top (D100), and the page gets the full width under it. */
-  .shell-side {
-    flex-direction: row;
-    align-items: center;
-    gap: 24px;
-    width: 100%;
-    max-width: 1280px;
-    margin: 0 auto;
-    padding: 20px var(--gutter) 0;
-  }
-
-  .wordmark {
-    padding: 0;
-  }
-
-  .shell-nav {
-    gap: 4px;
-    padding: 4px;
-    overflow-x: visible;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    background: rgba(128, 128, 128, 0.06);
-  }
-
-  /* The page you're on is a white pill with black words. */
-  .nav-item[aria-current="page"],
-  .page-dark .nav-item[aria-current="page"] {
-    border-color: transparent;
-    background: #FFFFFF;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-    color: #0B0B0B;
-  }
-
-  .page-dark .nav-item[aria-current="page"]::after {
-    display: none;
   }
 
   /* The header's share buttons become round icon buttons; their words stay for screen readers. */

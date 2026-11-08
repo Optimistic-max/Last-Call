@@ -183,9 +183,9 @@ Two sizes sit outside that scale on purpose: form labels (14px) and the status c
 - No small text on the bright part of a gradient.
 - **The page:** `--grey-100` with a white bloom from the top left, a light grey bloom toward the bottom right, and grain. All of it sits on one fixed layer, `body::before`, on every screen. iPhones ignore `background-attachment: fixed`, and one layer means one thing to get right.
 - **Black cards** (the wallet's hero, and the status card in last call): `--grey-800` at the top left to `#0B0B0B` at the bottom right, with white light at 7% and grain.
-- **No grid or line textures on the page (D87):** no dot grid and no ribbed lines on the page background or the hero. The blooms and the grain keep the background from looking flat. The half ring's still-needed stripes stay, because they carry meaning.
+- **No grid textures (D87, D103):** no dot grid anywhere, and no ribbed lines on the page background or behind body text. The ribbed picture appears only on the black photo cards (D98) and behind the landing hero (D103). The half ring's still-needed stripes stay, because they carry meaning.
 - **Ribbed black cards (D98):** the black cards (`.light-card`: the wallet's hero, plus the status card during last call) show `static/images/ribbed-dark.jpg` under a 60% dark layer (white text 6:1, quieter text `#E5E5E5` 4.7:1). With a mouse or trackpad, the ribs slide up to 14px against the pointer (a transform, 700ms ease-out) and a faint light follows it. `static/js/ribs.js` only reports where the pointer is. The light sits on the card's hover layer, above the picture and under the words, so it fades in and out with the hover shadow. Nothing moves on touch screens or with reduced motion.
-- **Liquid glass header (D99):** only the landing page's sticky header bends what scrolls under it (SVG noise and displacement inside `backdrop-filter`), in Chrome-family browsers only. Safari and Firefox keep the frosted glass. Never on buttons, cards or anything with text behind it that must stay readable.
+- **Liquid glass (D99, retired by D103):** the landing header became the island, which uses plain glass. The SVG filter and its check in `landing.js` are gone.
 
 The black cards' light sits on `.card-bloom`, an empty element inside the card. It is a separate layer, so it can move without repainting the card.
 
@@ -203,7 +203,7 @@ The black cards' light sits on `.card-bloom`, an empty element inside the card. 
 
 **Hover, press and wiggle (D85):** hover effects apply only under `@media (hover: hover) and (pointer: fine)`. Cards lift 2px, buttons lift 1px, "Who's in" rows lighten and the avatar grows slightly, arrows lean 2px the way they point, and `.text-link` underlines slide in from the left. A press is `scale(0.97)` over 120ms. The wiggle (rotate -3, 3, -2, 1, 0 degrees over 450ms) is for the logo on hover, "Copied ✓", "Just pledged", and Invite once, 8 seconds after an empty board loads. A refused field shakes instead. Money, the countdown and status chips never wiggle.
 
-**Sandbox banner (D87):** the one sandbox notice, at the very top of every page: 28px tall, `--grey-100`, 12px `--ink-2`, weight 500. It isn't sticky, so it scrolls away with the page, and only the landing's glass header stays at the top. There is no second notice under the hero button or in the sidebar. The browser's `theme-color` matches the banner.
+**Sandbox banner (D87, D103):** the one sandbox notice, at the very top of every page: 28px tall, `--banner` (`#121212` dark, `#E8E8E5` light), 12px `--ink-2`, weight 500. It isn't sticky, so it scrolls away with the page. There is no second notice under the hero button or in the menu. The browser's `theme-color` matches the banner in both themes.
 
 **Demo mode badge (D87, D100):** an outlined label under the wallet's Time bar, the time it explains: white at 20% for the border, 12px `--ink-2`, weight 500. Its corners are 12px, not a pill, because the words can wrap to two lines. It appears from `board.demo_mode` in the template. That value never changes once an event exists, so `board.js` doesn't touch it.
 
@@ -217,7 +217,32 @@ The black cards' light sits on `.card-bloom`, an empty element inside the card. 
 - **The half ring:** the counted arc goes from white to amber along the stroke. The still-needed stripes stay grey, and the legend words stay.
 - **Landing page:** its own look, with a warm amber glow under the logo tile.
 
-**Dark pages (D100):** S2, S3 and the pledge page are near-black `#0A0A0A` with the amber vignette and grain (`body.page-dark`). The tokens turn around there, so cards, chips and lines follow: cards `#141414` with 32px corners, `--ink` `#F5F5F3`, `--ink-2` `#A6A6A2`, `--danger` `#FF8A7A` on a solid `#3A1F1B`. The Counted chip becomes white with black words. The pledge form stays a light card, because PayPal draws its card fields in its own frames with dark text. The sandbox banner is `#121212`, and the browser's `theme-color` matches it.
+**One theme system (D103, replacing D100's dark pages):** every page, the landing included, uses the same tokens on `:root`. Dark is the default. Light is the same design turned around, with the same amber. `:root[data-theme="light"]` gives the tokens their light values, so components never name a colour themselves. The only colours outside the two token blocks are the pledge form's light island (below), four `#000` masks (which only shape transparency) and shadow alphas.
+
+| Token | Dark (default) | Light | Job |
+|---|---|---|---|
+| `--page` | `#0A0A0A` | `#F3F3F1` | Page background, with the amber vignette (`--vignette`) and grain |
+| `--card` / `--raised` | `#141414` / `#1C1C1C` | `#FFFFFF` / `#FAFAF9` | Cards, and a solid surface one step up |
+| `--ink` / `--ink-2` / `--ink-3` | `#F5F5F3` / `#A6A6A2` / `#74746F` | `#0B0B0B` / `#5C5C5C` / `#8A8A8A` | Text, quiet text, large text only |
+| `--line` | white at 9% | `#E5E5E2` | Borders |
+| `--on-ink` | `#0B0B0B` | `#FFFFFF` | Words on an `--ink` fill (the Counted chip) |
+| `--glass`, `--glass-line`, `--glass-hi` | white at 7%, 12%, 8% | black at 5%, 10%, white at 70% | Quiet buttons and round buttons: white glass on dark, dark-tinted glass on light |
+| `--island` | white at 8% | black at 6% | The island's glass |
+| `--danger` / `--danger-bg` | `#FF8A7A` / `#3A1F1B` | `#B42318` / `#FDECEA` | Declined, Charge failed, Needs attention |
+| `--banner` | `#121212` | `#E8E8E5` | The sandbox banner and `theme-color` |
+| `--wave` / `--wave-ink` | `#F5F5F2` / `#0A0A0A` | `#0B0B0B` / `#F3F3F1` | The wave on quiet buttons, and the words on it |
+| `--bar-start` | `#FFFFFF` | `#0B0B0B` | Where the ring and the bars start, before amber |
+| `--amber`, `--amber-deep`, `--amber-soft`, `--amber-glow`, `--on-accent` | same in both | same in both | Amber light, and black words on amber |
+| `--night`, `--paper`, `--photo-*` | same in both | same in both | The black photo cards stay dark in both themes |
+
+- **Two exceptions, on purpose:** the ribbed black cards (the wallet hero, last call's status card, the landing's black pieces) stay dark in both themes, because they are photo cards. In dark mode the pledge form (`#pledge`) stays a light card, because PayPal draws its card fields in its own frames with dark text.
+- **The switch:** a pill switch (`role="switch"`, checked means dark, Space toggles it) with a sun in light mode and a moon in dark mode. It sits in the landing island, in the laptop island and in the phone's top bar. Its label is 44px tall for a finger. `static/js/theme.js` sets `data-theme` on `<html>`, keeps every switch in step, updates `theme-color` from `--banner`, and remembers the choice in `localStorage` (inside `try`). A small script in `<head>` sets the theme before anything paints, so there is no flash of the wrong one, and with no saved choice the theme is dark.
+- **The home mark:** on every page the handshake mark is the link to `/`, 32px tall, named "Last Call, home" for screen readers. It is white on dark and black on light, both drawn as images with the right one shown by the theme. On hover it gets the landing logo's wiggle. The landing island's mark and name link to `/` too.
+- **The island:** one floating glass pill instead of a sidebar or a bar. It has `--island` glass, `blur(20px)`, a hairline border, a soft shadow and faint amber light along its top edge.
+  - **The landing page:** the island floats at the top centre with the mark and name, How it works, Try the demo, the switch and Start a pledge in amber. It sticks while you scroll and shrinks to 94% after 80px (a transform).
+  - **Other pages on a laptop:** it floats at the left, centred, with the mark, the round menu icons (their words slide out on hover and keyboard focus), the live slot and the switch. The page takes the width the sidebar had.
+  - **Phones:** the island floats at the bottom with the menu (icons with short words) and the page's main action in amber: Pledge or Join last call on S3, Share on S2. The pledge page's Hold my max stays in its form, next to PayPal's card fields. A top bar holds the mark, the live slot and the switch. The old bottom bar is gone, so there is one bar.
+  - **The live slot** shows "0:08:59 left", an amber dot and "Last call 2:58", "Everyone's in" or "Charged", from text `board.js` already has. When its kind changes, the island morphs with a view transition (350ms, where the browser has them and motion is welcome). Screen readers hear only the big changes, from a separate `role="status"` line.
 
 **The wallet (D100):** the top of the board on S2 and S3. On a phone:
 
@@ -245,7 +270,11 @@ On a laptop the menu is a row of pills across the top, and the header's share bu
 
 **Motion (D100):** the hero lifts and the Pledge card slides 6px further out on hover. The amount crossfades when it changes, and a new face pops in (scale 0.9 to 1). Each is under 0.8 seconds, the breathing light excepted, and all of it is off with reduced motion.
 
-**Landing page (D85):** it sits at the top of S1, on `GET /`. A sticky glass header, then a hero canvas with soft grey light, the logo tile, the headline, one button 32px under it, and six floating pieces (four on tablets, two on phones). Then `#how`, `#create` (the form) and the footer. The pieces are aria-hidden drawings of our own components, and every name and amount in them is made up. Scrolling the first 600px zooms past them. The tile reaches the header at 280px, because any later and the headline would scroll through it.
+**Amber on the landing page (D103):** amber is light here too. It colours the How it works icons, a glow under the floating pieces and the logo tile, an amber edge on hover, and the hero's vignette. Start a pledge, in the island and in the hero, is the solid amber button with black words: one per area of the screen.
+
+**The hero's moving ribs (D103):** the ribbed picture fills the hero canvas only, never behind body text. In light mode it is inverted and shown at 40%. A shade (`--hero-shade`) keeps the headline readable, with a faint amber wash on top. `ribs.js` slides it up to 20px against the pointer (`.hero-ribs`), and it also drifts on a 40-second loop. Both are transform only, nothing moves on touch, and reduced motion stops both.
+
+**Landing page (D85, D103):** it sits at the top of S1, on `GET /`. The island at the top, then a hero canvas with the moving ribs, an amber vignette and grain, the logo tile, the headline, one button 32px under it, and six floating pieces (four on tablets, two on phones). Then `#how`, `#create` (the form) and the footer. The pieces are aria-hidden drawings of our own components, and every name and amount in them is made up. Scrolling the first 600px zooms past them. The tile reaches the header at 280px, because any later and the headline would scroll through it.
 
 **Share panel (D87):** every Share, Invite and Copy link button opens one native `<dialog>`, so focus stays inside, Esc closes it, and focus returns to the button that opened it. It only ever holds `share_link` or the public pledge link, never the admin page's own address. On a phone it is a bottom sheet: it slides up in 300ms with a grab handle, and a drag down, a tap on the dim area or the close button closes it. From 768px it is a centered 420px dialog that rises 8px and fades in over 200ms. The dim area is black at 35% with a 2px blur. The tiles are 56px frosted circles with a line icon and a word, never a brand's logo or color, and they fade in 30ms apart. Messages shows only on touch screens, and More apps only where the browser has `navigator.share`. WhatsApp, Telegram and Email open in a new tab, so a web service can't replace the page. Messages doesn't, because it only hands over to a phone's app. Under reduced motion the panel fades instead of sliding. The page behind it stays still while it is open.
 
