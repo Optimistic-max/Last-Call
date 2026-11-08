@@ -379,19 +379,12 @@ a {
    pointer moves over the card: like looking through fluted glass while moving your head. Only a
    transform changes, so the text never repaints. The 60% dark layer on top keeps text readable:
    over the picture's brightest pixel, white is 6:1 and the quieter text (#E5E5E5) is 4.7:1. */
-@property --ribs-glow {
-  syntax: "<number>";
-  inherits: true;
-  initial-value: 0;
-}
-
 .light-card,
 .board[data-status="LAST_CALL"] .status-card {
   --on-ink-2: #E5E5E5;
   --ribs-x: 0px;
   --ribs-mx: 50%;
   --ribs-my: 0%;
-  transition: --ribs-glow 400ms var(--ease-out);
 }
 
 .light-card .card-bloom::after,
@@ -406,18 +399,13 @@ a {
   transition: transform 700ms var(--ease-out);
 }
 
-/* A faint light that follows the pointer, faded in and out through --ribs-glow. */
-.light-card .card-bloom,
-.board[data-status="LAST_CALL"] .status-card .card-bloom {
-  background-image: radial-gradient(320px 240px at var(--ribs-mx) var(--ribs-my),
-    rgba(255, 255, 255, calc(0.07 * var(--ribs-glow))), transparent 70%);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .light-card:hover,
-  .board[data-status="LAST_CALL"] .status-card:hover {
-    --ribs-glow: 1;
-  }
+/* A faint light that follows the pointer. It lives on the card's hover layer (.board .card::after),
+   so it fades in and out with the hover shadow, by opacity alone. z-index -1 puts it above the
+   picture and under the words. Only a mouse or trackpad shows that layer, so touch never gets it. */
+.board .card.light-card::after,
+.board[data-status="LAST_CALL"] .card.status-card::after {
+  z-index: -1;
+  background: radial-gradient(320px 240px at var(--ribs-mx) var(--ribs-my), rgba(255, 255, 255, 0.07), transparent 70%);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -427,9 +415,9 @@ a {
     transition: none;
   }
 
-  .light-card:hover,
-  .board[data-status="LAST_CALL"] .status-card:hover {
-    --ribs-glow: 0;
+  .board .card.light-card::after,
+  .board[data-status="LAST_CALL"] .card.status-card::after {
+    background: none;
   }
 }
 
