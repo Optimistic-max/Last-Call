@@ -5,6 +5,19 @@
 //    number from 0 to 1 that the CSS uses for transform and opacity.
 // With reduced motion on, the cards simply stay in place and nothing moves with the scroll.
 
+// 4. Liquid glass on the sticky header (D99) only in Chrome-family browsers. navigator.userAgentData
+//    exists only in those, and its brands list names "Chromium". Safari and Firefox can't use an SVG
+//    filter in backdrop-filter, so they keep the plain frosted glass.
+function markLiquidGlass() {
+  const brands = navigator.userAgentData ? navigator.userAgentData.brands : [];
+  const isChromium = brands.some(function (entry) { return entry.brand === "Chromium"; });
+  if (isChromium) {
+    document.documentElement.classList.add("liquid-glass");
+  }
+}
+
+markLiquidGlass();
+
 const SCROLL_ZOOM_PX = 600;   // the zoom plays over the first 600px of scrolling
 
 const wantsMotion = window.matchMedia("(prefers-reduced-motion: no-preference)").matches;
