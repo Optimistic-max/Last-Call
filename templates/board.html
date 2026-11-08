@@ -4,6 +4,8 @@
    Samuel to restyle. The board itself is board_panel.html, which S2 shows too (D76). #}
 
 {% block title %}{{ board.title }}{% endblock %}
+{% block body_class %}page-dark{% endblock %}
+{% block theme_color %}#121212{% endblock %}
 
 {% block nav %}
 <nav class="shell-nav" aria-label="Menu">
@@ -22,7 +24,7 @@
     </div>
     <div class="page-actions">
       {{ pledge_link(board, "button-link") }}
-      {{ share_button(url_for('pledge_page', event_id=board.event_id), "Invite", class_name="button-secondary board-invite", hidden=not board.pledging_open) }}
+      {{ share_button(url_for('pledge_page', event_id=board.event_id), "Invite", class_name="button-secondary board-invite", hidden=not board.pledging_open, icon_name="plus") }}
     </div>
   </header>
   {% include "board_panel.html" %}

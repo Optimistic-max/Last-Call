@@ -8,8 +8,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-  <meta name="theme-color" content="#F3F3F1" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#F3F3F1" media="(prefers-color-scheme: light)">
+  {# The browser's bar takes the colour at the very top of the page: the sandbox banner. #}
+  <meta name="theme-color" content="{% block theme_color %}#F3F3F1{% endblock %}" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="{{ self.theme_color() }}" media="(prefers-color-scheme: light)">
   <title>{% block title %}Start a pledge{% endblock %} · Last Call</title>
   <link rel="icon" href="{{ url_for('static', filename='img/favicon.svg') }}" type="image/svg+xml">
   <link rel="icon" sizes="32x32" href="{{ url_for('static', filename='img/favicon-32.png') }}" type="image/png">
@@ -20,7 +21,8 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
+{# page-dark is the near-black page with amber light (D100), on S2, S3 and the pledge page. #}
+<body class="{% block body_class %}{% endblock %}">
   {% include "icons.html" %}
   <p class="sandbox-banner">SANDBOX DEMO: fake money, no real charges</p>
   {% block shell %}

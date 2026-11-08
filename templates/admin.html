@@ -11,6 +11,9 @@
 
 {% block title %}Treasurer: {{ title }}{% endblock %}
 
+{% block body_class %}page-dark{% endblock %}
+{% block theme_color %}#121212{% endblock %}
+
 {# Overview is an anchor on this page, so the page's own address is never printed. #}
 {% block nav %}
 <nav class="shell-nav" aria-label="Menu">
@@ -36,7 +39,7 @@
       <button type="submit">Open pledging</button>
     </form>
     {% endif %}
-    {{ share_button(share_link, "Copy link", phone_label="Share") }}
+    {{ share_button(share_link, "Copy link", phone_label="Share", icon_name="copy") }}
   </div>
 </header>
 

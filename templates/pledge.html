@@ -5,6 +5,8 @@
    Jinja escapes every value it fills in, so a title like "<script>" shows as text and never runs. #}
 
 {% block title %}Pledge: {{ event.title }}{% endblock %}
+{% block body_class %}page-dark{% endblock %}
+{% block theme_color %}#121212{% endblock %}
 
 {% block nav %}
 <nav class="shell-nav" aria-label="Menu">
@@ -67,7 +69,7 @@
       <p class="card-field-label">Card number</p><div id="paypal-card-fields-number" class="card-field"></div>
       <p class="card-field-label">Expiry</p><div id="paypal-card-fields-expiry" class="card-field"></div>
       <p class="card-field-label">CVV</p><div id="paypal-card-fields-cvv" class="card-field"></div>
-      <button id="hold-button" class="button-full" type="button" disabled>Hold my max</button>
+      <button id="hold-button" class="button-full button-amber" type="button" disabled>Hold my max</button>
     </section>
 
     {# D82: after "Held", the script fills in the friend's own "I'm out" link (S6). The line is a

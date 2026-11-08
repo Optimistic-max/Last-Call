@@ -6,6 +6,8 @@
 //    It also ticks the time inside the OPEN and LAST_CALL banners, so the two never disagree.
 // 3. It compares each answer with the last one and marks what changed, so the CSS can animate it:
 //    who just pledged, who just became counted, and whose share changed (UI_DESIGN.md section 6).
+// 4. It keeps the wallet at the top up to date (D100): the people row, the goal pill and the two bars.
+//    Every wallet function checks the wallet is there first, so a page without one still works.
 //
 // Names are typed by users, so this file writes text with textContent and builds elements with
 // createElement, never innerHTML. It does no money math and no money formatting: every amount
@@ -15,6 +17,7 @@
 const REFRESH_EVERY_MS = 10000;   // fetch board.json every 10 seconds (UI_DESIGN.md section 7)
 const TICK_EVERY_MS = 1000;       // tick the countdown once a second
 const INVITE_NUDGE_MS = 8000;     // an empty board nudges Invite once, this long after it loads
+const WALLET_FACES = 4;           // faces in the wallet's people row before "+N" (same as the template)
 
 const board = document.querySelector("section.board");
 
@@ -32,6 +35,7 @@ const countdown = {
   inBanner: false,
   textBefore: "",
   textAfter: "",
+  windowSeconds: null,   // how long the whole window is, if the server says (window_seconds), for the Time bar
 };
 
 
@@ -46,6 +50,10 @@ function startBoard() {
   let seconds = null;
   if (board.dataset.secondsLeft !== undefined) {   // the attribute is left out when seconds_left is null
     seconds = Number(board.dataset.secondsLeft);
+  }
+  const wallet = board.querySelector(".wallet");
+  if (wallet && wallet.dataset.windowSeconds !== undefined) {
+    countdown.windowSeconds = Number(wallet.dataset.windowSeconds);
   }
   setCountdown(board.dataset.status, banner.textContent, seconds);
   setInterval(refreshBoard, REFRESH_EVERY_MS);
@@ -94,6 +102,7 @@ function showBoard(answer) {
   document.querySelector(".board-goal").textContent = answer.goal_text;
   showProgress(answer.progress_percent);
   showStats(answer);
+  showWallet(answer);   // before showRows, which forgets who was here last time
   showRows(answer.rows);
   showPledgeLinks(answer.pledging_open, answer.status);
   setCountdown(answer.status, answer.banner_text, answer.seconds_left);
@@ -170,21 +179,134 @@ function showStats(answer) {
   // D97: from the lock on the first card says Charged and shows charged_total_text; before that, Held so far.
   // Bare version for Samuel to restyle: keep the choice, and use textContent only.
   const title = board.querySelector(".board-held-title");
+  const total = board.querySelector(".board-held-total");
+  const oldTotal = total.textContent;
   if (answer.charged_total_text) {
     title.textContent = "Charged";
-    board.querySelector(".board-held-total").textContent = answer.charged_total_text;
+    total.textContent = answer.charged_total_text;
     board.querySelector(".board-held-caption").textContent = chargedCaptionText(answer);
   } else {
     title.textContent = "Held so far";
-    board.querySelector(".board-held-total").textContent = answer.held_total_text;
+    total.textContent = answer.held_total_text;
     board.querySelector(".board-held-caption").textContent = heldCaptionText(answer.status);
   }
+  showWalletAmount(oldTotal, total.textContent);
   board.querySelector(".board-counted-total").textContent =
     answer.counted_total_text || peopleText(countedRows.length);
   board.querySelector(".board-people").textContent = answer.rows.length;
   board.querySelector(".board-waiting-count").textContent = waitingRows.length + " waiting on someone";
   board.querySelector(".board-goal-amount").textContent =
     answer.goal_amount_text || answer.progress_percent + "%";
+}
+
+
+// ---------- The wallet at the top of the board (D100) ----------
+
+// Copy the new answer into the wallet. A page without a wallet (and the test page) skips all of it.
+function showWallet(answer) {
+  const wallet = board.querySelector(".wallet");
+  if (!wallet) {
+    return;
+  }
+  showGoalPill(wallet, answer.goal_amount_text);
+  showCountedBar(wallet, answer);
+  showWalletPeople(wallet, answer.rows);
+  if (answer.window_seconds) {
+    countdown.windowSeconds = answer.window_seconds;
+  }
+}
+
+
+// "Goal $310.01" under the amount, only when the server sends goal_amount_text (finished text).
+function showGoalPill(wallet, goalAmountText) {
+  const pill = wallet.querySelector(".wallet-goal");
+  pill.hidden = !goalAmountText;
+  if (goalAmountText) {
+    pill.textContent = "Goal " + goalAmountText;
+  }
+}
+
+
+// The Counted bar is the server's progress_percent, and its words are the server's money text joined
+// as it is. Dividing the percent by 100 only turns it into a fraction for the CSS, so this is not money.
+function showCountedBar(wallet, answer) {
+  wallet.querySelector(".bar-counted").style.setProperty("--bar", answer.progress_percent / 100);
+  wallet.querySelector(".bar-counted-text").textContent = countedBarText(answer);
+}
+
+
+// "$15.01 of $310.01" when both texts arrive, else "39% of the goal", like the template.
+function countedBarText(answer) {
+  if (answer.counted_total_text && answer.goal_amount_text) {
+    return answer.counted_total_text + " of " + answer.goal_amount_text;
+  }
+  return answer.progress_percent + "% of the goal";
+}
+
+
+// The class of one face: a thin amber ring when counted, dimmed while waiting on someone.
+function walletFaceClass(row) {
+  if (row.counted) {
+    return "wallet-avatar is-counted";
+  }
+  if (row.waiting_on_text !== "") {
+    return "wallet-avatar is-waiting";
+  }
+  return "wallet-avatar";
+}
+
+
+// The first few faces and "+N" for the rest. A name that wasn't here last time pops in. lastRows still
+// holds the previous answer here, because showRows runs after this.
+function showWalletPeople(wallet, rows) {
+  const faces = wallet.querySelector(".wallet-avatars");
+  faces.replaceChildren();
+  for (const row of rows.slice(0, WALLET_FACES)) {
+    const face = makeSpan(walletFaceClass(row), avatarText(row.name));
+    face.setAttribute("aria-hidden", "true");
+    if (!lastRows.has(row.name)) {
+      face.classList.add("avatar-new");
+    }
+    faces.appendChild(face);
+  }
+  if (rows.length > WALLET_FACES) {
+    const more = makeSpan("wallet-more", "+" + (rows.length - WALLET_FACES));
+    more.setAttribute("aria-hidden", "true");
+    faces.appendChild(more);
+  }
+  faces.setAttribute("aria-label", "Who's in: " + peopleText(rows.length));
+  faces.hidden = rows.length === 0;
+}
+
+
+// When the amount changes, replay the crossfade on its line. "USD" shows only beside an amount: after the
+// lock the text can be "Total being checked". Looking at the first character is not money math.
+function showWalletAmount(oldText, newText) {
+  const line = board.querySelector(".wallet-amount");
+  if (!line) {
+    return;
+  }
+  line.querySelector(".wallet-unit").hidden = !newText.startsWith("$");
+  if (oldText !== newText) {
+    line.classList.remove("amount-changed");
+    void line.offsetWidth;   // lets the browser see the class go, so the animation plays again
+    line.classList.add("amount-changed");
+  }
+}
+
+
+// The Time bar and its words follow the countdown. The bar only appears when the server says how long
+// the window is (window_seconds), because guessing the length here would duplicate config.py.
+function showWalletTime(seconds, timeText) {
+  const words = board.querySelector(".bar-time-text");
+  if (!words) {
+    return;
+  }
+  words.textContent = timeText;
+  const bar = board.querySelector(".bar-time");
+  if (bar && countdown.windowSeconds && seconds !== null) {
+    bar.style.setProperty("--bar", Math.min(1, seconds / countdown.windowSeconds));
+  }
 }
 
 
@@ -399,7 +521,9 @@ function setCountdown(status, bannerText, seconds) {
   countdown.running = false;
   countdown.inBanner = false;
   if ((status !== "OPEN" && status !== "LAST_CALL") || seconds === null) {
-    board.querySelector(".board-time").textContent = board.querySelector(".countdown-card").dataset.closedText;
+    const closedText = board.querySelector(".countdown-card").dataset.closedText;
+    board.querySelector(".board-time").textContent = closedText;
+    showWalletTime(null, closedText);
     return;
   }
   countdown.status = status;
@@ -438,6 +562,7 @@ function showCountdownTime(seconds) {
   countdown.shownSeconds = seconds;
   const timeText = countdownText(seconds, countdown.status);
   board.querySelector(".board-time").textContent = timeText;
+  showWalletTime(seconds, timeText + " left");
   if (countdown.inBanner) {
     board.querySelector(".board-banner").textContent = countdown.textBefore + timeText + countdown.textAfter;
   }

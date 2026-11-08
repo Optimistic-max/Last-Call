@@ -139,7 +139,7 @@ The hero's idle float and scroll zoom are extra to these three moments, and they
 
 ## 8. Final palette and fonts
 
-**Look (D87):** the clean black-and-white dashboard of D84 and D85, with light falling across it so it isn't flat. Greys only: no hue anywhere except `--danger`. The copy stays warm and plain, so it never feels like a bank. The variables live on `:root` in `static/style.css`. A teal palette was tried and dropped on Nov 5.
+**Look (D87, D100):** the clean black-and-white dashboard of D84 and D85, with light falling across it so it isn't flat. Greys, plus amber used as light (D100, below), and `--danger`. The copy stays warm and plain, so it never feels like a bank. The variables live on `:root` in `static/style.css`. A teal palette was tried and dropped on Nov 5.
 
 | Variable | Value | Job |
 |---|---|---|
@@ -172,14 +172,14 @@ Two sizes sit outside that scale on purpose: form labels (14px) and the status c
 
 **Gradients (D87):** they are light, not paint.
 
-- Greys only, at most three stops, and no gradient text.
+- Greys, or amber as light (D100). Amber gradients have two stops, are radial and off-centre, and always have grain on top. No gradient text.
 - Big, soft, off-center radial light. The two exceptions run straight down: a white card's very slight fade, and the primary button.
 - Grain on every gradient, so it doesn't band: a noise SVG in `--grain`, at 3.5%. A white card fades by only five steps of grey, too little to band, so it skips the grain.
 - No small text on the bright part of a gradient.
 - **The page:** `--grey-100` with a white bloom from the top left, a light grey bloom toward the bottom right, and grain. All of it sits on one fixed layer, `body::before`, on every screen. iPhones ignore `background-attachment: fixed`, and one layer means one thing to get right.
-- **Black cards** ("Held so far", the countdown, the status card in last call): `--grey-800` at the top left to `#0B0B0B` at the bottom right, with white light at 7% and grain. In last call the countdown's light drifts on an 8-second loop.
+- **Black cards** (the wallet's hero, and the status card in last call): `--grey-800` at the top left to `#0B0B0B` at the bottom right, with white light at 7% and grain.
 - **No grid or line textures on the page (D87):** no dot grid and no ribbed lines on the page background or the hero. The blooms and the grain keep the background from looking flat. The half ring's still-needed stripes stay, because they carry meaning.
-- **Ribbed black cards (D98):** the black cards (`.light-card`: Held so far and the countdown, plus the status card during last call) show `static/images/ribbed-dark.jpg` under a 60% dark layer (white text 6:1, quieter text `#E5E5E5` 4.7:1). With a mouse or trackpad, the ribs slide up to 14px against the pointer (a transform, 700ms ease-out) and a faint light follows it. `static/js/ribs.js` only reports where the pointer is. The light sits on the card's hover layer, above the picture and under the words, so it fades in and out with the hover shadow. Nothing moves on touch screens or with reduced motion.
+- **Ribbed black cards (D98):** the black cards (`.light-card`: the wallet's hero, plus the status card during last call) show `static/images/ribbed-dark.jpg` under a 60% dark layer (white text 6:1, quieter text `#E5E5E5` 4.7:1). With a mouse or trackpad, the ribs slide up to 14px against the pointer (a transform, 700ms ease-out) and a faint light follows it. `static/js/ribs.js` only reports where the pointer is. The light sits on the card's hover layer, above the picture and under the words, so it fades in and out with the hover shadow. Nothing moves on touch screens or with reduced motion.
 - **Liquid glass header (D99):** only the landing page's sticky header bends what scrolls under it (SVG noise and displacement inside `backdrop-filter`), in Chrome-family browsers only. Safari and Firefox keep the frosted glass. Never on buttons, cards or anything with text behind it that must stay readable.
 
 The black cards' light sits on `.card-bloom`, an empty element inside the card. It is a separate layer, so it can move without repainting the card.
@@ -200,7 +200,32 @@ The black cards' light sits on `.card-bloom`, an empty element inside the card. 
 
 **Sandbox banner (D87):** the one sandbox notice, at the very top of every page: 28px tall, `--grey-100`, 12px `--ink-2`, weight 500. It isn't sticky, so it scrolls away with the page, and only the landing's glass header stays at the top. There is no second notice under the hero button or in the sidebar. The browser's `theme-color` matches the banner.
 
-**Demo mode badge (D87):** an outlined label on the countdown card, under the time it explains: white at 25% for the border, 12px `--on-ink-2`, weight 500. Its corners are 12px, not a pill, because the words wrap to two lines on a narrow card. It appears from `board.demo_mode` in the template. That value never changes once an event exists, so `board.js` doesn't touch it.
+**Demo mode badge (D87, D100):** an outlined label under the wallet's Time bar, the time it explains: white at 20% for the border, 12px `--ink-2`, weight 500. Its corners are 12px, not a pill, because the words can wrap to two lines. It appears from `board.demo_mode` in the template. That value never changes once an event exists, so `board.js` doesn't touch it.
+
+**Amber light (D100):** amber is our third colour, used as light, as if a warm lamp lit a dark room. `--amber` `#F5B300`, `--amber-deep` `#B86E00`, `--amber-soft` (18%) and `--amber-glow` (35%).
+
+- **Where it goes:** glows behind and under cards, a soft rim along a top edge, a vignette at the far edges of the dark pages (about 11%), the highlight on the one active thing, and the main action.
+- **Where it never goes:** it is never the only way to show a status, because status stays a word plus black and white. It is never a flat fill on a large area, and never behind small text.
+- **Primary buttons** keep their glass shape, with an amber rim light along the top edge and an amber glow under them on hover. The glow is on the layer that already fades in, so only opacity animates.
+- **The one most important action** on each page is a solid amber pill with black words (`.button-amber`): Hold my max on the pledge page, Create on S1. On the board it is the wallet's Pledge card.
+- **The menu:** on a phone, the page you're on keeps white words and gets an amber line that glows. On a laptop it is a white pill.
+- **The half ring:** the counted arc goes from white to amber along the stroke. The still-needed stripes stay grey, and the legend words stay.
+- **Landing page:** its own look, with a warm amber glow under the logo tile.
+
+**Dark pages (D100):** S2, S3 and the pledge page are near-black `#0A0A0A` with the amber vignette and grain (`body.page-dark`). The tokens turn around there, so cards, chips and lines follow: cards `#141414` with 32px corners, `--ink` `#F5F5F3`, `--ink-2` `#A6A6A2`, `--danger` `#FF8A7A`. The Counted chip becomes white with black words. The pledge form stays a light card, because PayPal draws its card fields in its own frames with dark text. The sandbox banner is `#121212`, and the browser's `theme-color` matches it.
+
+**The wallet (D100):** the top of the board on S2 and S3. On a phone:
+
+- **The hero card** is black, with 32px corners, the ribbed picture under its 60% dark layer, and amber light from its bottom edge. It shows a small "Held so far" label ("Charged" after the lock, D97), then the amount, 56px at most, 600, tabular, centred, with a small "USD". Under that come the caption and a "Goal $310.01" pill, which shows only when `goal_amount_text` arrives.
+- **The time** is a small pill at the top right ("Time left 0:08:59", "Last call 2:58", or "Closed"). In last call an amber ring pulses gently around it.
+- **The people row** sits at the bottom of the hero: a 56px white round "+" (Invite, which opens the share panel), then up to four overlapping 48px faces and "+N". The faces show initials, because there are no photos yet (D101). Counted people get a thin amber ring and waiting people are dimmed. The row links to Who's in.
+- **The Pledge card** peeks out 56px under the hero, wallet-style: an amber gradient with grain and the words "+ Pledge" in black. It is the real Pledge link (`pledge_link`), hidden while pledging is closed.
+- **Under the stack**, amber light spreads onto the page. It breathes on an 8-second loop during last call only.
+- **Two thin bars** with their words under them. Counted is `progress_percent`, with "$counted of $goal" when both texts arrive, else the percent. Time is `seconds_left` out of `window_seconds`, which shows only when the server sends that key.
+
+On a laptop the menu is a row of pills across the top, and the header's share buttons are round icon buttons. The wallet sits on the left at 440px at most, with the three totals and Progress to its right. The status card and How it works come next, then Who's in at full width.
+
+**Motion (D100):** the hero lifts and the Pledge card slides 6px further out on hover. The amount crossfades when it changes, and a new face pops in (scale 0.9 to 1). Each is under 0.8 seconds, the breathing light excepted, and all of it is off with reduced motion.
 
 **Landing page (D85):** it sits at the top of S1, on `GET /`. A sticky glass header, then a hero canvas with soft grey light, the logo tile, the headline, one button 32px under it, and six floating pieces (four on tablets, two on phones). Then `#how`, `#create` (the form) and the footer. The pieces are aria-hidden drawings of our own components, and every name and amount in them is made up. Scrolling the first 600px zooms past them. The tile reaches the header at 280px, because any later and the headline would scroll through it.
 
@@ -279,7 +304,8 @@ Both get the same `board` object, and `board.json` is exactly this object, so th
 | `charged_total_text` | finished money text (D97): from the lock on (`SETTLED`, `NEEDS_ATTENTION`, `REFUNDING`, `REFUNDED`) the sum of the event's saved charges, counting `COMPLETED` and `REFUNDED` captures. `"Total being checked"` (placeholder) when any capture or payment record is unresolved: never `$0.00` for that. `""` at every other status, where the first card stays "Held so far" | `"$32.33"` |
 | `refunded_total_text` | finished money text (D97): the sum of refunds PayPal has confirmed, or `""` when there are none (or while the total is being checked) | `"$21.55"` |
 | `progress_percent` | a whole number from 0 to 100. It is 100 only when the goal is reached (D54), and 100 from `LAST_CALL` on (§5) | `39` |
-| `demo_mode` | true while the event runs on minute timers. Shows the demo mode badge. **Not sent yet** (`TEAM.md`); with no key, the badge stays off | `true` |
+| `demo_mode` | true while the event runs on minute timers. Shows the demo mode badge | `true` |
+| `window_seconds` | **Not sent yet (wanted for the wallet's Time bar, D100).** The length of the window `seconds_left` counts down: the pledging window during OPEN, the last call during LAST_CALL. Without it the Time bar shows only its words | `600` |
 | `pledging_open` | true or false: whether to show the link to `/e/<id>/pledge` | `true` |
 | `links` | a list of who depends on whom (D96), one per saved condition, at most `MAX_CONDITIONS` (3) per pledger, in join order then saved order; `[]` when nobody has a condition. Sent in every status. DROPPED pledges are never a `from` (D56) | |
 | `links[].from` | text: the pledger's name as the board shows it | `"Ana"` |

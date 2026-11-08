@@ -7,7 +7,7 @@ From the project plan (section 10), with the agreed corrections. Samuel edits th
 - Under 3 minutes (judges don't have to watch past 3:00). Aim for 2:30.
 - Uploaded to YouTube, **public**, link on the Devpost form.
 - **SANDBOX DEMO** banner at the top of every screen. It scrolls away with the page (D87), so open each screen at the top.
-- Fictional brands only ("Ridgeline Hiking Club", "Pinecrest Cabins"). No real logos, apps or chat-app screenshots.
+- Fictional brands and people ("Ridgeline Hiking Club", "Pinecrest Cabins", Ana, Jay, Kofi, Bo, Mia, Dee). PayPal and Venmo marks only from PayPal's official brand assets, following their guidelines. Faces only from licensed stock photos or AI-generated people who don't exist, credited in the README. No other real logos, no real or famous people, no chat-app screenshots (D101, Emmanuel to confirm).
 - No copyrighted music. Use no music, or a track you have permission to use.
 - Open the live link a minute before recording, so the free server is awake.
 - Shows the app running in a real browser on the device it was built for.
