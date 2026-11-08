@@ -1386,6 +1386,7 @@ def board_facts(conn, event_id):
         "counted_ids": pledge_ids(counted),
         "waiting_on": board_waiting_on(conn, event, held, counted),
         "conditions": board_conditions(conn, event_id),
+        "charged": charged_totals(conn, event_id) if event["status"] in CHARGED_BOARD_STATUSES else None,
         "held_total_cents": held_total_cents(conn, event_id),
         "counted_total_cents": money.counted_total_cents(max_list(counted)),
         "goal_cents": goal_cents,
@@ -1394,6 +1395,38 @@ def board_facts(conn, event_id):
         "any_hold_created": has_created_hold(conn, event_id),
         "club_net_cents": money.club_net_cents(charge_net_cents(conn, event_id)),
     }
+
+
+# D97: from the lock on, the board's first card shows what was charged instead of the (now empty) held money.
+CHARGED_BOARD_STATUSES = ("SETTLED", "NEEDS_ATTENTION", "REFUNDING", "REFUNDED")
+
+
+# D97: what was charged and refunded for the event, read from SAVED rows with SQL sums, like held_total_cents (the
+# D43 exception to rule 2). Never recomputed from shares. charged_cents counts COMPLETED and REFUNDED captures (a
+# refund flips a capture to REFUNDED, but that money was still charged); refunded_cents counts only refunds PayPal
+# confirmed (ANSWERED and COMPLETED). `unresolved` is true when the number cannot be trusted, and the board then
+# says "Total being checked" instead of a number: a capture capture_is_unknown would flag (the same rule in SQL),
+# a FAILED pledge whose hold PayPal says is CAPTURED (D47), or a CHARGED pledge with no recorded payment.
+# Returns cents only: no id, request id or token.
+def charged_totals(conn, event_id):
+    event_captures = ("FROM captures JOIN holds ON holds.id = captures.hold_id "
+                      "JOIN pledges ON pledges.id = holds.pledge_id WHERE pledges.event_id = %s")
+    row = db.fetch_one(conn,
+        "SELECT "
+        "(SELECT COALESCE(SUM(captures.amount_cents), 0) " + event_captures + " AND captures.status IN ('COMPLETED', 'REFUNDED')) AS charged_cents, "
+        "(SELECT COALESCE(SUM(refunds.amount_cents), 0) FROM refunds JOIN captures ON captures.id = refunds.capture_id "
+        "JOIN holds ON holds.id = captures.hold_id JOIN pledges ON pledges.id = holds.pledge_id "
+        "WHERE pledges.event_id = %s AND refunds.send_state = 'ANSWERED' AND refunds.status = 'COMPLETED') AS refunded_cents, "
+        "(EXISTS (SELECT 1 " + event_captures + " AND NOT (captures.status = 'FAILED' AND captures.capture_id IS NULL) "
+        "AND (captures.status NOT IN ('COMPLETED', 'REFUNDED') OR captures.capture_id IS NULL "
+        "OR btrim(captures.capture_id) = '' OR captures.amount_cents <= 0)) "
+        "OR EXISTS (SELECT 1 FROM pledges JOIN holds ON holds.pledge_id = pledges.id WHERE pledges.event_id = %s "
+        "AND pledges.status = 'FAILED' AND holds.status IN ('CAPTURED', 'PARTIALLY_CAPTURED')) "
+        "OR EXISTS (SELECT 1 FROM pledges WHERE pledges.event_id = %s AND pledges.status = 'CHARGED' AND NOT EXISTS "
+        "(SELECT 1 FROM captures JOIN holds ON holds.id = captures.hold_id WHERE holds.pledge_id = pledges.id "
+        "AND captures.status IN ('COMPLETED', 'REFUNDED')))) AS unresolved",
+        (event_id, event_id, event_id, event_id, event_id))
+    return {"charged_cents": row["charged_cents"], "refunded_cents": row["refunded_cents"], "unresolved": row["unresolved"]}
 
 
 # D96: every saved condition of the board's pledges, as (pledger name, the name they depend on), in ONE query:

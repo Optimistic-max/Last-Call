@@ -19,7 +19,7 @@ let now = 10000;
 const element = () => ({textContent: '', dataset: {}, setAttribute() {}, removeAttribute() {}});
 const elements = {'.board-banner': element(), '.board-time': element(),
   '.board-time-title': element(), '.countdown-card': element()};
-for (const name of ['held-total', 'held-caption', 'counted-total', 'people', 'waiting-count', 'goal-amount']) {
+for (const name of ['held-title', 'held-total', 'held-caption', 'counted-total', 'people', 'waiting-count', 'goal-amount']) {
   elements['.board-' + name] = element();
 }
 elements['.countdown-card'].dataset = {closedText: 'Closed', openTitle: 'Time left', lastCallTitle: 'Last call'};
@@ -98,3 +98,41 @@ answer.rows[1].counted = true;
 run('showStats(answer)');
 assert.equal(elements['.board-counted-total'].textContent, '2 people');
 """)
+
+
+# D97: once the server sends charged_total_text, the first card says "Charged", shows that text and says what was
+# refunded; with no charged text it stays "Held so far" with the held total. textContent only, on every refresh.
+def test_board_js_first_card_switches_to_charged_after_the_lock():
+    run_board_script(r"""
+const answer = {status: 'SETTLED', held_total_text: '$0.00', charged_total_text: '$32.33',
+  refunded_total_text: '', counted_total_text: '', progress_percent: 100, rows: []};
+context.answer = answer;
+run('showStats(answer)');
+assert.equal(elements['.board-held-title'].textContent, 'Charged');
+assert.equal(elements['.board-held-total'].textContent, '$32.33');
+assert.equal(elements['.board-held-caption'].textContent, 'Charged once.');
+answer.status = 'REFUNDING';
+answer.refunded_total_text = '$10.77';
+run('showStats(answer)');
+assert.equal(elements['.board-held-total'].textContent, '$32.33');
+assert.equal(elements['.board-held-caption'].textContent, 'Refunded $10.77');
+answer.charged_total_text = 'Total being checked';
+answer.refunded_total_text = '';
+run('showStats(answer)');
+assert.equal(elements['.board-held-total'].textContent, 'Total being checked');
+answer.status = 'OPEN';
+answer.held_total_text = '$55.01';
+answer.charged_total_text = '';
+run('showStats(answer)');
+assert.equal(elements['.board-held-title'].textContent, 'Held so far');
+assert.equal(elements['.board-held-total'].textContent, '$55.01');
+assert.equal(elements['.board-held-caption'].textContent, 'PayPal is holding this. Nobody is charged yet.');
+delete answer.charged_total_text;
+run('showStats(answer)');
+assert.equal(elements['.board-held-total'].textContent, '$55.01');
+""")
+
+
+def test_board_js_never_writes_the_card_text_as_html():
+    source = (Path(__file__).resolve().parents[1] / "static/js/board.js").read_text(encoding="utf-8")
+    assert ".innerHTML" not in source and ".outerHTML" not in source and "insertAdjacentHTML" not in source

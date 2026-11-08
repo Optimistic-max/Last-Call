@@ -369,7 +369,7 @@ def test_s2_shows_the_open_button_only_for_a_draft(monkeypatch, test_db, test_db
 
 # The exact keys of docs/UI_DESIGN.md section 10. A key may be added there later, never renamed.
 BOARD_KEYS = {"event_id", "title", "status", "demo_mode", "banner_text", "seconds_left", "goal_text", "held_total_text", "counted_total_text",
-              "progress_percent", "pledging_open", "links", "rows"}
+              "progress_percent", "pledging_open", "links", "charged_total_text", "refunded_total_text", "rows"}
 ROW_KEYS = {"name", "status", "status_word", "max_text", "estimated_share_text", "counted", "waiting_on_text"}
 
 
@@ -380,7 +380,7 @@ def facts_for(status, any_hold_created=False, club_net_cents=None):
              "last_call_ends": NOW + timedelta(minutes=4, seconds=59)}
     return {"event": event, "rows": [], "held_total_cents": 0, "counted_total_cents": 0, "goal_cents": 31001, "progress_percent": 0,
             "estimated_shares": {}, "any_hold_created": any_hold_created, "club_net_cents": club_net_cents,
-            "counted_ids": [], "waiting_on": {}, "conditions": []}
+            "counted_ids": [], "waiting_on": {}, "conditions": [], "charged": None}
 
 
 # Every key of a JSON object, at any depth, so a test can look for a forbidden name anywhere.
