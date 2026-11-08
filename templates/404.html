@@ -4,7 +4,9 @@
 {% block title %}Page not found{% endblock %}
 
 {% block content %}
-<main class="form-page">
+{% from "macros.html" import ribs %}
+<main class="form-page error-page">
+  {{ ribs("ribs-soft ribs-page") }}
   <div class="card form-card">
     <h1>This page doesn't exist.</h1>
     <a class="button-link btn" href="/">Back to start</a>

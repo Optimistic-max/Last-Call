@@ -13,7 +13,7 @@
     <form method="post" action="{{ url_for('refund_cancel', event_id=event_id, hold_id=hold_id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="action_token" value="{{ action_token }}">
-      <button class="hold-btn" type="submit">{{ hold_contents("Cancel this authorization") }}</button>
+      <button class="btn btn-danger hold-btn" type="submit">{{ hold_contents("Cancel this authorization") }}</button>
     </form>
     {% endif %}
     <p><a href="{{ url_for('refund_confirmation', event_id=event_id) }}">Back to the refund review</a></p>

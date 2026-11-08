@@ -11,7 +11,7 @@
    admin.html sets pledge_new_tab and passes share_link; S3 has neither.
    counted_total_text and goal_amount_text are new keys Emmanuel may add. Until then these cards show a
    neutral fallback: how many people are counted, and the percent. #}
-{% from "macros.html" import icon, pledge_link, share_button, stat_card %}
+{% from "macros.html" import icon, pledge_link, ribs, share_button, stat_card %}
 {% set max_label = "Max" %}
 {% set summary_max_label = "max" %}
 {% set share_label = "share now" %}
@@ -43,8 +43,8 @@
   {% set counted_bar_text = (board.counted_total_text ~ " of " ~ board.goal_amount_text) if (board.counted_total_text and board.goal_amount_text) else (board.progress_percent ~ "% of the goal") %}
   <div class="wallet"{% if board.window_seconds %} data-window-seconds="{{ board.window_seconds }}"{% endif %}>
     <div class="wallet-stack">
-      <div class="card light-card wallet-hero">
-        <span class="card-bloom" aria-hidden="true"></span>
+      <div class="card light-card wallet-hero ribbed">
+        {{ ribs() }}
         <div class="wallet-top">
           <p class="countdown-card wallet-time" data-open-title="Time left" data-last-call-title="Last call" data-closed-text="Closed">
             <span class="board-time-title">{% if board.status == "LAST_CALL" %}Last call{% else %}Time left{% endif %}</span>
@@ -79,7 +79,7 @@
   </div>
 
   <div class="card status-card">
-    <span class="card-bloom" aria-hidden="true"></span>
+    {{ ribs() }}
     <h2 class="card-title">Right now</h2>
     <p class="board-banner" role="status">{{ board.banner_text }}</p>
     {{ pledge_link(board, "button-link status-button", new_tab=pledge_new_tab) }}
@@ -92,7 +92,8 @@
     {{ stat_card("Goal", "board-goal-amount", board.goal_amount_text or (board.progress_percent ~ "%"), "", "So the club gets the full amount after PayPal's fees", "progress", "Go to Progress") }}
   </div>
 
-  <div class="card progress-card" id="progress">
+  <div class="card progress-card ribbed" id="progress">
+    {{ ribs("ribs-soft") }}
     <h2 class="card-title">Progress</h2>
     <div class="ring board-ring" role="progressbar" aria-valuemin="0" aria-valuemax="100"
       aria-valuenow="{{ board.progress_percent }}" aria-label="Goal progress, counted pledges only">
@@ -163,7 +164,8 @@
         <p class="invite-hint"{% if board.status != "DRAFT" %} hidden{% endif %}>Invite opens when pledging starts</p>
       </div>
 
-      <div class="who-summary"{% if not board.rows %} hidden{% endif %}>
+      <div class="who-summary ribbed"{% if not board.rows %} hidden{% endif %}>
+        {{ ribs("ribs-soft") }}
         <p class="who-count">{{ board.rows|length }} in</p>
         <div class="who-cluster" aria-hidden="true">
           {%- for row in (board.rows|reverse|list)[:11] %}<span class="bubble{% if row.counted and row.status != "FAILED" %} is-counted{% endif %}">{{ row.name[:2]|upper }}</span>{% endfor %}
@@ -259,7 +261,8 @@
     </div>
   </section>
 
-  <div class="card how-card" id="how-it-works">
+  <div class="card how-card ribbed" id="how-it-works">
+    {{ ribs("ribs-soft") }}
     <h2 class="card-title">How it works</h2>
     <ul class="how-list">
       <li>{{ icon("hand-coins") }}<span>Pledge the most you'd pay</span></li>

@@ -35,7 +35,7 @@
         <textarea id="pledge-message" rows="4" maxlength="280"></textarea></p>
       <p class="ai-line">AI reads. You confirm. Plain code handles the money.</p>
       <p class="privacy-note">What you type here is sent to Groq to read it. Don't type anything private.</p>
-      <button id="check-button" class="button-secondary btn" type="button">Check</button>
+      <button id="check-button" class="button-secondary btn btn-glass" type="button">Check</button>
       <p id="check-message" class="check-message" role="status"></p>
     </section>
 
@@ -52,7 +52,7 @@
       <p class="field"><label for="pledge-conditions">Only if these people are in (optional, separate names with commas)</label>
         <input id="pledge-conditions" aria-describedby="pledge-conditions-ai">
         <span id="pledge-conditions-ai" class="field-hint" hidden>Filled by AI, edit if wrong</span></p>
-      <button id="confirm-button" class="button-full" type="button">Continue</button>
+      <button id="confirm-button" class="button-full btn" type="button">Continue</button>
     </section>
 
     {# One line for every answer: a refusal from Continue, and the result of the hold (S5). #}
@@ -65,7 +65,7 @@
       <p class="card-field-label">Card number</p><div id="paypal-card-fields-number" class="card-field"></div>
       <p class="card-field-label">Expiry</p><div id="paypal-card-fields-expiry" class="card-field"></div>
       <p class="card-field-label">CVV</p><div id="paypal-card-fields-cvv" class="card-field"></div>
-      <button id="hold-button" class="button-full button-amber hold-btn" type="button" disabled>{{ hold_contents("Hold my max") }}</button>
+      <button id="hold-button" class="button-full button-amber hold-btn btn btn-amber" type="button" disabled>{{ hold_contents("Hold my max") }}</button>
     </section>
 
     {# D82: after "Held", the script fills in the friend's own "I'm out" link (S6). The line is a

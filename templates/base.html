@@ -37,21 +37,21 @@
 <body>
   {% include "icons.html" %}
   <p class="sandbox-banner">SANDBOX DEMO: fake money, no real charges</p>
+  {# The theme switch, on its own in the top-right corner of every page (D103). #}
+  <div class="theme-corner">{{ theme_switch() }}</div>
   {% block shell %}
   <div class="shell">
-    {# A phone's top bar: the home mark, the live slot and the theme switch. #}
+    {# A phone's top bar: the home mark and the live slot. The switch is in its own corner. #}
     <header class="shell-top">
       {{ home_mark() }}
       <p class="live-slot" aria-hidden="true"></p>
-      {{ theme_switch("theme-switch-top") }}
     </header>
-    {# The island. Keyboard order: home, the menu, the live slot (not focusable), the switch, the page's
-       main action (island_action, on a phone). #}
+    {# The island. Keyboard order: home, the menu, the live slot (not focusable), the page's main action
+       (island_action, on a phone). #}
     <div class="island">
       {{ home_mark() }}
       <nav class="island-nav" aria-label="Main">{% block nav %}{% endblock %}</nav>
       <p class="live-slot island-slot" aria-hidden="true"></p>
-      {{ theme_switch() }}
       {% block island_action %}{% endblock %}
     </div>
     {# Big changes only (last call starting, everyone in), for screen readers. board.js fills it. #}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import icon, nav_item, share_button, share_panel %}
+{% from "macros.html" import icon, nav_item, ribs, share_button, share_panel %}
 {# S2, the treasurer view (docs/UI_DESIGN.md sections 3 and 10). A bare page from Emmanuel's step 5b,
    for Samuel to restyle. This page's address holds the treasurer's private token (D18), and so does
    open_url: never put either on another page. The board below is the same one S3 shows
@@ -34,14 +34,15 @@
     {% endif %}
     {% if can_open %}
     <form method="post" action="{{ open_url }}">
-      <button type="submit">Open pledging</button>
+      <button class="btn" type="submit">Open pledging</button>
     </form>
     {% endif %}
     {{ share_button(share_link, "Copy link", phone_label="Share", icon_name="copy") }}
   </div>
 </header>
 
-<div class="card share-card" id="share-link-card">
+<div class="card share-card ribbed" id="share-link-card">
+  {{ ribs("ribs-soft") }}
   <h2 class="card-title" id="share-link-title">Share link</h2>
   <div class="share-row">
     <input id="share-link" value="{{ share_link }}" aria-labelledby="share-link-title" readonly>

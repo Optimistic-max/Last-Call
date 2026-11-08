@@ -22,6 +22,8 @@
   --on-ink-2: #BDBDBD;     /* quieter text on the black photo cards, in both themes */
   --amber: #F5B300;        /* light, not paint: glows, rims, the main action (D100) */
   --amber-deep: #B86E00;   /* the dark end of an amber gradient */
+  --danger-fill: #B42318;  /* the red wave on a danger button, under white words (D103) */
+  --ease-wave: cubic-bezier(0.22, 1, 0.36, 1);   /* the wave on every button (D103) */
   --amber-soft: rgba(245, 179, 0, 0.18);
   --amber-glow: rgba(245, 179, 0, 0.35);
   --amber-shadow: rgba(184, 110, 0, 0.28);
@@ -60,6 +62,9 @@
   --hero-shade: rgba(10, 10, 10, 0.72);         /* over the hero's ribs, so the headline stays readable */
   --hero-ribs-opacity: 1;
   --hero-ribs-filter: none;
+  --focus-ring: var(--amber);                   /* the focus ring on every button (D103) */
+  --ribs-soft-shade: rgba(20, 20, 20, 0.7);     /* over the quiet ribbed picture: 30% of it shows (D103) */
+  --ribs-soft-glow: rgba(245, 179, 0, 0.18);    /* the amber light along a quiet ribbed card's bottom edge */
   --note: #1E1C17;                              /* the landing's paper note */
   --scrim: rgba(0, 0, 0, 0.35);
   --shadow-ink: rgba(0, 0, 0, 0.35);
@@ -165,6 +170,9 @@
   --hero-shade: rgba(243, 243, 241, 0.74);
   --hero-ribs-opacity: 0.4;
   --hero-ribs-filter: invert(1);
+  --focus-ring: var(--amber-deep);              /* amber, dark enough to show on a light page (3:1) */
+  --ribs-soft-shade: rgba(255, 255, 255, 0.88);
+  --ribs-soft-glow: rgba(245, 179, 0, 0.08);
   --note: #FFFDF5;
   --shadow-ink: rgba(0, 0, 0, 0.12);
   --grey-50: #FAFAF9;
@@ -453,29 +461,14 @@ a {
   background-image: var(--grain), radial-gradient(circle farthest-corner at 0% 0%, var(--photo-light), transparent 60%);
 }
 
-/* The ribbed picture behind the black cards (Samuel's own file, static/images/ribbed-dark.jpg).
-   It sits on its own layer, bigger than the card, so static/js/ribs.js can slide it sideways when the
-   pointer moves over the card: like looking through fluted glass while moving your head. Only a
-   transform changes, so the text never repaints. The 60% dark layer on top keeps text readable:
+/* The ribbed picture behind the black cards (Samuel's own file, static/images/ribbed-dark.jpg) lives in
+   two layers inside .card-bloom (D103, "Ribbed cards" below). The 60% dark layer keeps text readable:
    over the picture's brightest pixel, white is 6:1 and the quieter text (#E5E5E5) is 4.7:1. */
 .light-card,
 .board[data-status="LAST_CALL"] .status-card {
   --on-ink-2: var(--photo-ink-2);
-  --ribs-x: 0px;
   --ribs-mx: 50%;
   --ribs-my: 0%;
-}
-
-.light-card .card-bloom::after,
-.board[data-status="LAST_CALL"] .status-card .card-bloom::after {
-  content: "";
-  position: absolute;
-  inset: -24px;
-  z-index: -1;
-  background: linear-gradient(var(--photo-shade), var(--photo-shade)),
-    url("images/ribbed-dark.jpg") center / cover;
-  transform: translate3d(var(--ribs-x), 0, 0) scale(1.04);
-  transition: transform 700ms var(--ease-out);
 }
 
 /* A faint light that follows the pointer. It lives on the card's hover layer (.board .card::after),
@@ -488,12 +481,6 @@ a {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .light-card .card-bloom::after,
-  .board[data-status="LAST_CALL"] .status-card .card-bloom::after {
-    transform: scale(1.04);
-    transition: none;
-  }
-
   .board .card.light-card::after,
   .board[data-status="LAST_CALL"] .card.status-card::after {
     background: none;
@@ -524,10 +511,15 @@ a {
 
 /* ---------- Buttons ---------- */
 
-/* The primary button: a black pill with light along its top edge. .button-link is a real link
-   that goes to another page and looks the same. It presses in as soon as a finger lands. */
+/* Every button and button link shares one base (D103): a pill, 48px tall, Inter 600 at 15px in sentence
+   case. The default is a black pill with light along its top edge, in both themes. .button-link is a real
+   link that goes to another page and looks the same. --bink is the colour of the wave that rises on hover,
+   --bsurf the colour of the words on it; each type of button sets its own pair (see "One button system"). */
 button,
-.button-link {
+.button-link,
+.btn {
+  --bink: var(--fog);
+  --bsurf: var(--night);
   position: relative;
   isolation: isolate;
   display: inline-flex;
@@ -535,36 +527,43 @@ button,
   justify-content: center;
   gap: 8px;
   min-height: var(--button-height);
-  padding: 0 20px;
+  padding: 0 22px;
+  overflow: hidden;
   border: 1px solid var(--photo-line);
   border-radius: 999px;
   background: linear-gradient(180deg, var(--photo-face-more), var(--night));
   box-shadow: var(--button-lit);
   color: var(--on-ink);
   font: inherit;
-  font-size: var(--text-body);
+  font-size: 0.9375rem;
   font-weight: 600;
+  letter-spacing: normal;
+  line-height: 1.2;
   text-decoration: none;
+  text-transform: none;
   cursor: pointer;
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
-  transition: transform 120ms var(--ease-out);
+  transition: transform 120ms var(--ease-out), color 0.45s var(--ease-wave), border-color 0.45s var(--ease-wave);
 }
 
-/* A layer waits on each button and fades in on hover, because fading a layer is cheap and
-   animating a gradient is not. On a primary button it brightens the pill one step. */
+/* The wave: a layer under the words that rises from the bottom, with a curved top, on hover and on
+   keyboard focus. It sits behind the words (z-index -1 inside the button's own layer) because many buttons
+   hold bare text that board.js rewrites, so a label span can't be relied on. Only its transform moves. */
 button::before,
-.button-link::before {
+.button-link::before,
+.btn::before {
   content: "";
   position: absolute;
-  inset: -1px;
+  inset: auto -10% 0;
   z-index: -1;
-  border-radius: inherit;
-  background: var(--photo-light);
-  opacity: 0;
+  height: 120%;
+  border-radius: 45% 45% 0 0 / 14px;
+  background: var(--bink);
   pointer-events: none;
-  transition: opacity 200ms ease;
+  transform: translateY(calc(100% + 2px));   /* the 2px stops a sliver showing at the bottom edge */
+  transition: transform 0.45s var(--ease-wave);
 }
 
 /* A button that can't be pressed yet looks clearly switched off. */
@@ -576,7 +575,8 @@ button:disabled {
   cursor: not-allowed;
 }
 
-button:disabled::before {
+button:disabled::before,
+.btn[aria-disabled="true"]::before {
   display: none;
 }
 
@@ -592,15 +592,6 @@ button:disabled::before {
   color: var(--ink);
 }
 
-.button-secondary {
-  font-weight: 500;
-}
-
-/* Hover takes the glass from 65% to 85% white. */
-.button-secondary::before {
-  background: var(--glass-layer);
-}
-
 .button-full {
   width: 100%;
 }
@@ -610,31 +601,22 @@ button:disabled::before {
   color: var(--danger);
 }
 
-/* A 40px circle. Its ::after is an invisible ring that makes the tap target 46px. */
+/* A 44px circle, the size of a fingertip. */
 .icon-button {
   position: relative;
+  isolation: isolate;
   display: inline-flex;
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   min-height: 0;
   padding: 0;
+  overflow: hidden;
   border-radius: 50%;
   touch-action: manipulation;
-  transition: transform 120ms var(--ease-out);
-}
-
-.icon-button::after {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: 50%;
-}
-
-.icon-button:active {
-  transform: scale(0.97);
+  transition: transform 120ms var(--ease-out), color 0.45s var(--ease-wave), border-color 0.45s var(--ease-wave);
 }
 
 /* On a black card the small round button is dark glass. */
@@ -643,26 +625,6 @@ button:disabled::before {
   background: var(--photo-glass);
   box-shadow: inset 0 1px 0 var(--photo-line);
   color: var(--on-ink);
-}
-
-/* Only a real mouse gets hover looks, because a tap would leave them stuck on a phone. */
-@media (hover: hover) and (pointer: fine) {
-  button:hover:not(:disabled)::before,
-  .button-link:hover::before {
-    opacity: 1;
-  }
-
-  .icon-button:hover {
-    background: var(--glass-strong);
-  }
-
-  .light-card .icon-button:hover {
-    background: var(--photo-glass-line);
-  }
-
-  .nav-item:hover {
-    color: var(--ink);
-  }
 }
 
 /* Where glass isn't possible, a stronger white does the same job. */
@@ -1208,8 +1170,11 @@ input.ai-filled {
   border-radius: inherit;
   background: none;
   box-shadow: none;
+  overflow: visible;
   color: inherit;
+  font-size: inherit;
   font-weight: inherit;
+  line-height: inherit;
   text-align: left;
 }
 
@@ -1552,7 +1517,7 @@ button.row-main::before {
 
 .landing-logo {
   width: auto;
-  height: 28px;
+  height: 24px;
 }
 
 .landing-name {
@@ -2388,10 +2353,6 @@ html:has(.share-panel[open]) {
   transition: transform 200ms var(--ease-out);
 }
 
-.icon-button .icon {
-  transition: transform 200ms var(--ease-out);
-}
-
 .row-list > li {
   transition: background-color 200ms ease;
 }
@@ -2418,33 +2379,11 @@ html:has(.share-panel[open]) {
     transform: scale(1.05);
   }
 
-  /* The arrow leans the way it points. */
-  .icon-button:hover .icon {
-    transform: translate(2px, -2px);
-  }
-
-  button:hover:not(:disabled):not(.icon-button),
-  .button-link:hover {
-    transform: translateY(-1px);
-  }
-
   /* The logo wiggles when pointed at. Never money, the countdown or a status chip. */
   .hero-tile-face:hover,
   .landing-brand:hover .landing-logo {
     animation: wiggle 450ms ease-in-out;
   }
-}
-
-/* A press comes last, so it beats hover. The shadow shrinks as the button goes in. */
-button:active:not(:disabled),
-.button-link:active {
-  box-shadow: var(--button-pressed);
-  transform: scale(0.97);
-}
-
-.button-secondary:active:not(:disabled),
-.icon-button:active:not(:disabled) {
-  box-shadow: inset 0 1px 0 var(--glass-hi);
 }
 
 /* Wiggle: sometimes, never constantly. Shake is for a field with an error. */
@@ -2476,13 +2415,6 @@ button:active:not(:disabled),
 /* Amber is light, not paint: a glow under or behind things, a rim on an edge, the warm edge of a dark
    page, the one active thing and the main action. It never shows a status on its own and never sits
    behind small text. An amber gradient has two stops, is radial and off-centre, and has grain on top. */
-
-/* A primary button glows amber underneath on hover. The glow is on the layer that already fades in,
-   so only opacity animates. */
-button:not(.button-secondary):not(.icon-button)::before,
-.button-link::before {
-  box-shadow: 0 10px 28px var(--amber-glow);
-}
 
 /* The page's one most important action: Hold my max, Create. A solid amber pill with black words. */
 .button-amber {
@@ -3238,70 +3170,178 @@ button:not(.button-secondary):not(.icon-button):not(.row-main),
 }
 
 
-/* ---------- Wave hover on normal buttons (D102) ---------- */
+/* ---------- One button system (D103) ---------- */
 
-/* On hover, or on keyboard focus, a wave rises from the bottom and the words change colour. The wave sits
-   behind the words (z-index -1 inside the button's own layer), because many buttons hold bare text that
-   board.js rewrites, so a label span can't be relied on. --bink is the wave, --bsurf the words on it.
-   Not on the solid amber action, and not on hold-to-confirm buttons, which have their own ring. */
-.btn {
+/* Every button and button link hovers, presses and focuses the same way. On hover or keyboard focus a wave
+   rises from the bottom (0.45s), a press shrinks the button to 97%, and the keyboard ring is amber. Only
+   the colours change by type, and they follow one rule, so they never look random: the wave is the colour
+   the button isn't, and the words turn to whatever reads on the wave.
+     the default dark pill    a white wave, black words
+     .btn-glass (quiet)       a white wave on dark, a black wave on light; the words flip
+     .btn-amber (main action) a white wave; the words stay black
+     .btn-white               an amber wave, black words
+     .btn-danger              a red wave, white words
+     .btn-icon (round)        a circle of amber grows from the bottom; the icon turns black
+   The older class names map onto the same types, so markup that tests read (class="button-link" on Review
+   refunds) keeps working: .button-secondary is glass, .button-amber is amber, .button-danger is danger,
+   .icon-button is an icon button. Not part of this: the theme switch, links in running text, form fields,
+   the Who's in rows and the wallet's Pledge card. */
+
+/* The quiet glass buttons. */
+.btn-glass,
+.button-secondary {
   --bink: var(--wave);
   --bsurf: var(--wave-ink);
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  transition: transform 120ms var(--ease-out), color 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Dark pills (Pledge, Review refunds, the refund checks) get a light wave on every page. */
-.btn:not(.button-secondary) {
-  --bink: var(--fog);
-  --bsurf: var(--night);
-}
-
-/* The amber variant, for the white Join last call pill, where a white wave wouldn't show. */
+/* The one main action per area: amber with black words. */
 .btn-amber,
-.status-button.btn {
+.button-amber {
+  --bink: var(--paper);
+  --bsurf: var(--on-accent);
+}
+
+/* White buttons: Join last call during last call, and the round Invite on the wallet. */
+.btn-white,
+.board[data-status="LAST_CALL"] .status-button {
   --bink: var(--amber);
   --bsurf: var(--night);
 }
 
-/* Later in the file than the older hover layer it replaces, so the wave wins over it. */
-.btn::before {
+/* Danger: I'm out, and cancelling a hold. At rest they are glass with red words. */
+.btn-danger,
+.button-danger {
+  --bink: var(--danger-fill);
+  --bsurf: var(--paper);
+}
+
+.btn-danger:not(.button-secondary) {
+  border-color: var(--glass-line);
+  background: var(--glass);
+  box-shadow: inset 0 1px 0 var(--glass-hi);
+  color: var(--danger);
+}
+
+/* Icon buttons: the round arrows, Close, the wallet's Invite, the island's menu and the header's round share
+   buttons. Their wave is a circle of amber that grows from the button's bottom point. A circle grown from a
+   point on its own edge always stays inside the button, so nothing needs clipping, and the island's words,
+   which stand outside the button on a laptop, still show. */
+.btn-icon,
+.icon-button,
+.island .nav-item {
+  --bink: var(--amber);
+  --bsurf: var(--night);
+}
+
+.island .nav-item {
+  isolation: isolate;
+  transition: transform 120ms var(--ease-out), color 0.45s var(--ease-wave);
+}
+
+.btn-icon::before,
+.icon-button::before,
+.island .nav-item::before {
   content: "";
   position: absolute;
-  inset: auto -10% 0;
+  inset: 0;
   z-index: -1;
-  height: 120%;
-  border-radius: 45% 45% 0 0 / 14px;
+  height: auto;
+  border-radius: inherit;
   background: var(--bink);
-  box-shadow: none;
-  opacity: 1;
-  transform: translateY(calc(100% + 2px));   /* the 2px stops a sliver showing at the bottom edge */
-  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+  transform: scale(0);
+  transform-origin: 50% 100%;
+  transition: transform 0.45s var(--ease-wave);
 }
 
-.btn:focus-visible::before {
-  transform: translateY(0);
-}
-
-.btn:focus-visible {
-  border-color: var(--bink);
-  color: var(--bsurf);
-  outline: 2px solid var(--amber);
-  outline-offset: 4px;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .btn:hover::before {
-    transform: translateY(0);
+@media (min-width: 1024px) {
+  .page-actions .share-button {
+    --bink: var(--amber);
+    --bsurf: var(--night);
   }
 
-  .btn:hover {
+  .page-actions .share-button::before {
+    inset: 0;
+    height: auto;
+    border-radius: inherit;
+    transform: scale(0);
+    transform-origin: 50% 100%;
+  }
+}
+
+/* The share panel's round app tiles rise the same way. */
+.share-tile-icon {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition: transform 120ms var(--ease-out), color 0.45s var(--ease-wave), border-color 0.45s var(--ease-wave);
+}
+
+.share-tile-icon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--amber);
+  transform: scale(0);
+  transform-origin: 50% 100%;
+  transition: transform 0.45s var(--ease-wave);
+}
+
+/* Hover: only a real mouse, because a tap would leave the wave stuck up on a phone. */
+@media (hover: hover) and (pointer: fine) {
+  :is(button, .button-link, .btn, .icon-button, .island .nav-item):not(.row-main):not(:disabled):not([aria-disabled="true"]):hover::before {
+    transform: none;
+  }
+
+  :is(button, .button-link, .btn, .icon-button, .island .nav-item):not(.row-main):not(:disabled):not([aria-disabled="true"]):hover {
     border-color: var(--bink);
     color: var(--bsurf);
   }
+
+  .share-tile:hover .share-tile-icon::before {
+    transform: none;
+  }
+
+  .share-tile:hover .share-tile-icon {
+    border-color: var(--amber);
+    color: var(--night);
+  }
+
+  /* While the wave is up, the hold ring takes the words' colour, so it shows on the wave. */
+  .hold-btn:hover .prog {
+    stroke: currentColor;
+  }
+}
+
+/* Keyboard focus: the same wave, and the amber ring. */
+:is(button, .button-link, .btn, .icon-button, .island .nav-item):not(.row-main):focus-visible::before {
+  transform: none;
+}
+
+:is(button, .button-link, .btn, .icon-button, .island .nav-item):not(.row-main):focus-visible {
+  border-color: var(--bink);
+  color: var(--bsurf);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.hold-btn:focus-visible .prog {
+  stroke: currentColor;
+}
+
+.share-tile:focus-visible .share-tile-icon::before {
+  transform: none;
+}
+
+.share-tile:focus-visible .share-tile-icon {
+  color: var(--night);
+}
+
+/* The press: every button shrinks to 97% the moment a finger or the mouse goes down. */
+:is(button, .button-link, .btn, .icon-button, .nav-item):not(.row-main):not(:disabled):active {
+  transform: scale(0.97);
 }
 
 .btn:disabled,
@@ -3309,12 +3349,6 @@ button:not(.button-secondary):not(.icon-button):not(.row-main),
   cursor: not-allowed;
 }
 
-.btn:disabled::before,
-.btn[aria-disabled="true"]::before {
-  display: none;
-}
-
-@media (prefers-reduced-motion: reduce) { .btn, .btn *, .btn::before, .btn::after { animation: none !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; } }
 
 
 /* ---------- Hold to confirm (D102) ---------- */
@@ -3397,6 +3431,10 @@ button:not(.button-secondary):not(.icon-button):not(.row-main),
   margin: 8px 0 0;
   color: var(--ink-2);
   font-size: var(--text-caption);
+}
+
+/* Under a full-width button the line is centred; under any other it starts where the button starts. */
+.button-full + .hold-status {
   text-align: center;
 }
 
@@ -3432,7 +3470,7 @@ button:not(.button-secondary):not(.icon-button):not(.row-main),
   display: inline-block;
 }
 
-/* The home link on every page: the mark, 32px tall, with a 44px target. */
+/* The home link on every page: the mark, 24px tall like the island's icons, centred in a 44px target. */
 .home-mark {
   display: inline-flex;
   flex: none;
@@ -3445,7 +3483,7 @@ button:not(.button-secondary):not(.icon-button):not(.row-main),
 
 .home-mark .logo-mark {
   width: auto;
-  height: 32px;
+  height: 24px;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -3468,6 +3506,7 @@ button:not(.button-secondary):not(.icon-button):not(.row-main),
   flex: none;
   align-items: center;
   min-height: 44px;
+  margin: 0;                /* the page's label rule adds a gap under labels; the switch needs none */
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -3544,7 +3583,7 @@ button:not(.button-secondary):not(.icon-button):not(.row-main),
   color: var(--amber);
 }
 
-/* The island: one floating glass pill that holds the menu, the live slot, the switch and the main action. */
+/* The island: one floating glass pill that holds the menu, the live slot and the main action. */
 .island,
 .landing-header.island-top {
   border: 1px solid var(--glass-line);
@@ -3606,8 +3645,8 @@ button:not(.button-secondary):not(.icon-button):not(.row-main),
   animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-/* On a phone: a top bar with the home mark, the live slot and the switch; the island floats at the bottom
-   with the menu and the main action, the only bar on the screen. */
+/* On a phone: a top bar with the home mark and the live slot; the island floats at the bottom with the menu
+   and the main action, the only bar on the screen. The theme switch has its own corner. */
 @media (max-width: 1023.98px) {
   .shell-top {
     display: flex;
@@ -3640,7 +3679,6 @@ button:not(.button-secondary):not(.icon-button):not(.row-main),
   }
 
   .island > .home-mark,
-  .island > .switch,
   .island-slot {
     display: none;
   }
@@ -3784,8 +3822,8 @@ button:not(.button-secondary):not(.icon-button):not(.row-main),
   }
 }
 
-/* The landing page's island, at the top: home, two links, the switch and Start a pledge in amber. It sticks
-   while the page scrolls and shrinks a little after 80px (transform only). */
+/* The landing page's island, at the top: home, two links and Start a pledge in amber. It sticks while the
+   page scrolls and shrinks a little after 80px (transform only). */
 .landing-header.island-top {
   position: sticky;
   top: 12px;
@@ -3866,34 +3904,38 @@ button:not(.button-secondary):not(.icon-button):not(.row-main),
   }
 }
 
-/* The moving ribs behind the hero only (D103): the ribbed picture, inverted and fainter in light mode, under
-   the shade. ribs.js slides the outer layer up to 20px against the pointer; the inner one drifts on a 40s
-   loop. Transform only, and both stop with reduced motion. */
+/* The moving ribs behind the hero (D103): the ribbed picture, inverted and fainter in light mode,
+   under the shade. Two layers, each with one job: .hero-ribs-drift drifts on its own on a 36-second loop,
+   and .ribs-follow inside it slides up to 20px against the pointer (ribs.js). Transform only, and reduced
+   motion stops both. */
 .hero-ribs-layer {
   position: absolute;
-  inset: -40px;
+  inset: 0;
   z-index: -2;
+  overflow: hidden;
   pointer-events: none;
-  transform: translate3d(calc(var(--ribs-x, 0px) * 20 / 14), 0, 0);
-  transition: transform 700ms var(--ease-out);
 }
 
-.hero-ribs-drift {
+.hero-ribs-layer .hero-ribs-drift {   /* two classes, so it beats the cards' .ribs-drift further down */
   position: absolute;
-  inset: 0;
+  inset: -48px;
+  animation: ribs-drift-hero 36s ease-in-out infinite alternate;
+}
+
+.hero-ribs-drift .ribs-follow {
   background: url("images/ribbed-dark.jpg") center / cover;
   filter: var(--hero-ribs-filter);
   opacity: var(--hero-ribs-opacity);
-  animation: ribs-drift 40s ease-in-out infinite alternate;
+  transform: translate3d(calc(var(--ribs-x, 0px) * 20 / 14), 0, 0);
 }
 
-@keyframes ribs-drift {
+@keyframes ribs-drift-hero {
   from {
-    transform: translateX(-14px);
+    transform: translateX(-20px) scale(1.02);
   }
 
   to {
-    transform: translateX(14px);
+    transform: translateX(20px) scale(1.08);
   }
 }
 
@@ -3929,6 +3971,248 @@ button:not(.button-secondary):not(.icon-button):not(.row-main),
 }
 
 
+/* ---------- The theme switch's corner (D103) ---------- */
+
+/* The switch, on its own: a small glass pill fixed to the top-right corner of every page. It sits above the
+   page (z-index 20) and under any dialog, because an open dialog is in the browser's top layer. The pill is
+   about 70px wide, so --corner-clear is the room it needs, with a gap: anything at the top of the page that
+   could reach the right edge stops short of it. */
+:root {
+  --corner-clear: calc(max(16px, env(safe-area-inset-right, 0px)) + 78px);
+}
+
+.theme-corner {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px));
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid var(--glass-line);
+  border-radius: 999px;
+  background: var(--island);
+  box-shadow: 0 8px 24px var(--shadow-ink), inset 0 1px 0 var(--amber-rim);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+}
+
+/* The sandbox notice centres its words in the room left of the switch, so the pill never covers them. */
+@media (max-width: 1023.98px) {
+  .sandbox-banner {
+    padding-right: var(--corner-clear);
+    text-align: center;
+    text-wrap: balance;
+  }
+
+  /* The phone's top bar: the live slot stops short of the switch. */
+  .shell-top {
+    padding-right: var(--corner-clear);
+  }
+}
+
+/* The landing island moves to the left on narrower screens, so it never runs under the switch. */
+@media (max-width: 860px) {
+  .landing-header.island-top {
+    max-width: calc(100% - max(12px, env(safe-area-inset-left, 0px)) - var(--corner-clear));
+    margin-right: auto;
+    margin-left: max(12px, env(safe-area-inset-left, 0px));
+    transform-origin: top left;
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-header.island-top {
+    gap: 8px;
+    padding: 4px 4px 4px 12px;
+  }
+
+  .landing-name {
+    font-size: 1rem;
+  }
+}
+
+/* On the smallest phones the name is read out but not shown, so the mark and Start a pledge still fit. */
+@media (max-width: 379.98px) {
+  .landing-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* On a laptop the page's header buttons stop short of the switch. */
+@media (min-width: 1024px) {
+  .page-header {
+    padding-right: var(--corner-clear);
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .theme-corner {
+    background: var(--card);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .theme-corner {
+    background: var(--card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ---------- Ribbed cards (D103) ---------- */
+
+/* The ribbed picture (Samuel's own file, static/images/ribbed-dark.jpg, one cached image for every card)
+   sits in two layers inside .card-bloom, which keeps it inside the card's rounded corners:
+     .ribs-drift   drifts on its own: a slow sideways and scale loop (CSS animation)
+     .ribs-follow  holds the picture and slides against the pointer (ribs.js sets --ribs-x)
+   Each layer owns one transform, so the drift and the pointer add up instead of cancelling. Both move by
+   transform only, so the words never repaint. Touch gets the drift only; reduced motion stops both (the
+   reduced-motion block at the end turns every animation and transition off). ribs.js pauses the drift of
+   a card that is off screen (.ribs-paused).
+   Two levels:
+     full   the wallet hero, last call's status card, the landing's countdown piece and the refund total:
+            the picture under a 60% dark layer, in both themes, because these cards stay black.
+     soft   (.ribs-soft) the stat cards, Progress, How it works, the Who's in summary, the treasurer's share
+            card, the share panel's header and the error pages: 30% of the picture shows under a darker
+            layer, with a faint amber light along the bottom edge, and it moves at most 8px.
+   Never behind a dense list, a form field or a paragraph of body text. In light mode only the stat cards
+   (short, big numbers) and the error pages keep the soft level, in light colours. */
+.ribbed,
+.share-sheet {
+  position: relative;
+  isolation: isolate;
+}
+
+.ribs-drift {
+  position: absolute;
+  inset: -32px;
+  z-index: -1;
+  animation: ribs-drift-card 21s ease-in-out infinite alternate;
+}
+
+.ribs-follow {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(var(--photo-shade), var(--photo-shade)),
+    url("images/ribbed-dark.jpg") center / cover;
+  transform: translate3d(var(--ribs-x, 0px), 0, 0);
+  transition: transform 700ms var(--ease-out);
+}
+
+/* Three classes, so the pause beats every rule that sets a card's animation. */
+:is(.card-bloom, .hero-ribs-layer) .ribs-drift.ribs-paused {
+  animation-play-state: paused;
+}
+
+@keyframes ribs-drift-card {
+  from {
+    transform: translateX(-12px) scale(1.04);
+  }
+
+  to {
+    transform: translateX(12px) scale(1.09);
+  }
+}
+
+/* The quiet level: a darker layer over the picture, and amber light rising from the bottom edge. */
+.ribs-soft .ribs-drift {
+  animation: ribs-drift-soft 24s ease-in-out infinite alternate;
+}
+
+.ribs-soft .ribs-follow {
+  background: linear-gradient(var(--ribs-soft-shade), var(--ribs-soft-shade)),
+    url("images/ribbed-dark.jpg") center / cover;
+  transform: translate3d(calc(var(--ribs-x, 0px) * 8 / 14), 0, 0);
+}
+
+.ribs-soft::before {
+  background-image: var(--grain),
+    radial-gradient(70% 45% at 50% 112%, var(--ribs-soft-glow), transparent);
+}
+
+@keyframes ribs-drift-soft {
+  from {
+    transform: translateX(-8px) scale(1.04);
+  }
+
+  to {
+    transform: translateX(8px) scale(1.07);
+  }
+}
+
+/* On the soft cards the quieter words are a step lighter, so they stay 4.5:1 over the picture's brightest
+   ribs. Light mode keeps its own greys. */
+:root:not([data-theme="light"]) .ribbed:not(.light-card),
+:root:not([data-theme="light"]) .share-sheet {
+  --ink-2: var(--photo-ink-2);
+}
+
+/* The Who's in summary's glass has nothing to blur once the picture fills it, so it skips the blur. */
+:root:not([data-theme="light"]) .who-summary.ribbed {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Light mode: the soft picture stays only on the short big-number cards and the error pages. */
+:root[data-theme="light"] .ribs-soft {
+  display: none;
+}
+
+:root[data-theme="light"] .stat-card .ribs-soft,
+:root[data-theme="light"] .ribs-page {
+  display: block;
+}
+
+/* Last call's status card shows its picture only during last call, so the drift rests until then. */
+.board:not([data-status="LAST_CALL"]) .status-card .ribs-drift {
+  animation-play-state: paused;
+}
+
+/* The landing's countdown piece: full strength, a black photo card in both themes. */
+.piece-black .card-bloom {
+  border-radius: inherit;
+}
+
+/* The refund total: a black tile at the top of the review card, the only ribbed part of that card, because
+   the rest holds paragraphs, a list and forms. It stays black in both themes. */
+.refund-summary {
+  --on-ink: var(--paper);
+  margin: 0 0 16px;
+  padding: 20px;
+  border: 1px solid var(--photo-line);
+  border-radius: 24px;
+  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), var(--night) 70%);
+  box-shadow: inset 0 1px 0 var(--photo-line);
+  color: var(--paper);
+}
+
+.refund-summary h2 {
+  margin: 0;
+  font-size: 1.375rem;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+/* The share panel's header: a band of the soft picture behind the title, fading out above the link. */
+.ribs-band {
+  bottom: auto;
+  height: 132px;
+  -webkit-mask-image: linear-gradient(#000 50%, transparent);
+  mask-image: linear-gradient(#000 50%, transparent);
+}
+
+/* The error pages: the soft picture behind the whole page, under the card. */
+.ribs-page {
+  position: fixed;
+  border-radius: 0;
+}
+
 /* ---------- Keyboard focus ---------- */
 
 /* A black ring around whatever the keyboard is on. :focus-visible shows it
@@ -3954,12 +4238,13 @@ button:not(.button-secondary):not(.icon-button):not(.row-main),
     --gutter: 32px;
     --card-padding: 24px;
     --card-gap: 20px;
-    --button-height: 44px;
   }
 
   /* The header's share buttons become round icon buttons; their words stay for screen readers. */
   .page-actions .share-button {
     width: 44px;
+    min-height: 44px;
+    height: 44px;
     padding: 0;
     border-radius: 50%;
   }

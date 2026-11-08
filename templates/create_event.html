@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import logo_pair, theme_switch, icon %}
+{% from "macros.html" import logo_pair, icon, ribs %}
 {# S1: the landing page, then the create form further down the same page (#create).
    app.py reads the field names title, deposit and demo_mode, so keep them. Demo mode starts ticked:
    app.py sends demo_mode_checked=False for a fresh page, so error_text tells the two cases apart, and
@@ -10,8 +10,8 @@
    and amount in them is made up. #}
 
 {% block shell %}
-{# The island at the top (D103): home, two links, the theme switch, and Start a pledge in amber. It sticks
-   while the page scrolls and shrinks a little after 80px. #}
+{# The island at the top (D103): home, two links and Start a pledge in amber. It sticks while the page
+   scrolls and shrinks a little after 80px. The theme switch sits in its own corner (D103). #}
 <header class="landing-header island-top">
   <a class="landing-brand" href="/">
     <span class="landing-logo-wrap">{{ logo_pair("landing-logo") }}</span>
@@ -22,16 +22,15 @@
     <a class="text-link" href="#how">How it works</a>
     <a class="text-link" href="#create">Try the demo</a>
   </nav>
-  {{ theme_switch() }}
-  <a class="button-link button-amber landing-start" href="#create">Start a pledge</a>
+  <a class="button-link button-amber landing-start btn btn-amber" href="#create">Start a pledge</a>
 </header>
 
 <main id="top" class="landing">
   <section class="hero" aria-labelledby="hero-title">
     <div class="hero-canvas hero-ribs">
-      {# The moving ribs (D103): the ribbed picture behind the hero only. static/js/ribs.js slides it against
-         the pointer; it also drifts on its own. Under a shade, so the headline stays readable. #}
-      <div class="hero-ribs-layer" aria-hidden="true"><div class="hero-ribs-drift"></div></div>
+      {# The moving ribs (D103): the ribbed picture behind the hero. The outer layer drifts on its own;
+         the inner one follows the pointer (static/js/ribs.js). Under a shade, so the headline stays readable. #}
+      <div class="hero-ribs-layer" aria-hidden="true"><div class="hero-ribs-drift ribs-drift"><div class="ribs-follow"></div></div></div>
 
       <div class="piece piece-pledge" aria-hidden="true">
         <div class="piece-body">
@@ -55,11 +54,12 @@
           <span class="hero-line">Nobody pays</span>
           <span class="hero-line">unless the goal is met.</span>
         </h1>
-        <a class="button-link button-amber" href="#create">Start a pledge</a>
+        <a class="button-link button-amber btn btn-amber" href="#create">Start a pledge</a>
       </div>
 
       <div class="piece piece-countdown" aria-hidden="true">
-        <div class="piece-body piece-black">
+        <div class="piece-body piece-black ribbed">
+          {{ ribs() }}
           <p class="piece-caption">Last call</p>
           <p class="piece-time">4:59</p>
         </div>
@@ -110,17 +110,20 @@
   <section id="how" class="landing-section" aria-labelledby="how-title">
     <h2 id="how-title" class="landing-title">How it works</h2>
     <div class="how-cards">
-      <div class="card how-step">
+      <div class="card how-step ribbed">
+        {{ ribs("ribs-soft") }}
         {{ icon("hand-coins") }}
         <h3 class="card-title">Pledge your max</h3>
         <p>You say the most you'd pay, even 'only if Jay's in'.</p>
       </div>
-      <div class="card how-step">
+      <div class="card how-step ribbed">
+        {{ ribs("ribs-soft") }}
         {{ icon("lock") }}
         <h3 class="card-title">PayPal holds it</h3>
         <p>Nothing is charged while the group fills up.</p>
       </div>
-      <div class="card how-step">
+      <div class="card how-step ribbed">
+        {{ ribs("ribs-soft") }}
         {{ icon("shield-check") }}
         <h3 class="card-title">Pay your share, once</h3>
         <p>If the goal is reached, you pay your part. If not, every hold is cancelled.</p>
@@ -150,7 +153,7 @@
           {% if error_on_deposit %}<span id="form-error" class="form-error" role="alert">{{ error_text }}</span>{% endif %}</p>
         <p class="field"><label class="checkbox-row"><input type="checkbox" name="demo_mode" value="yes"{% if demo_mode_checked or not error_text %} checked{% endif %}>
           Demo mode: timers in minutes, not hours</label></p>
-        <button class="button-full button-amber" type="submit">Create</button>
+        <button class="button-full button-amber btn btn-amber" type="submit">Create</button>
       </form>
     </div>
   </section>
