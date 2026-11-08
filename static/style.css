@@ -1090,54 +1090,91 @@ input.ai-filled {
   padding: 0 16px;
 }
 
+/* The groups: "Counted (3)", "Waiting on someone (1)" and so on, each a heading and a real list. */
 .board-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.row-group-title {
+  margin: 0 0 8px 6px;
+  color: var(--ink-2);
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.row-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* A phone row: the avatar, then the name and chip on one line, then the details across
-   the rest of the width. display: contents lets the name and details join this grid. */
-.board-rows li {
+/* Each person is a pill of their own: no dividers, 8px apart. */
+.row-list > li {
   position: relative;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0 12px;
-  min-height: 64px;
-  padding: 12px 0;
-  border-top: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.07);
 }
 
-.row-avatar {
-  grid-row: 1 / span 2;
-  align-self: start;
+/* The row itself: avatar, name with the grey line under it, the chip, and a chevron when it opens.
+   A row that opens is a <button>, so the button's own pill look is taken off here. */
+.row-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font-weight: inherit;
+  text-align: left;
+}
+
+button.row-main::before {
+  display: none;
 }
 
 .row-text {
-  display: contents;
-}
-
-.row-name {
-  grid-column: 2;
-  grid-row: 1;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .row-chip {
-  grid-column: 3;
-  grid-row: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.row-details {
-  grid-column: 2 / -1;
-  grid-row: 2;
+.row-chip .icon {
+  width: 14px;
+  height: 14px;
 }
 
-.board-rows li:first-child {
-  border-top: 0;
+.row-chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--ink-2);
 }
 
-.board-rows li[data-counted="true"] .row-avatar {
+.row-chevron .icon {
+  transition: transform 200ms var(--ease-out);
+}
+
+.row-main[aria-expanded="true"] .row-chevron .icon {
+  transform: rotate(180deg);
+}
+
+.row-list > li[data-counted="true"] .row-avatar {
   background: var(--ink);
   color: var(--on-ink);
 }
@@ -1150,17 +1187,20 @@ input.ai-filled {
   overflow-wrap: anywhere;
 }
 
+/* The grey note under the name, in italics like a guest's note. */
 .row-details {
   display: flex;
   flex-wrap: wrap;
   gap: 0 6px;
   color: var(--ink-2);
   font-size: var(--text-caption);
+  font-style: italic;
   overflow-wrap: anywhere;
 }
 
 .row-share-part::before,
-.row-waiting::before {
+.row-waiting::before,
+.row-if::before {
   content: "· ";
 }
 
@@ -1181,33 +1221,30 @@ input.ai-filled {
   white-space: nowrap;
 }
 
-.board-rows li[data-status="HOLD_PENDING"] .row-chip {
+.row-list > li[data-status="HOLD_PENDING"] .row-chip {
   border-style: dashed;
   border-color: var(--line);
 }
 
-.board-rows li[data-status="HELD"] .row-chip {
+.row-list > li[data-status="HELD"] .row-chip {
   border-color: var(--line);
   background: var(--line);
 }
 
-/* Only this chip may be cut short with dots, because the line under the name shows the
-   same words in full. A "Charged $x" chip is money, so it is never cut. */
-.board-rows li[data-waiting="true"] .row-chip {
-  max-width: 8rem;
+.row-list > li[data-waiting="true"] .row-chip {
   border-color: var(--ink);
   background: var(--card);
 }
 
-.board-rows li[data-counted="true"] .row-chip {
+.row-list > li[data-counted="true"] .row-chip {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--on-ink);
 }
 
 /* Last, because a failed charge also has data-counted="true". */
-.board-rows li[data-status="DECLINED"] .row-chip,
-.board-rows li[data-status="FAILED"] .row-chip {
+.row-list > li[data-status="DECLINED"] .row-chip,
+.row-list > li[data-status="FAILED"] .row-chip {
   border-color: var(--danger-bg);
   background: var(--danger-bg);
   color: var(--danger);
@@ -2297,9 +2334,7 @@ html:has(.share-panel[open]) {
   transition: transform 200ms var(--ease-out);
 }
 
-.board-rows li {
-  margin: 0 -12px;
-  padding: 12px;
+.row-list > li {
   transition: background-color 200ms ease;
 }
 
@@ -2317,12 +2352,11 @@ html:has(.share-panel[open]) {
     transition-duration: 200ms;
   }
 
-  .board-rows li:hover {
-    border-radius: 12px;
-    background: var(--grey-100);
+  .row-list > li:hover {
+    background: rgba(255, 255, 255, 0.1);
   }
 
-  .board-rows li:hover .row-avatar {
+  .row-list > li:hover .row-avatar {
     transform: scale(1.05);
   }
 
@@ -2438,7 +2472,7 @@ button:not(.button-secondary):not(.icon-button)::before,
   --held: #6E6E6E;
   --on-ink: #0B0B0B;
   --danger: #FF8A7A;
-  --danger-bg: rgba(255, 110, 90, 0.14);
+  --danger-bg: #3A1F1B;   /* solid, so the red words stay readable over anything behind them */
   --radius-card: 32px;
   background-color: #0A0A0A;
   color: var(--ink);
@@ -2453,7 +2487,7 @@ button:not(.button-secondary):not(.icon-button)::before,
 
 /* Black things keep white words: the black cards, the dark buttons, and the status card in last call. */
 .page-dark .light-card,
-.page-dark button:not(.button-secondary):not(.icon-button),
+.page-dark button:not(.button-secondary):not(.icon-button):not(.row-main),
 .page-dark .button-link,
 .page-dark .board[data-status="LAST_CALL"] .status-card {
   --on-ink: #FFFFFF;
@@ -2932,6 +2966,457 @@ button:not(.button-secondary):not(.icon-button)::before,
 }
 
 
+/* ---------- Who's in (D102) ---------- */
+
+/* Behind the card: the dark base with two big soft blobs, amber and warm grey, drifting very slowly,
+   and grain on top. Only transform moves, and reduced motion stops it. */
+.who-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.who-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.who-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain);
+  background-size: 200px 200px;
+}
+
+.who-backdrop span {
+  position: absolute;
+  width: 80%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+
+.who-backdrop span:first-child {
+  top: -25%;
+  left: -30%;
+  background: radial-gradient(closest-side, rgba(245, 179, 0, 0.2), transparent);
+  animation: blob-drift-a 20s ease-in-out infinite alternate;
+}
+
+.who-backdrop span:last-child {
+  right: -30%;
+  bottom: -20%;
+  background: radial-gradient(closest-side, rgba(168, 146, 120, 0.22), transparent);
+  animation: blob-drift-b 20s ease-in-out infinite alternate;
+}
+
+/* On a laptop the list keeps a readable width in the middle of the card. */
+.who-inner {
+  position: relative;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+/* The summary, like a guest list's "12 Going" card: the count, everyone's faces, the newest news. */
+.who-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 24px;
+  padding: 20px 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  text-align: center;
+}
+
+.who-count {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+.who-news {
+  min-height: 1.5em;
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+/* The faces in different sizes, the newest biggest in the middle. Each place is set in a 300 by 160
+   box and scales with the card (cqi), so the cluster fits a 320px phone. */
+.who-cluster {
+  position: relative;
+  width: min(100%, 300px);
+  aspect-ratio: 300 / 160;
+  container-type: inline-size;
+}
+
+.bubble {
+  position: absolute;
+  top: calc(var(--y) / 160 * 100%);
+  left: calc(var(--x) / 300 * 100%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--d) / 300 * 100cqi);
+  height: calc(var(--d) / 300 * 100cqi);
+  border: 2px solid #121212;
+  border-radius: 50%;
+  background: #2E2E2E;
+  color: #FFFFFF;
+  font-size: calc(var(--d) / 300 * 36cqi);
+  font-weight: 600;
+  transform: translate(-50%, -50%);
+}
+
+.bubble:nth-child(1) { --x: 150; --y: 95; --d: 84; }
+.bubble:nth-child(2) { --x: 222; --y: 100; --d: 60; }
+.bubble:nth-child(3) { --x: 78; --y: 100; --d: 60; }
+.bubble:nth-child(4) { --x: 190; --y: 32; --d: 52; }
+.bubble:nth-child(5) { --x: 112; --y: 30; --d: 50; }
+.bubble:nth-child(6) { --x: 252; --y: 40; --d: 46; }
+.bubble:nth-child(7) { --x: 50; --y: 42; --d: 44; }
+.bubble:nth-child(8) { --x: 280; --y: 102; --d: 34; }
+.bubble:nth-child(9) { --x: 20; --y: 104; --d: 32; }
+.bubble:nth-child(10) { --x: 151; --y: 16; --d: 28; }
+.bubble:nth-child(11) { --x: 226; --y: 146; --d: 26; }
+.bubble:nth-child(12) { --x: 70; --y: 142; --d: 36; }
+
+/* Counted: a thin amber ring. The rows say it in words. */
+.bubble.is-counted {
+  box-shadow: 0 0 0 2px var(--amber);
+}
+
+.bubble-more {
+  background: #3A3A3A;
+}
+
+/* When everyone is in, a soft amber glow comes up behind the faces for a moment. */
+.who-cluster::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  z-index: -1;
+  background: radial-gradient(closest-side at 50% 55%, var(--amber-glow), transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cluster-glow::after {
+  animation: cluster-glow 1.2s var(--ease-out);
+}
+
+/* What a row opens to: who this person needs, and who needs them. */
+.row-deps {
+  padding: 0 14px 14px 66px;
+  animation: deps-in 200ms var(--ease-out);
+}
+
+.row-deps-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  font-size: 0.875rem;
+  list-style: none;
+}
+
+.row-dep {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.row-dep .icon {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-2);
+}
+
+.row-dep[data-met="true"] .icon {
+  color: var(--amber);
+}
+
+/* D96's overview of who depends on whom: a row of small pills under the groups. */
+.board-links-block {
+  margin-top: 24px;
+}
+
+.board-links-title {
+  margin: 0 0 8px 6px;
+  color: var(--ink-2);
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.board-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-link {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+
+/* Counted: a white chip with black words and a thin amber ring. */
+.row-list > li[data-status="HELD"][data-counted="true"] .row-chip {
+  border-color: #FFFFFF;
+  background: #FFFFFF;
+  box-shadow: 0 0 0 1.5px var(--amber);
+  color: #0B0B0B;
+}
+
+/* A new face pops in, and a new row slides into its group (.row-new). */
+.bubble-new {
+  animation: bubble-pop 300ms var(--ease-out) backwards;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  button.row-main:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+}
+
+/* Reduced transparency: solid surfaces instead of see-through ones. */
+@media (prefers-reduced-transparency: reduce) {
+  .who-summary {
+    background: #1E1E1E;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .row-list > li {
+    background: #1C1C1C;
+  }
+}
+
+@keyframes blob-drift-a {
+  to {
+    transform: translate(18%, 12%);
+  }
+}
+
+@keyframes blob-drift-b {
+  to {
+    transform: translate(-16%, -10%);
+  }
+}
+
+@keyframes bubble-pop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+}
+
+@keyframes cluster-glow {
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes deps-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+
+/* ---------- Wave hover on normal buttons (D102) ---------- */
+
+/* On hover, or on keyboard focus, a wave rises from the bottom and the words change colour. The wave sits
+   behind the words (z-index -1 inside the button's own layer), because many buttons hold bare text that
+   board.js rewrites, so a label span can't be relied on. --bink is the wave, --bsurf the words on it.
+   Not on the solid amber action, and not on hold-to-confirm buttons, which have their own ring. */
+.btn {
+  --bink: #0B0B0B;
+  --bsurf: var(--grey-100);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition: transform 120ms var(--ease-out), color 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.page-dark .btn {
+  --bink: #F5F5F2;
+  --bsurf: #0A0A0A;
+}
+
+/* Dark pills (Pledge, Review refunds, the refund checks) get a light wave on every page. */
+.btn:not(.button-secondary) {
+  --bink: #F5F5F2;
+  --bsurf: #0B0B0B;
+}
+
+/* The amber variant, for the white Join last call pill, where a white wave wouldn't show. */
+.btn-amber,
+.status-button.btn {
+  --bink: var(--amber);
+  --bsurf: #0B0B0B;
+}
+
+/* These three selectors match the older hover layers they replace, so the wave wins over them. */
+.btn::before,
+.page-dark .btn::before,
+.page-dark .form-card .btn::before {
+  content: "";
+  position: absolute;
+  inset: auto -10% 0;
+  z-index: -1;
+  height: 120%;
+  border-radius: 45% 45% 0 0 / 14px;
+  background: var(--bink);
+  box-shadow: none;
+  opacity: 1;
+  transform: translateY(calc(100% + 2px));   /* the 2px stops a sliver showing at the bottom edge */
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.btn:focus-visible::before {
+  transform: translateY(0);
+}
+
+.btn:focus-visible {
+  border-color: var(--bink);
+  color: var(--bsurf);
+  outline: 2px solid var(--amber);
+  outline-offset: 4px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover::before {
+    transform: translateY(0);
+  }
+
+  .btn:hover {
+    border-color: var(--bink);
+    color: var(--bsurf);
+  }
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+.btn:disabled::before,
+.btn[aria-disabled="true"]::before {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) { .btn, .btn *, .btn::before, .btn::after { animation: none !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; } }
+
+
+/* ---------- Hold to confirm (D102) ---------- */
+
+/* A money button that acts only after it is held for 800ms (static/js/hold.js). No long-press menu, no
+   text selection and no double-tap zoom while a finger holds it. */
+.hold-btn {
+  gap: 10px;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+/* Without hold.js these stay hidden, and the button works as a normal button. */
+.hold-ring,
+.hold-btn > .icon,
+.hold-hint {
+  display: none;
+}
+
+.hold-js .hold-btn .hold-ring {
+  display: block;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  transform: rotate(-90deg);
+}
+
+.hold-ring circle {
+  fill: none;
+  stroke-width: 9;
+}
+
+.hold-track {
+  stroke: currentColor;
+  opacity: 0.25;
+}
+
+/* The ring fills while held and drains back when let go early. It is progress, so it still fills with
+   reduced motion (see the end of this file). */
+.hold-btn .prog {
+  stroke: var(--amber);
+  stroke-dasharray: 207;
+  stroke-dashoffset: 207;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.2s ease-out;
+}
+
+.hold-btn.holding .prog {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.8s linear;
+}
+
+.button-amber .prog {
+  stroke: #0B0B0B;
+}
+
+.hold-btn.done .hold-ring {
+  display: none;
+}
+
+.hold-btn.done > .icon {
+  display: block;
+  animation: check-in 200ms var(--ease-out);
+}
+
+.hold-js .hold-hint {
+  display: inline;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.hold-status {
+  min-height: 1.5em;
+  margin: 8px 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+  text-align: center;
+}
+
+@keyframes check-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+
 /* ---------- Keyboard focus ---------- */
 
 /* A black ring around whatever the keyboard is on. :focus-visible shows it
@@ -3069,18 +3554,6 @@ button:not(.button-secondary):not(.icon-button)::before,
   .who-card { grid-area: who; }
   .how-card { grid-area: how; align-self: stretch; }
 
-  /* A laptop row is one line: avatar, name with details, chip on the right. */
-  .board-rows li {
-    display: flex;
-  }
-
-  .row-text {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    min-width: 0;
-  }
-
   /* The totals stop scrolling and sit in a plain grid. */
   .board-stats {
     display: grid;
@@ -3147,6 +3620,11 @@ button:not(.button-secondary):not(.icon-button)::before,
   *::after {
     animation: none !important;
     transition: none !important;
+  }
+
+  /* The hold ring is progress, not decoration, so it still fills over the 800ms. */
+  .hold-btn.holding .prog {
+    transition: stroke-dashoffset 0.8s linear !important;
   }
 
   /* The share panel still needs to arrive and leave, so it fades instead of sliding. */

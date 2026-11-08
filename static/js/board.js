@@ -56,6 +56,10 @@ function startBoard() {
     countdown.windowSeconds = Number(wallet.dataset.windowSeconds);
   }
   setCountdown(board.dataset.status, banner.textContent, seconds);
+  const groups = board.querySelector(".board-rows");
+  if (groups) {
+    groups.addEventListener("click", toggleRow);
+  }
   setInterval(refreshBoard, REFRESH_EVERY_MS);
   setInterval(tickCountdown, TICK_EVERY_MS);
   setTimeout(nudgeInvite, INVITE_NUDGE_MS);
@@ -103,7 +107,7 @@ function showBoard(answer) {
   showProgress(answer.progress_percent);
   showStats(answer);
   showWallet(answer);   // before showRows, which forgets who was here last time
-  showRows(answer.rows);
+  showRows(answer);
   showPledgeLinks(answer.pledging_open, answer.status);
   setCountdown(answer.status, answer.banner_text, answer.seconds_left);
 }
@@ -244,9 +248,16 @@ function countedBarText(answer) {
 }
 
 
+// A counted hold, or a charge that went through. A failed charge is "counted" on the server (D79), but
+// it must never get the amber ring or the words "is counted".
+function hasCountedRing(row) {
+  return row.counted && row.status !== "FAILED";
+}
+
+
 // The class of one face: a thin amber ring when counted, dimmed while waiting on someone.
 function walletFaceClass(row) {
-  if (row.counted) {
+  if (hasCountedRing(row)) {
     return "wallet-avatar is-counted";
   }
   if (row.waiting_on_text !== "") {
@@ -310,10 +321,96 @@ function showWalletTime(seconds, timeText) {
 }
 
 
+// ---------- Who's in (D102) ----------
+
+// The groups, in the order the card shows them. The headings are also in board_panel.html. They live here
+// too because "Waiting on someone" may only be on the page while someone waits (the tests check it), so
+// it can't wait in a data- attribute.
+const GROUP_ORDER = ["counted", "waiting", "pledged", "charged", "refunded", "attention", "out"];
+const GROUP_TITLES = {
+  counted: "Counted", waiting: "Waiting on someone", pledged: "Pledged", charged: "Charged",
+  refunded: "Refunded", attention: "Needs attention", out: "Not in",
+};
+const CHIP_ICONS = {
+  counted: "check", waiting: "clock", pledged: "hand-coins", charged: "check",
+  refunded: "wallet", attention: "x", out: "x",
+};
+const AFTER_LOCK = ["LOCKING", "CHARGING", "SETTLED", "NEEDS_ATTENTION", "REFUNDING", "REFUNDED"];
+const CLUSTER_FACES = 11;          // faces in the summary before "+N"
+const SLIDE_MS = 350;              // how long a row takes to slide to its new place
+const SLIDE_EASE = "cubic-bezier(0.23, 1, 0.32, 1)";
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+let expandedNames = new Set();     // rows someone opened, kept open across refreshes
+let rowIdCount = 0;                // gives each dependency panel its own id
+
+
+// Which group a row belongs in, the same choice as group_of in board_panel.html.
+function groupOf(row) {
+  if (row.status === "CHARGED") {
+    return "charged";
+  }
+  if (row.status === "REFUNDED") {
+    return "refunded";
+  }
+  if (row.status === "FAILED") {
+    return "attention";
+  }
+  if (row.status === "DECLINED") {
+    return "out";
+  }
+  if (row.counted) {
+    return "counted";
+  }
+  if (row.waiting_on_text !== "") {
+    return "waiting";
+  }
+  if (row.status === "PENDING_PAY" || row.status === "HELD") {
+    return "pledged";
+  }
+  return "out";
+}
+
+
+// "Jay", "Jay and Kim", "Jay, Kim and Mo". Names are the server's text, joined as they are.
+function namesText(names) {
+  if (names.length === 1) {
+    return names[0];
+  }
+  return names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+}
+
+
+// The people this person needs (D96), and how many people still wait on them.
+function linksFrom(links, name) {
+  return (links || []).filter(function (link) {
+    return link.from === name;
+  });
+}
+
+function waitingOnCount(links, name) {
+  return (links || []).filter(function (link) {
+    return link.to === name && !link.met;
+  }).length;
+}
+
+
+// One icon from the sheet in icons.html, made like the icon macro in macros.html.
+function makeIcon(name) {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS(SVG_NS, "use");
+  use.setAttribute("href", "#i-" + name);
+  svg.appendChild(use);
+  return svg;
+}
+
+
 // What the rows the server drew say, so the first refresh has something to compare with.
 function rowsFromPage() {
   const rows = new Map();
-  for (const item of board.querySelectorAll(".board-rows li")) {
+  for (const item of board.querySelectorAll(".row-list > li")) {
     const share = item.querySelector(".row-share");
     let shareText = "";
     if (share !== null) {
@@ -338,19 +435,68 @@ function rememberRows(rows) {
 }
 
 
-// Rebuild the list of people, because people can join between refreshes. Rows that changed get
-// their marks while they are built, so they all appear in one step: that is what makes two rows
-// change together. The labels come from the template's data- attributes, so they are written once.
-function showRows(rows) {
-  const list = board.querySelector(".board-rows");
-  list.replaceChildren();
-  for (const row of rows) {
-    const item = makeRow(row, list.dataset);
-    markChanges(item, row, lastRows.get(row.name), list.dataset);
+// Rebuild the groups, because people can join and move between refreshes. Everything is built first and
+// put on the page in one step, so rows that change together change at the same moment. Rows that moved
+// then slide from where they were (slideRows).
+function showRows(answer) {
+  const groups = board.querySelector(".board-rows");
+  const before = rowPlaces(groups);
+  const page = document.createDocumentFragment();
+  for (const key of GROUP_ORDER) {
+    const members = answer.rows.filter(function (row) {
+      return groupOf(row) === key;
+    });
+    if (members.length > 0) {
+      page.appendChild(makeGroup(key, members, answer, groups.dataset));
+    }
+  }
+  groups.replaceChildren(page);
+  board.querySelector(".board-empty").hidden = answer.rows.length > 0;
+  slideRows(groups, before);
+  showSummary(answer);
+  showLinkList(answer.links || []);
+  lastRows = rememberRows(answer.rows);
+}
+
+
+// D96's overview list: one line per link, "Ana → Jay ✓" or "Bo → Cy (waiting)", like the template. The
+// template leaves it out when there are no links, so a page that has none waits for the next load.
+function showLinkList(links) {
+  const list = board.querySelector(".board-links");
+  if (!list) {
+    return;
+  }
+  const lines = [];
+  for (const link of links) {
+    const line = document.createElement("li");
+    line.className = "board-link";
+    line.dataset.met = link.met ? "true" : "false";
+    line.textContent = link.from + " → " + link.to + " " + (link.met ? "✓" : "(waiting)");
+    lines.push(line);
+  }
+  list.replaceChildren.apply(list, lines);
+  list.closest(".board-links-block").hidden = links.length === 0;
+}
+
+
+// One group: its heading with the count, and a real list of its rows.
+function makeGroup(key, members, answer, labels) {
+  const group = document.createElement("div");
+  group.className = "row-group";
+  group.dataset.group = key;
+  const title = document.createElement("h3");
+  title.className = "row-group-title";
+  title.textContent = GROUP_TITLES[key] + " (" + members.length + ")";
+  group.appendChild(title);
+  const list = document.createElement("ul");
+  list.className = "row-list";
+  for (const row of members) {
+    const item = makeRow(row, key, answer.links, labels);
+    markChanges(item, row, lastRows.get(row.name), labels);
     list.appendChild(item);
   }
-  board.querySelector(".board-empty").hidden = rows.length > 0;
-  lastRows = rememberRows(rows);
+  group.appendChild(list);
+  return group;
 }
 
 
@@ -371,6 +517,138 @@ function markChanges(item, row, before, labels) {
 }
 
 
+// Where each row is on screen now, by name, before the page changes.
+function rowPlaces(groups) {
+  const places = new Map();
+  for (const item of groups.querySelectorAll(".row-list > li")) {
+    places.set(item.querySelector(".row-name").textContent, item.getBoundingClientRect());
+  }
+  return places;
+}
+
+
+// FLIP: each row that moved starts drawn at its old place and slides to its new one, all in the same
+// frames, so rows that became Counted together arrive together. Only transform moves. With reduced
+// motion the rows are simply in their new places.
+function slideRows(groups, before) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    return;
+  }
+  const moved = [];
+  for (const item of groups.querySelectorAll(".row-list > li")) {
+    const old = before.get(item.querySelector(".row-name").textContent);
+    if (old === undefined) {
+      continue;
+    }
+    const now = item.getBoundingClientRect();
+    const dx = old.left - now.left;
+    const dy = old.top - now.top;
+    if (dx !== 0 || dy !== 0) {
+      moved.push({ item: item, dx: dx, dy: dy });
+    }
+  }
+  for (const move of moved) {
+    move.item.style.transition = "none";
+    move.item.style.transform = "translate(" + move.dx + "px, " + move.dy + "px)";
+  }
+  void groups.offsetHeight;   // the browser draws the rows at their old places before they slide
+  for (const move of moved) {
+    move.item.style.transition = "transform " + SLIDE_MS + "ms " + SLIDE_EASE;
+    move.item.style.transform = "";
+  }
+}
+
+
+// The summary card: how many are in, their faces, and the newest thing that happened, in words.
+function showSummary(answer) {
+  const summary = board.querySelector(".who-summary");
+  if (!summary) {
+    return;
+  }
+  const everyoneWasIn = lastRows.size > 0 && Array.from(lastRows.values()).every(function (row) {
+    return row.counted;
+  });
+  summary.hidden = answer.rows.length === 0;
+  summary.querySelector(".who-count").textContent = answer.rows.length + " in";
+  showCluster(summary.querySelector(".who-cluster"), answer.rows);
+  const line = summary.querySelector(".who-news");
+  const news = newsText(answer, line.textContent);
+  if (line.textContent !== news) {
+    line.textContent = news;
+  }
+  if (news === "Everyone's in" && !everyoneWasIn) {
+    replayClass(summary.querySelector(".who-cluster"), "cluster-glow");
+  }
+}
+
+
+// The faces: the newest pledger first (the biggest, in the middle), up to eleven, then "+N".
+function showCluster(cluster, rows) {
+  const newestFirst = rows.slice().reverse();
+  const faces = [];
+  for (const row of newestFirst.slice(0, CLUSTER_FACES)) {
+    let className = "bubble";
+    if (hasCountedRing(row)) {
+      className = className + " is-counted";
+    }
+    if (!lastRows.has(row.name)) {
+      className = className + " bubble-new";
+    }
+    faces.push(makeSpan(className, avatarText(row.name)));
+  }
+  if (rows.length > CLUSTER_FACES) {
+    faces.push(makeSpan("bubble bubble-more", "+" + (rows.length - CLUSTER_FACES)));
+  }
+  cluster.replaceChildren.apply(cluster, faces);
+}
+
+
+// The newest thing in plain words, from the rows only. If nothing new happened, the line stays.
+function newsText(answer, currentText) {
+  const rows = answer.rows;
+  if (rows.length === 0) {
+    return "";
+  }
+  if (AFTER_LOCK.includes(answer.status)) {
+    return rows.filter(function (row) {
+      return row.status === "CHARGED";
+    }).length + " charged once";
+  }
+  if (rows.every(function (row) { return row.counted; })) {
+    return "Everyone's in";
+  }
+  const newNames = rows.filter(function (row) {
+    return !lastRows.has(row.name);
+  }).map(function (row) {
+    return row.name;
+  });
+  if (newNames.length > 0) {
+    return namesText(newNames) + " just pledged";
+  }
+  const nowCounted = rows.filter(function (row) {
+    const before = lastRows.get(row.name);
+    return row.status === "HELD" && row.counted && before !== undefined && !before.counted;
+  }).map(function (row) {
+    return row.name;
+  });
+  if (nowCounted.length === 1) {
+    return nowCounted[0] + " is counted";
+  }
+  if (nowCounted.length > 1) {
+    return namesText(nowCounted) + " are counted";
+  }
+  return currentText;
+}
+
+
+// Take a class off and put it back, so its animation plays again.
+function replayClass(element, className) {
+  element.classList.remove(className);
+  void element.offsetWidth;
+  element.classList.add(className);
+}
+
+
 // A span with a class and plain text. textContent keeps a name typed by a user as text, never HTML.
 function makeSpan(className, text) {
   const span = document.createElement("span");
@@ -386,11 +664,10 @@ function avatarText(name) {
 }
 
 
-// The word in a row's chip, chosen like the template does: who they are waiting on, else "Counted"
-// for a hold the circle rule counts, else the server's status word.
+// The word in a row's chip: "Waiting", "Counted" for a hold the circle rule counts, else the server's word.
 function chipText(row, labels) {
   if (row.waiting_on_text !== "") {
-    return row.waiting_on_text;
+    return "Waiting";
   }
   if (row.status === "HELD" && row.counted) {
     return labels.countedLabel;
@@ -416,8 +693,8 @@ function rowSummary(row, labels) {
 }
 
 
-// The small line under the name: the max, then the share, then who they are waiting on.
-function makeRowDetails(row, labels) {
+// The grey line under the name: the max, then the share, then who they wait on or what they need.
+function makeRowDetails(row, needs, labels) {
   const details = makeSpan("row-details", "");
   details.appendChild(makeSpan("row-max", labels.maxLabel + " " + row.max_text));
   if (row.estimated_share_text !== "") {
@@ -427,45 +704,121 @@ function makeRowDetails(row, labels) {
   }
   if (row.waiting_on_text !== "") {
     details.appendChild(makeSpan("row-waiting", row.waiting_on_text));
+  } else if (needs.length === 1) {
+    details.appendChild(makeSpan("row-if", "if " + needs[0].to + "'s in"));
+  } else if (needs.length > 1) {
+    details.appendChild(makeSpan("row-if", "if " + namesText(needs.map(function (link) { return link.to; })) + " are in"));
   }
   return details;
 }
 
 
-// The name with the small line under it.
-function makeRowText(row, labels) {
+// The name with the grey line under it.
+function makeRowText(row, needs, labels) {
   const text = makeSpan("row-text", "");
   text.setAttribute("aria-hidden", "true");
   const name = makeSpan("row-name", row.name);
   name.dir = "auto";
   text.appendChild(name);
-  text.appendChild(makeRowDetails(row, labels));
+  text.appendChild(makeRowDetails(row, needs, labels));
   return text;
 }
 
 
-// One person's row, with the same markup board_panel.html draws. data-counted is "true" or "false",
-// for styling (the circle turns black together).
-function makeRow(row, labels) {
+// The chip on the right: an icon and the word, so the colour is never the only sign.
+function makeChip(row, key, labels) {
+  const chip = makeSpan("status row-chip", "");
+  chip.setAttribute("aria-hidden", "true");
+  chip.appendChild(makeIcon(CHIP_ICONS[key]));
+  chip.appendChild(document.createTextNode(chipText(row, labels)));
+  return chip;
+}
+
+
+// The lines a row opens to: who this person needs, and how many people need them.
+function makeDeps(row, needs, waitingOnThem, panelId) {
+  const panel = document.createElement("div");
+  panel.className = "row-deps";
+  panel.id = panelId;
+  const list = document.createElement("ul");
+  list.className = "row-deps-list";
+  for (const link of needs) {
+    const line = document.createElement("li");
+    line.className = "row-dep";
+    line.dataset.met = link.met ? "true" : "false";
+    line.appendChild(makeIcon(link.met ? "check" : "circle"));
+    line.appendChild(document.createTextNode(link.met ? link.to + "'s in" : "Waiting on " + link.to));
+    list.appendChild(line);
+  }
+  if (waitingOnThem > 0) {
+    const line = document.createElement("li");
+    line.className = "row-dep row-dep-them";
+    line.appendChild(makeIcon("users"));
+    const who = waitingOnThem === 1 ? "1 person is" : waitingOnThem + " people are";
+    line.appendChild(document.createTextNode(who + " waiting on " + row.name));
+    list.appendChild(line);
+  }
+  panel.appendChild(list);
+  return panel;
+}
+
+
+// One person's row, with the same markup board_panel.html draws. A row with dependencies is a button that
+// opens in place; a row without them is a plain block. data-counted is "true" or "false", for styling.
+function makeRow(row, key, links, labels) {
   const item = document.createElement("li");
   item.dataset.status = row.status;
-  if (row.counted) {
-    item.dataset.counted = "true";
-  } else {
-    item.dataset.counted = "false";
-  }
+  item.dataset.counted = row.counted ? "true" : "false";
   if (row.waiting_on_text !== "") {
     item.dataset.waiting = "true";
   }
-  item.appendChild(makeSpan("row-summary visually-hidden", rowSummary(row, labels)));
+  const needs = linksFrom(links, row.name);
+  const waitingOnThem = waitingOnCount(links, row.name);
+  const opens = needs.length > 0 || waitingOnThem > 0;
+  const main = document.createElement(opens ? "button" : "div");
+  main.className = "row-main";
+  main.appendChild(makeSpan("row-summary visually-hidden", rowSummary(row, labels)));
   const avatar = makeSpan("avatar row-avatar", avatarText(row.name));
   avatar.setAttribute("aria-hidden", "true");
-  item.appendChild(avatar);
-  item.appendChild(makeRowText(row, labels));
-  const chip = makeSpan("status row-chip", chipText(row, labels));
-  chip.setAttribute("aria-hidden", "true");
-  item.appendChild(chip);
+  main.appendChild(avatar);
+  main.appendChild(makeRowText(row, needs, labels));
+  main.appendChild(makeChip(row, key, labels));
+  item.appendChild(main);
+  if (opens) {
+    rowIdCount = rowIdCount + 1;
+    const panelId = "deps-live-" + rowIdCount;
+    const isOpen = expandedNames.has(row.name);
+    main.type = "button";
+    main.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    main.setAttribute("aria-controls", panelId);
+    const chevron = makeSpan("row-chevron", "");
+    chevron.setAttribute("aria-hidden", "true");
+    chevron.appendChild(makeIcon("chevron-down"));
+    main.appendChild(chevron);
+    const panel = makeDeps(row, needs, waitingOnThem, panelId);
+    panel.hidden = !isOpen;
+    item.appendChild(panel);
+  }
   return item;
+}
+
+
+// A row opens and closes in place. One listener on the groups, so rebuilt rows keep working, and the
+// open ones stay open across refreshes.
+function toggleRow(event) {
+  const main = event.target.closest("button.row-main");
+  if (main === null) {
+    return;
+  }
+  const isOpen = main.getAttribute("aria-expanded") !== "true";
+  main.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  document.getElementById(main.getAttribute("aria-controls")).hidden = !isOpen;
+  const name = main.querySelector(".row-name").textContent;
+  if (isOpen) {
+    expandedNames.add(name);
+  } else {
+    expandedNames.delete(name);
+  }
 }
 
 

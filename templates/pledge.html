@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import nav_item %}
+{% from "macros.html" import hold_contents, nav_item %}
 {# S4 and S5, the pledge page (docs/UI_DESIGN.md section 3). Samuel owns this page; the PayPal part is
    static/js/pledge_paypal.js (Emmanuel's), so keep every id.
    Jinja escapes every value it fills in, so a title like "<script>" shows as text and never runs. #}
@@ -39,7 +39,7 @@
         <textarea id="pledge-message" rows="4" maxlength="280"></textarea></p>
       <p class="ai-line">AI reads. You confirm. Plain code handles the money.</p>
       <p class="privacy-note">What you type here is sent to Groq to read it. Don't type anything private.</p>
-      <button id="check-button" class="button-secondary" type="button">Check</button>
+      <button id="check-button" class="button-secondary btn" type="button">Check</button>
       <p id="check-message" class="check-message" role="status"></p>
     </section>
 
@@ -69,7 +69,7 @@
       <p class="card-field-label">Card number</p><div id="paypal-card-fields-number" class="card-field"></div>
       <p class="card-field-label">Expiry</p><div id="paypal-card-fields-expiry" class="card-field"></div>
       <p class="card-field-label">CVV</p><div id="paypal-card-fields-cvv" class="card-field"></div>
-      <button id="hold-button" class="button-full button-amber" type="button" disabled>Hold my max</button>
+      <button id="hold-button" class="button-full button-amber hold-btn" type="button" disabled>{{ hold_contents("Hold my max") }}</button>
     </section>
 
     {# D82: after "Held", the script fills in the friend's own "I'm out" link (S6). The line is a

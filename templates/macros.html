@@ -16,7 +16,7 @@
    refresh, and swaps the label during last call. #}
 {% macro pledge_link(board, class_name, new_tab=false) -%}
 {%- set url = url_for('pledge_page', event_id=board.event_id) -%}
-<a class="board-pledge {{ class_name }}" data-pledge-url="{{ url }}" data-pledge-label="Pledge" data-last-call-label="Join last call"
+<a class="board-pledge {{ class_name }}{% if "button-link" in class_name %} btn{% endif %}" data-pledge-url="{{ url }}" data-pledge-label="Pledge" data-last-call-label="Join last call"
   {%- if board.pledging_open %} href="{{ url }}"{% else %} hidden{% endif %}
   {%- if new_tab %} target="_blank" rel="noopener"{% endif %}>
   {%- if board.status == "LAST_CALL" %}Join last call{% else %}Pledge{% endif %}</a>
@@ -33,7 +33,7 @@
    pledge path on S3. It is never this page's own address. phone_label is what the button says on a
    phone, when that differs from label. #}
 {% macro share_button(url, label, class_name="button-secondary", phone_label="", button_id="", hidden=false, icon_name="") -%}
-<button class="share-button {{ class_name }}" type="button" data-share-url="{{ url }}"
+<button class="share-button {{ class_name }}{% if "button-secondary" in class_name %} btn{% endif %}" type="button" data-share-url="{{ url }}"
   {%- if phone_label %} data-phone-label="{{ phone_label }}"{% endif %}
   {%- if button_id %} id="{{ button_id }}"{% endif %}
   {%- if hidden %} hidden{% endif %}>{% if icon_name %}{{ icon(icon_name) }}{% endif %}<span class="button-label">{{ label }}</span></button>
@@ -88,7 +88,15 @@
       {{ share_tile("telegram", "Telegram", "send", "Share on Telegram") }}
       {{ share_tile("email", "Email", "mail", "Share by email") }}
     </div>
-    <button id="share-panel-more" class="button-secondary button-full" type="button" hidden>More apps</button>
+    <button id="share-panel-more" class="button-secondary button-full btn" type="button" hidden>More apps</button>
   </div>
 </dialog>
+{%- endmacro %}
+
+{# The inside of a hold-to-confirm button (static/js/hold.js, D102): the amber ring, the check, the label,
+   and words for screen readers. A ring of radius 33 is about 207 around, which the CSS uses. Without
+   hold.js the ring and the hint stay hidden and the button works as usual. #}
+{% macro hold_contents(label) -%}
+<svg class="hold-ring" viewBox="0 0 72 72" aria-hidden="true" focusable="false"><circle class="hold-track" cx="36" cy="36" r="33"></circle><circle class="prog" cx="36" cy="36" r="33"></circle></svg>
+{{- icon("check") }}<span class="hold-label">{{ label }}</span><span class="hold-hint">, press and hold to confirm</span>
 {%- endmacro %}

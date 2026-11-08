@@ -60,6 +60,11 @@ Owner: **Samuel**. Lives in `templates/` and `static/`. Plain HTML (Jinja), plai
 | Board, under the half ring | **Held money counts once everyone it depends on is in.** (meanwhile wording, Samuel to pick) |
 | Board, nobody yet | **Nobody has pledged yet. Share the link to start.** (not shown after a missed goal, which drops its pledges from the list) |
 | Board, a new name in a refresh | **Just pledged** |
+| Who's in summary (D102) | **[n] in**, then one line: **[Name] just pledged**, **[Name] is counted** (or **[Name] and [Name] are counted**), **Everyone's in**, **[n] charged once** after the lock, and at page load **[Name] pledged most recently** |
+| Who's in groups (D102) | **Counted (n)**, **Waiting on someone (n)**, **Pledged (n)**, **Charged (n)**, **Refunded (n)**, **Needs attention (n)**, **Not in (n)**. Empty groups are left out |
+| Who's in row note and chip (D102) | the note: **Max $40.00** · **share now $31.05** · **Waiting on Bo** or **if Jay's in** (**if Jay and Kim are in**). The chip: **Counted**, **Waiting**, **Pledged**, **Held**, **Charged $x**, **Charge failed**, **Declined**, **Refunded** |
+| Who's in, an opened row (D102) | **Jay's in** or **Waiting on Bo**, and **1 person is waiting on Ana** / **2 people are waiting on Ana** |
+| Hold to confirm (D102) | under the button: **Press and hold to confirm**, **Hold to confirm** while held, **Confirmed**. Screen readers hear the label then **, press and hold to confirm** |
 | Board and header buttons | **Pledge**, or **Join last call** during last call, and **Invite** |
 | How it works card (S2, S3) | **Pledge the most you'd pay** · **PayPal holds it, nothing is charged** · **If the goal is reached, you pay only your share. If not, every hold is cancelled.** |
 | S4 link to the board | **← Back to board** |
@@ -212,7 +217,7 @@ The black cards' light sits on `.card-bloom`, an empty element inside the card. 
 - **The half ring:** the counted arc goes from white to amber along the stroke. The still-needed stripes stay grey, and the legend words stay.
 - **Landing page:** its own look, with a warm amber glow under the logo tile.
 
-**Dark pages (D100):** S2, S3 and the pledge page are near-black `#0A0A0A` with the amber vignette and grain (`body.page-dark`). The tokens turn around there, so cards, chips and lines follow: cards `#141414` with 32px corners, `--ink` `#F5F5F3`, `--ink-2` `#A6A6A2`, `--danger` `#FF8A7A`. The Counted chip becomes white with black words. The pledge form stays a light card, because PayPal draws its card fields in its own frames with dark text. The sandbox banner is `#121212`, and the browser's `theme-color` matches it.
+**Dark pages (D100):** S2, S3 and the pledge page are near-black `#0A0A0A` with the amber vignette and grain (`body.page-dark`). The tokens turn around there, so cards, chips and lines follow: cards `#141414` with 32px corners, `--ink` `#F5F5F3`, `--ink-2` `#A6A6A2`, `--danger` `#FF8A7A` on a solid `#3A1F1B`. The Counted chip becomes white with black words. The pledge form stays a light card, because PayPal draws its card fields in its own frames with dark text. The sandbox banner is `#121212`, and the browser's `theme-color` matches it.
 
 **The wallet (D100):** the top of the board on S2 and S3. On a phone:
 
@@ -224,6 +229,19 @@ The black cards' light sits on `.card-bloom`, an empty element inside the card. 
 - **Two thin bars** with their words under them. Counted is `progress_percent`, with "$counted of $goal" when both texts arrive, else the percent. Time is `seconds_left` out of `window_seconds`, which shows only when the server sends that key.
 
 On a laptop the menu is a row of pills across the top, and the header's share buttons are round icon buttons. The wallet sits on the left at 440px at most, with the three totals and Progress to its right. The status card and How it works come next, then Who's in at full width.
+
+**Who's in (D102):** the card is laid out like a guest list. Behind it: the dark base, two big soft blobs (amber and warm grey) drifting on a 20-second loop, and grain. Inside, a column 560px wide at most.
+
+- **The summary** is a glass card: white at 8%, `blur(20px)`, 28px corners and a 1px border of white at 10%. It holds "[n] in", the faces in different sizes with the newest pledger biggest in the middle (up to eleven, then "+N"), and one line with the newest news. The line is `role="status"`, so it announces "Everyone's in" and new pledgers. The faces show initials until photos are allowed (D101).
+- **The groups** are sentence case, never tiny capitals: Counted, Waiting on someone, Pledged, Charged, Refunded, Needs attention, Not in, each with its count. Empty groups are left out.
+- **Each row** is its own pill: white at 7%, 18px corners, 64px tall at least, 8px apart, with no dividers. It shows the avatar (40px), the name (16px, 500), an italic grey note, the chip (an icon and a word), and a chevron when it opens. Counted is a white chip with black words and a thin amber ring. A failed charge is "counted" on the server, but it never gets the ring or the words "is counted".
+- **Opening a row:** a row with dependencies (`board.links`, D96) is a button with `aria-expanded`. It opens in place to "Jay's in" or "Waiting on Bo", plus how many people wait on this person. This replaces Emmanuel's bare list of links, with the same data. The rows open stay open across refreshes.
+- **Every refresh** rebuilds the groups in one step. A new face pops into the cluster (scale 0.6 to 1, 300ms) and a new row slides into its group. Rows that became Counted together slide there together (FLIP: 350ms, `cubic-bezier(0.23, 1, 0.32, 1)`), and their chips turn white at the same moment. When everyone is counted, the cluster glows amber for 1.2 seconds. With reduced motion nothing moves: the changes just appear.
+- **Reduced transparency:** the summary and the rows become solid.
+
+**Hold to confirm (D102):** a money button only acts after it is held for 800ms, so a stray tap can't send. It is used on Confirm refund everyone, Cancel this authorization and Hold my max. While the button is held, an amber ring beside the label fills, and letting go early drains it back and does nothing. Holding Enter or Space works the same. When the ring is full, a check shows, the action runs exactly once (a form is submitted, any other button gets one confirmed click), and the button switches off. It comes back only if the page turns it off and on again, as Hold my max does after a failed card. A line under the button says "Press and hold to confirm", "Hold to confirm" or "Confirmed". Without JavaScript the buttons work as normal buttons. With reduced motion the ring still fills, because it shows progress, but nothing bounces. Built in `static/js/hold.js` and the `hold_contents` macro.
+
+**Wave hover (D102):** on secondary buttons and button-links (`.btn`), a wave rises from the bottom on hover or keyboard focus, and the words change colour. `--bink` is the wave and `--bsurf` the words on it: a dark wave on light pages, a light wave on dark pages and on dark pills, and amber on the white Join last call pill. Timing is `0.45s cubic-bezier(0.22, 1, 0.36, 1)`, transform and colour only. Hover only applies where a device can hover, and keyboard focus always raises the wave, with a 2px amber ring 4px out. It is never on the amber main action or on hold buttons. Disabled buttons get no wave. With reduced motion the wave appears at once.
 
 **Motion (D100):** the hero lifts and the Pledge card slides 6px further out on hover. The amount crossfades when it changes, and a new face pops in (scale 0.9 to 1). Each is under 0.8 seconds, the breathing light excepted, and all of it is off with reduced motion.
 
