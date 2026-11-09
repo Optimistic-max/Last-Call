@@ -36,6 +36,7 @@ See [`docs/CLAIMS.md`](docs/CLAIMS.md) for every claim with its evidence and sta
 ## AI and tools used
 
 - **AI model:** _name goes here._ It reads each friend's pledge, typed in their own words, and suggests the amount, cap and condition. The friend confirms or fixes them before anything is saved. It never moves money.
+- **AI accuracy:** 43/50 on 50 made-up test messages (Groq, `openai/gpt-oss-20b`, first scored run Nov 8; claim 13 in [`docs/CLAIMS.md`](docs/CLAIMS.md)). Grok wrote the 50 messages, and they were frozen before any prompt tuning. 4 of the 7 misses are amounts written as words ("thirty"): the app refuses those on purpose and asks the friend to type the number.
 - **PayPal:** Orders v2 (intent `AUTHORIZE`), Payments v2 (capture, void, refund), JavaScript SDK card fields, all in the sandbox.
 - **Hosting:** Render (web app), Neon (Postgres).
 - **AI coding assistants used while building:** _list them honestly._
