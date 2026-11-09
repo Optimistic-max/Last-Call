@@ -74,7 +74,7 @@ Simplification for M1 only: there is **no last call yet**. At the hard deadline,
 | Emmanuel | The parse and confirm routes, and creating the pledge row at confirm (`SYSTEM_DESIGN.md` §5A). The card step stays the B1 flow. D31 #3: `QUICK_AMOUNTS_CENTS` in `config.py` (values OPEN). D31 #6: each row's state in `board.json`, with "hold pending" worked out from `holds`. All D31. |
 
 **Done when** (each manual check is a sandbox run, recorded in the `TEST_PLAN.md` run log):
-- [ ] G1–G3 pass, and the real X/50 score is recorded in `TEST_PLAN.md` and `CLAIMS.md`
+- [x] G1 (validator) and G3 (43/50, Nov 8) verified; G2's real Groq outage NOT RUN. The score is recorded in `TEST_PLAN.md` and `CLAIMS.md`
 - [ ] Manual check, D31 #3: tapping a quick-amount button fills in the confirm step without typing, and nothing is saved until the friend confirms
 - [ ] Manual check, D31 #4: Share opens the phone's share sheet; in a browser without the Web Share API, the copy-link fallback copies the link; the link preview shows the static Open Graph text, which says sandbox (wake the server first)
 - [ ] Manual check, D31 #6: a pledge shows Pledged before the card step and Held after it, and the board total changes only at Held. Hold pending shows for a hold whose authorize answer hasn't come back (check with the fake PayPal)

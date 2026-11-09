@@ -98,6 +98,7 @@ Not built before the freeze. D47's safe ending stands instead: hold `CAPTURED`, 
 | Nov 7 | Emmanuel | Lost refund answer with no PayPal refund id: replay the refund POST with the same saved request id (PayPal accepts this for up to 45 days for refunds); needs a decision revising D89/D90's no-retry rule. (D94's "Check with PayPal" cannot help here, because a GET needs the PayPal refund id.) |
 | Nov 7 | Emmanuel | Check whether `GET /v2/payments/captures/{id}` exposes the refund ids, which would allow a GET-only recovery when no refund id was saved (unverified). |
 | Nov 7 | Emmanuel | **Option B for F22:** let `paypal_client.capture_authorization` send PayPal's mock header (`PayPal-Mock-Response: {"mock_application_codes":"TRANSACTION_REFUSED"}`) through a `test_mock_code` argument that defaults to `None`, so a real sandbox refusal can be tested (F22) instead of the SIMULATED one in `tests/sandbox_lock_with_one_refusal.py`. Puts a mock path into production code: needs its own decision, the F10 tests (the header can never be sent outside tests), and Malama's review because it touches capture. |
+| Nov 9 | Emmanuel | AI: accept amounts written as words ("forty"), and read "or" conditions correctly (G3 misses 5, 10, 24, 29, 26, 42); "maybe $20?" should be unclear, not in (miss 43). |
 
 ## Post-MVP Features
 
