@@ -1,0 +1,575 @@
+{
+  "written_by": "Grok",
+  "messages": [
+    {
+      "id": 1,
+      "category": "plain",
+      "text": "im in for $40",
+      "expected": {
+        "status": "in",
+        "max_cents": 4000,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 2,
+      "category": "plain",
+      "text": "I can put in $25 toward the cabin deposit.",
+      "expected": {
+        "status": "in",
+        "max_cents": 2500,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 3,
+      "category": "plain",
+      "text": "count me in, max is 50 dollars",
+      "expected": {
+        "status": "in",
+        "max_cents": 5000,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 4,
+      "category": "plain",
+      "text": "I'll chip in $15.",
+      "expected": {
+        "status": "in",
+        "max_cents": 1500,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 5,
+      "category": "plain",
+      "text": "put me down for thirty bucks",
+      "expected": {
+        "status": "in",
+        "max_cents": 3000,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 6,
+      "category": "plain",
+      "text": "yes i'm in — $60 max",
+      "expected": {
+        "status": "in",
+        "max_cents": 6000,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 7,
+      "category": "plain",
+      "text": "i'll cover up to $100 for this",
+      "expected": {
+        "status": "in",
+        "max_cents": 10000,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 8,
+      "category": "plain",
+      "text": "I'm pledging $5 (that's all I can do this week)",
+      "expected": {
+        "status": "in",
+        "max_cents": 500,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 9,
+      "category": "plain",
+      "text": "in for 75.00",
+      "expected": {
+        "status": "in",
+        "max_cents": 7500,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 10,
+      "category": "plain",
+      "text": "Happy to help. Maximum I'll pay is two hundred dollars.",
+      "expected": {
+        "status": "in",
+        "max_cents": 20000,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 11,
+      "category": "slang",
+      "text": "yo bet im down for like 20$",
+      "expected": {
+        "status": "in",
+        "max_cents": 2000,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 12,
+      "category": "slang",
+      "text": "lowkey can throw 35 at it 😂",
+      "expected": {
+        "status": "in",
+        "max_cents": 3500,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 13,
+      "category": "slang",
+      "text": "say less, 45 from me",
+      "expected": {
+        "status": "in",
+        "max_cents": 4500,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 14,
+      "category": "slang",
+      "text": "ig im in for ~$10 idk if thats enough but thats my max",
+      "expected": {
+        "status": "in",
+        "max_cents": 1000,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 15,
+      "category": "slang",
+      "text": "fr fr count me in for 80 bucks",
+      "expected": {
+        "status": "in",
+        "max_cents": 8000,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 16,
+      "category": "slang",
+      "text": "aight i gotchu for $55",
+      "expected": {
+        "status": "in",
+        "max_cents": 5500,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 17,
+      "category": "slang",
+      "text": "ngl i can do 12.50 max rn",
+      "expected": {
+        "status": "in",
+        "max_cents": 1250,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 18,
+      "category": "slang",
+      "text": "bet. $90 and thats the ceiling",
+      "expected": {
+        "status": "in",
+        "max_cents": 9000,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 19,
+      "category": "conditions",
+      "text": "im in for $40 but only if Jay is in",
+      "expected": {
+        "status": "in",
+        "max_cents": 4000,
+        "min_cents": null,
+        "conditions": [
+          "Jay"
+        ]
+      }
+    },
+    {
+      "id": 20,
+      "category": "conditions",
+      "text": "I'll do $30 if Ana and Bo both pledge",
+      "expected": {
+        "status": "in",
+        "max_cents": 3000,
+        "min_cents": null,
+        "conditions": [
+          "Ana",
+          "Bo"
+        ]
+      }
+    },
+    {
+      "id": 21,
+      "category": "conditions",
+      "text": "only if kim's in — then max $25 from me",
+      "expected": {
+        "status": "in",
+        "max_cents": 2500,
+        "min_cents": null,
+        "conditions": [
+          "kim"
+        ]
+      }
+    },
+    {
+      "id": 22,
+      "category": "conditions",
+      "text": "$50 as long as Sam is also chipping in",
+      "expected": {
+        "status": "in",
+        "max_cents": 5000,
+        "min_cents": null,
+        "conditions": [
+          "Sam"
+        ]
+      }
+    },
+    {
+      "id": 23,
+      "category": "conditions",
+      "text": "put me down for 20 if Maya and Theo are both in",
+      "expected": {
+        "status": "in",
+        "max_cents": 2000,
+        "min_cents": null,
+        "conditions": [
+          "Maya",
+          "Theo"
+        ]
+      }
+    },
+    {
+      "id": 24,
+      "category": "conditions",
+      "text": "i'm in for sixty bucks only if jordan joins too",
+      "expected": {
+        "status": "in",
+        "max_cents": 6000,
+        "min_cents": null,
+        "conditions": [
+          "jordan"
+        ]
+      }
+    },
+    {
+      "id": 25,
+      "category": "conditions",
+      "text": "yes $15, but contingent on Riley being in",
+      "expected": {
+        "status": "in",
+        "max_cents": 1500,
+        "min_cents": null,
+        "conditions": [
+          "Riley"
+        ]
+      }
+    },
+    {
+      "id": 26,
+      "category": "conditions",
+      "text": "max 70 if Priya, Luis, and Nora are all in",
+      "expected": {
+        "status": "in",
+        "max_cents": 7000,
+        "min_cents": null,
+        "conditions": [
+          "Priya",
+          "Luis",
+          "Nora"
+        ]
+      }
+    },
+    {
+      "id": 27,
+      "category": "range",
+      "text": "at least $10, up to $25 if needed",
+      "expected": {
+        "status": "in",
+        "max_cents": 2500,
+        "min_cents": 1000,
+        "conditions": []
+      }
+    },
+    {
+      "id": 28,
+      "category": "range",
+      "text": "i can do 20 minimum and stretch to 40 if we're short",
+      "expected": {
+        "status": "in",
+        "max_cents": 4000,
+        "min_cents": 2000,
+        "conditions": []
+      }
+    },
+    {
+      "id": 29,
+      "category": "range",
+      "text": "in for at least fifteen, max thirty if the group needs it",
+      "expected": {
+        "status": "in",
+        "max_cents": 3000,
+        "min_cents": 1500,
+        "conditions": []
+      }
+    },
+    {
+      "id": 30,
+      "category": "range",
+      "text": "start me at $5, go up to $18 if we're short",
+      "expected": {
+        "status": "in",
+        "max_cents": 1800,
+        "min_cents": 500,
+        "conditions": []
+      }
+    },
+    {
+      "id": 31,
+      "category": "range",
+      "text": "I'll put in 50–80 depending on how close we are (50 floor, 80 ceiling)",
+      "expected": {
+        "status": "in",
+        "max_cents": 8000,
+        "min_cents": 5000,
+        "conditions": []
+      }
+    },
+    {
+      "id": 32,
+      "category": "range",
+      "text": "min $12 max $22 if needed to hit the goal",
+      "expected": {
+        "status": "in",
+        "max_cents": 2200,
+        "min_cents": 1200,
+        "conditions": []
+      }
+    },
+    {
+      "id": 33,
+      "category": "pull_out",
+      "text": "actually i'm out sorry",
+      "expected": {
+        "status": "out",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 34,
+      "category": "pull_out",
+      "text": "nah i can't do this one, take me off",
+      "expected": {
+        "status": "out",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 35,
+      "category": "pull_out",
+      "text": "never mind, cancel my pledge",
+      "expected": {
+        "status": "out",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 36,
+      "category": "pull_out",
+      "text": "i'm backing out — don't count me",
+      "expected": {
+        "status": "out",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 37,
+      "category": "pull_out",
+      "text": "scratch that, im out for the cabin",
+      "expected": {
+        "status": "out",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 38,
+      "category": "pull_out",
+      "text": "won't be chipping in after all, remove me please",
+      "expected": {
+        "status": "out",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 39,
+      "category": "unclear",
+      "text": "yeah i'm in",
+      "expected": {
+        "status": "unclear",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 40,
+      "category": "unclear",
+      "text": "i can do like $3 maybe",
+      "expected": {
+        "status": "unclear",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 41,
+      "category": "unclear",
+      "text": "put me down for $2500",
+      "expected": {
+        "status": "unclear",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 42,
+      "category": "unclear",
+      "text": "im in for $40 if Jay OR Kim is in",
+      "expected": {
+        "status": "unclear",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 43,
+      "category": "unclear",
+      "text": "maybe $20? depends how broke i am friday",
+      "expected": {
+        "status": "unclear",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 44,
+      "category": "unclear",
+      "text": "i'll match whatever Ana puts in",
+      "expected": {
+        "status": "unclear",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 45,
+      "category": "chatter",
+      "text": "what time are we leaving friday?",
+      "expected": {
+        "status": "unclear",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 46,
+      "category": "chatter",
+      "text": "who has the aux for the drive 😂",
+      "expected": {
+        "status": "unclear",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 47,
+      "category": "chatter",
+      "text": "is the cabin pet friendly?",
+      "expected": {
+        "status": "unclear",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 48,
+      "category": "chatter",
+      "text": "reminder: bring your own towels",
+      "expected": {
+        "status": "unclear",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 49,
+      "category": "chatter",
+      "text": "can someone send the address again",
+      "expected": {
+        "status": "unclear",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    },
+    {
+      "id": 50,
+      "category": "chatter",
+      "text": "lol imagine if we actually hit the goal this time",
+      "expected": {
+        "status": "unclear",
+        "max_cents": null,
+        "min_cents": null,
+        "conditions": []
+      }
+    }
+  ]
+}

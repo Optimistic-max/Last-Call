@@ -89,7 +89,7 @@ Typing a pledge sends that text to a third-party AI service. The pledge page mus
 
 ## 7. The 50-message accuracy test
 
-- **Written and frozen before anyone tunes the prompt**, so the exam isn't written to fit the prompt. Grok Bot was to write it; it didn't deliver by Nov 3, so Malama writes it by hand, without the AI agent that helps tune the prompt (D74). Saved as `tests/ai_test_messages.json` and never edited after it's frozen (record the freeze date, commit and SHA-256 in D74).
+- **Written and frozen before anyone tunes the prompt**, so the exam isn't written to fit the prompt. Grok Bot wrote it (after the Nov 3 deadline; the Nov 4 plan for Malama to write it was dropped), and Malama froze it on Nov 8 (D74). Grok is not the AI agent that helps tune the prompt. Saved as `tests/ai_test_messages.json` and never edited after it's frozen (record the freeze date, commit and SHA-256 in D74).
 - **File format.** One object: `"written_by"` (who wrote the messages) and `"messages"`, a list of 50 like this one (a format example, not one of the 50):
 
   ```json
