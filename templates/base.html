@@ -1,15 +1,28 @@
 <!doctype html>
-{# The shared frame for every page: the sandbox banner, the sidebar (laptop) or top bar and tabs (phone),
-   and the page itself (docs/UI_DESIGN.md section 8). A page fills it in with {% extends "base.html" %}
+{# The shared frame for every page: the sandbox banner, the island (a floating menu: on the left on a
+   laptop, at the bottom on a phone, with a top bar for the home mark and the theme switch), and the page
+   itself (docs/UI_DESIGN.md section 8, D103). A page fills it in with {% extends "base.html" %}
    and its own title, nav, content and scripts blocks. Pages with no menu leave nav empty. The landing
    page replaces the whole shell block, and keeps the banner.
    Never put the admin page's address in a block a public page uses (D18, D59). #}
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-  <meta name="theme-color" content="#F3F3F1" media="(prefers-color-scheme: dark)">
-  <meta name="theme-color" content="#F3F3F1" media="(prefers-color-scheme: light)">
+  {# The browser's bar takes the colour of the top of the page, the sandbox banner. #}
+  <meta name="theme-color" content="#121212">
+  {# The theme is set here, before anything paints, so there is no flash of the wrong one (D103). Dark
+     unless the visitor chose light. The two colours are the --banner tokens in style.css. #}
+  <script>
+    var savedTheme = null;
+    try {
+      savedTheme = localStorage.getItem("theme");
+    } catch (error) {
+      savedTheme = null;
+    }
+    document.documentElement.dataset.theme = savedTheme === "light" ? "light" : "dark";
+    document.querySelector('meta[name="theme-color"]').content = savedTheme === "light" ? "#E8E8E5" : "#121212";
+  </script>
   <title>{% block title %}Start a pledge{% endblock %} · Last Call</title>
   <link rel="icon" href="{{ url_for('static', filename='img/favicon.svg') }}" type="image/svg+xml">
   <link rel="icon" sizes="32x32" href="{{ url_for('static', filename='img/favicon-32.png') }}" type="image/png">
@@ -20,15 +33,29 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
+{% from "macros.html" import home_mark, theme_switch %}
 <body>
   {% include "icons.html" %}
   <p class="sandbox-banner">SANDBOX DEMO: fake money, no real charges</p>
+  {# The theme switch, on its own in the top-right corner of every page (D103). #}
+  <div class="theme-corner">{{ theme_switch() }}</div>
   {% block shell %}
   <div class="shell">
-    <aside class="shell-side">
-      <p class="wordmark">LAST CALL</p>
-      {% block nav %}{% endblock %}
-    </aside>
+    {# A phone's top bar: the home mark and the live slot. The switch is in its own corner. #}
+    <header class="shell-top">
+      {{ home_mark() }}
+      <p class="live-slot" aria-hidden="true"></p>
+    </header>
+    {# The island. Keyboard order: home, the menu, the live slot (not focusable), the page's main action
+       (island_action, on a phone). #}
+    <div class="island">
+      {{ home_mark() }}
+      <nav class="island-nav" aria-label="Main">{% block nav %}{% endblock %}</nav>
+      <p class="live-slot island-slot" aria-hidden="true"></p>
+      {% block island_action %}{% endblock %}
+    </div>
+    {# Big changes only (last call starting, everyone in), for screen readers. board.js fills it. #}
+    <p class="live-news visually-hidden" role="status" aria-live="polite"></p>
     <div class="shell-content">
       <div class="page">
         {% block content %}{% endblock %}
@@ -37,6 +64,8 @@
   </div>
   {% endblock %}
   <script src="{{ url_for('static', filename='js/ribs.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/hold.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/theme.js') }}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -19,7 +19,7 @@
     <form method="post" action="{{ url_for('refund_continue', event_id=event_id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="action_token" value="{{ action_token }}">
-      <button type="submit">Continue refunding</button>
+      <button class="btn" type="submit">Continue refunding</button>
     </form>
     {% endif %}
     <p><a href="{{ url_for('refund_progress', event_id=event_id) }}">Refresh status</a></p>

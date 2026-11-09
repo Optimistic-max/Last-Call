@@ -11,7 +11,7 @@
    admin.html sets pledge_new_tab and passes share_link; S3 has neither.
    counted_total_text and goal_amount_text are new keys Emmanuel may add. Until then these cards show a
    neutral fallback: how many people are counted, and the percent. #}
-{% from "macros.html" import icon, pledge_link, share_button, stat_card %}
+{% from "macros.html" import icon, pledge_link, ribs, share_button, stat_card %}
 {% set max_label = "Max" %}
 {% set summary_max_label = "max" %}
 {% set share_label = "share now" %}
@@ -20,48 +20,90 @@
 {% set invite_url = share_link if share_link is defined else url_for('pledge_page', event_id=board.event_id) %}
 {% set counted_count = board.rows|selectattr("counted")|list|length %}
 {% set waiting_count = board.rows|selectattr("waiting_on_text")|list|length %}
+{% set people_words = "1 person" if board.rows|length == 1 else (board.rows|length ~ " people") %}
+{% set wallet_faces = 4 %}{# avatars shown in the wallet before "+N" #}
 
 <section class="board" data-event-id="{{ board.event_id }}" data-status="{{ board.status }}"
   {%- if board.seconds_left is not none %} data-seconds-left="{{ board.seconds_left }}"{% endif %}>
 
+  {# The wallet (D100): the hero card with what is held, the time and who's in, the Pledge card peeking out
+     under it, and two thin bars. Every hook board.js uses lives here once: board-held-title, -total and
+     -caption (D97 switches them to Charged after the lock), the countdown-card with its data- words,
+     board-time-title, board-time and the board-pledge link. #}
+  {% set held_caption %}{% if board.status in ["OPEN", "LAST_CALL"] %}PayPal is holding this. Nobody is charged yet.{% elif board.status == "SETTLED" %}Charged once.{% endif %}{% endset %}
+  {% if board.charged_total_text %}
+  {% set wallet_title = "Charged" %}
+  {% set wallet_amount = board.charged_total_text %}
+  {% set wallet_caption = ("Refunded " ~ board.refunded_total_text) if board.refunded_total_text else "Charged once." %}
+  {% else %}
+  {% set wallet_title = "Held so far" %}
+  {% set wallet_amount = board.held_total_text %}
+  {% set wallet_caption = held_caption %}
+  {% endif %}
+  {% set counted_bar_text = (board.counted_total_text ~ " of " ~ board.goal_amount_text) if (board.counted_total_text and board.goal_amount_text) else (board.progress_percent ~ "% of the goal") %}
+  <div class="wallet"{% if board.window_seconds %} data-window-seconds="{{ board.window_seconds }}"{% endif %}>
+    <div class="wallet-stack">
+      <div class="card light-card wallet-hero ribbed">
+        {{ ribs() }}
+        <div class="wallet-top">
+          <p class="countdown-card wallet-time" data-open-title="Time left" data-last-call-title="Last call" data-closed-text="Closed">
+            <span class="board-time-title">{% if board.status == "LAST_CALL" %}Last call{% else %}Time left{% endif %}</span>
+            <span class="board-time" role="timer">{% if board.seconds_left is none %}Closed{% endif %}</span>
+          </p>
+        </div>
+        <h2 class="wallet-label board-held-title">{{ wallet_title }}</h2>
+        <p class="wallet-amount"><span class="wallet-number board-held-total">{{ wallet_amount }}</span><span class="wallet-unit"{% if not wallet_amount.startswith("$") %} hidden{% endif %}>USD</span></p>
+        <p class="wallet-caption board-held-caption">{{ wallet_caption }}</p>
+        <p class="wallet-goal"{% if not board.goal_amount_text %} hidden{% endif %}>Goal {{ board.goal_amount_text }}</p>
+        <div class="wallet-people">
+          {{ share_button(invite_url, "Invite", class_name="wallet-invite board-invite", icon_name="plus", hidden=not board.pledging_open) }}
+          <a class="wallet-avatars" href="#whos-in" aria-label="Who's in: {{ people_words }}"{% if not board.rows %} hidden{% endif %}>
+            {%- for row in board.rows[:wallet_faces] %}<span class="wallet-avatar{% if row.counted and row.status != "FAILED" %} is-counted{% elif row.waiting_on_text %} is-waiting{% endif %}" aria-hidden="true">{{ row.name[:2]|upper }}</span>{% endfor %}
+            {%- if board.rows|length > wallet_faces %}<span class="wallet-more" aria-hidden="true">+{{ board.rows|length - wallet_faces }}</span>{% endif -%}
+          </a>
+        </div>
+      </div>
+      {{ pledge_link(board, "wallet-peek", new_tab=pledge_new_tab) }}
+    </div>
+    <div class="wallet-bars">
+      <div class="wallet-bar">
+        <span class="bar-track"><span class="bar-fill bar-counted" style="--bar: {{ board.progress_percent / 100 }}"></span></span>
+        <p class="bar-label"><span>Counted</span> <span class="bar-value bar-counted-text">{{ counted_bar_text }}</span></p>
+      </div>
+      <div class="wallet-bar">
+        <span class="bar-track">{% if board.window_seconds %}<span class="bar-fill bar-time"></span>{% endif %}</span>
+        <p class="bar-label"><span>Time</span> <span class="bar-value bar-time-text">{% if board.seconds_left is none %}Closed{% endif %}</span></p>
+      </div>
+    </div>
+    {% if board.demo_mode %}<p class="demo-badge">Demo mode: timers are minutes, not hours</p>{% endif %}
+  </div>
+
   <div class="card status-card">
-    <span class="card-bloom" aria-hidden="true"></span>
+    {{ ribs() }}
     <h2 class="card-title">Right now</h2>
     <p class="board-banner" role="status">{{ board.banner_text }}</p>
     {{ pledge_link(board, "button-link status-button", new_tab=pledge_new_tab) }}
   </div>
 
-  <div class="card light-card countdown-card" data-open-title="Time left" data-last-call-title="Last call" data-closed-text="Closed">
-    <span class="card-bloom" aria-hidden="true"></span>
-    <h2 class="card-title board-time-title">{% if board.status == "LAST_CALL" %}Last call{% else %}Time left{% endif %}</h2>
-    <p class="display-number board-time" role="timer">{% if board.seconds_left is none %}Closed{% endif %}</p>
-    {% if board.demo_mode %}<p class="demo-badge">Demo mode: timers are minutes, not hours</p>{% endif %}
-  </div>
-
   <div class="board-stats" tabindex="0" role="group" aria-label="The totals">
-    {% set held_caption %}{% if board.status in ["OPEN", "LAST_CALL"] %}PayPal is holding this. Nobody is charged yet.{% elif board.status == "SETTLED" %}Charged once.{% endif %}{% endset %}
-    {# D97, bare: from the lock on, this first card says Charged and shows charged_total_text (and what was refunded);
-       before that it stays Held so far. board.js makes the same choice on every refresh (showStats). Samuel: restyle
-       both, but keep the choice and the board-held-title / board-held-total / board-held-caption hooks. #}
-    {% if board.charged_total_text %}
-    {% set charged_caption = ("Refunded " ~ board.refunded_total_text) if board.refunded_total_text else "Charged once." %}
-    {{ stat_card("Charged", "board-held-total", board.charged_total_text, "board-held-caption", charged_caption, "progress", "Go to Progress", "light-card", title_class="board-held-title") }}
-    {% else %}
-    {{ stat_card("Held so far", "board-held-total", board.held_total_text, "board-held-caption", held_caption, "progress", "Go to Progress", "light-card", title_class="board-held-title") }}
-    {% endif %}
     {% set counted_text %}{% if board.counted_total_text %}{{ board.counted_total_text }}{% elif counted_count == 1 %}1 person{% else %}{{ counted_count }} people{% endif %}{% endset %}
     {{ stat_card("Counted", "board-counted-total", counted_text, "", "Counts toward the goal", "whos-in", "Go to Who's in") }}
     {{ stat_card("People in", "board-people", board.rows|length, "board-waiting-count", waiting_count ~ " waiting on someone", "whos-in", "Go to Who's in") }}
     {{ stat_card("Goal", "board-goal-amount", board.goal_amount_text or (board.progress_percent ~ "%"), "", "So the club gets the full amount after PayPal's fees", "progress", "Go to Progress") }}
   </div>
 
-  <div class="card progress-card" id="progress">
+  <div class="card progress-card ribbed" id="progress">
+    {{ ribs("ribs-soft") }}
     <h2 class="card-title">Progress</h2>
     <div class="ring board-ring" role="progressbar" aria-valuemin="0" aria-valuemax="100"
       aria-valuenow="{{ board.progress_percent }}" aria-label="Goal progress, counted pledges only">
       {# pathLength="100" makes the arc 100 units long, so a percent can be used as a length. #}
       <svg class="ring-svg" viewBox="0 0 320 182" aria-hidden="true">
         <defs>
+          <linearGradient id="ring-amber" x1="0" y1="0" x2="1" y2="0">
+            <stop class="ring-stop-start" offset="0" stop-color="#FFFFFF"></stop>
+            <stop offset="1" stop-color="#F5B300"></stop>
+          </linearGradient>
           <pattern id="ring-stripes" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
             <line x1="0" y1="0" x2="0" y2="8" stroke="#BDBDBD" stroke-width="3"></line>
           </pattern>
@@ -77,71 +119,150 @@
     </div>
     <progress class="board-progress visually-hidden" aria-hidden="true" max="100" value="{{ board.progress_percent }}">{{ board.progress_percent }}%</progress>
     <ul class="ring-legend">
-      <li><svg class="legend-dot" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="6" fill="#0B0B0B"></circle></svg>Counted</li>
+      <li><svg class="legend-dot" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="6" fill="url(#ring-amber)"></circle></svg>Counted</li>
       <li><svg class="legend-dot" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.5" fill="url(#ring-stripes)" stroke="#BDBDBD"></circle></svg>Still needed</li>
     </ul>
     <p class="board-note">Held money counts once everyone it depends on is in.</p>
   </div>
 
-  <div class="card who-card" id="whos-in">
-    <div class="card-head">
-      <h2 class="card-title">Who's in</h2>
-      {{ share_button(invite_url, "Invite", class_name="button-secondary button-small board-invite", icon_name="plus", hidden=not board.pledging_open) }}
-      <p class="invite-hint"{% if board.status != "DRAFT" %} hidden{% endif %}>Invite opens when pledging starts</p>
-    </div>
-    <ul class="board-rows" data-max-label="{{ max_label }}" data-summary-max-label="{{ summary_max_label }}"
-      data-share-label="{{ share_label }}" data-counted-label="{{ counted_label }}"
-      data-just-pledged-label="{{ just_pledged_label }}">
-      {% for row in board.rows %}
-      {% set is_counted_hold = row.status == "HELD" and row.counted %}
-      <li data-status="{{ row.status }}" data-counted="{% if row.counted %}true{% else %}false{% endif %}"
-        {%- if row.waiting_on_text %} data-waiting="true"{% endif %}>
-        <span class="row-summary visually-hidden">
-          {{- row.name }}: {{ row.status_word }}, {{ summary_max_label }} {{ row.max_text }}
-          {%- if row.estimated_share_text %}, {{ share_label }} {{ row.estimated_share_text }}{% endif %}
-          {%- if row.waiting_on_text %}, {{ row.waiting_on_text }}{% endif %}
-          {%- if is_counted_hold %}, {{ counted_label }}{% endif %}</span>
-        <span class="avatar row-avatar" aria-hidden="true">{{ row.name[:2]|upper }}</span>
-        <span class="row-text" aria-hidden="true">
-          <span class="row-name" dir="auto">{{ row.name }}</span>
-          <span class="row-details">
-            <span class="row-max">{{ max_label }} {{ row.max_text }}</span>
-            {%- if row.estimated_share_text %}
-            <span class="row-share-part">{{ share_label }} <span class="row-share">{{ row.estimated_share_text }}</span></span>
-            {%- endif %}
-            {%- if row.waiting_on_text %}
-            <span class="row-waiting">{{ row.waiting_on_text }}</span>
-            {%- endif %}
-          </span>
-        </span>
-        <span class="status row-chip" aria-hidden="true">
-          {%- if row.waiting_on_text %}{{ row.waiting_on_text }}
-          {%- elif is_counted_hold %}{{ counted_label }}
-          {%- else %}{{ row.status_word }}{% endif %}</span>
-      </li>
-      {% endfor %}
-    </ul>
-    <div class="board-empty"{% if board.rows %} hidden{% endif %}>
-      <p>Nobody has pledged yet. Share the link to start.</p>
-      {{ share_button(invite_url, "Invite", class_name="button-secondary board-invite", hidden=not board.pledging_open) }}
-    </div>
-    {# D96, bare and unstyled: one line per link in board.links, for Samuel to restyle or replace with the
-       dependency diagram. Keep the data the same ({from, to, met}). The wording is a placeholder (D57). Names
-       are escaped by Jinja. Drawn by the server at page load only: board.js does not refresh this list, so a
-       diagram should redraw from board.json every 10 seconds. #}
-    {% if board.links %}
-    <div class="board-links-block">
-      <h3 class="board-links-title">Who depends on whom</h3>
-      <ul class="board-links">
-        {% for link in board.links %}
-        <li class="board-link" data-met="{% if link.met %}true{% else %}false{% endif %}">{{ link.from }} → {{ link.to }} {% if link.met %}✓{% else %}(waiting){% endif %}</li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-  </div>
+  {# Who's in (D102), laid out like a guest list: a summary card with everyone's faces, then the people in
+     groups, each row a pill that opens to show who they depend on (board.links, D96). board.js rebuilds the
+     groups on every refresh with the same markup (makeRow, makeGroup). Its hooks: board-rows (the groups,
+     and its data- words), each li's data-status, data-counted and data-waiting, row-summary, row-name,
+     row-share, board-empty, board-invite and invite-hint. "Waiting on someone" is written only when that
+     group has people: the tests check those words never show while nobody waits. #}
+  {% set after_lock = board.status in ["LOCKING", "CHARGING", "SETTLED", "NEEDS_ATTENTION", "REFUNDING", "REFUNDED"] %}
+  {% set group_order = ["counted", "waiting", "pledged", "charged", "refunded", "attention", "out"] %}
+  {% set group_titles = {"counted": "Counted", "waiting": "Waiting on someone", "pledged": "Pledged", "charged": "Charged",
+                         "refunded": "Refunded", "attention": "Needs attention", "out": "Not in"} %}
+  {% set chip_icons = {"counted": "check", "waiting": "clock", "pledged": "hand-coins", "charged": "check",
+                       "refunded": "wallet", "attention": "x", "out": "x"} %}
+  {% macro group_of(row) -%}
+    {%- if row.status == "CHARGED" %}charged{% elif row.status == "REFUNDED" %}refunded{% elif row.status == "FAILED" %}attention
+    {%- elif row.status == "DECLINED" %}out{% elif row.counted %}counted{% elif row.waiting_on_text %}waiting
+    {%- elif row.status in ["PENDING_PAY", "HELD"] %}pledged{% else %}out{% endif -%}
+  {%- endmacro %}
+  {% macro names_text(names) -%}
+    {%- if names|length == 1 %}{{ names[0] }}{% else %}{{ names[:-1]|join(", ") }} and {{ names[-1] }}{% endif -%}
+  {%- endmacro %}
+  {% set newest = board.rows[-1] if board.rows else none %}
+  {% set charged_count = board.rows|selectattr("status", "equalto", "CHARGED")|list|length %}
+  {% set everyone_counted = board.rows and (board.rows|rejectattr("counted")|list|length == 0) %}
+  {% set who_news %}
+    {%- if not newest %}
+    {%- elif after_lock %}{{ charged_count }} charged once
+    {%- elif everyone_counted %}Everyone's in
+    {%- elif newest.counted and newest.status == "HELD" %}{{ newest.name }} is counted
+    {%- else %}{{ newest.name }} pledged most recently{% endif -%}
+  {% endset %}
+  <section class="card who-card" id="whos-in" aria-labelledby="whos-in-title">
+    <div class="who-backdrop" aria-hidden="true"><span></span><span></span></div>
+    <div class="who-inner">
+      <div class="card-head">
+        <h2 class="card-title" id="whos-in-title">Who's in</h2>
+        {{ share_button(invite_url, "Invite", class_name="button-secondary button-small board-invite", icon_name="plus", hidden=not board.pledging_open) }}
+        <p class="invite-hint"{% if board.status != "DRAFT" %} hidden{% endif %}>Invite opens when pledging starts</p>
+      </div>
 
-  <div class="card how-card" id="how-it-works">
+      <div class="who-summary ribbed"{% if not board.rows %} hidden{% endif %}>
+        {{ ribs("ribs-soft") }}
+        <p class="who-count">{{ board.rows|length }} in</p>
+        <div class="who-cluster" aria-hidden="true">
+          {%- for row in (board.rows|reverse|list)[:11] %}<span class="bubble{% if row.counted and row.status != "FAILED" %} is-counted{% endif %}">{{ row.name[:2]|upper }}</span>{% endfor %}
+          {%- if board.rows|length > 11 %}<span class="bubble bubble-more">+{{ board.rows|length - 11 }}</span>{% endif -%}
+        </div>
+        <p class="who-news" role="status" aria-atomic="true">{{ who_news }}</p>
+      </div>
+
+      <div class="board-rows" data-max-label="{{ max_label }}" data-summary-max-label="{{ summary_max_label }}"
+        data-share-label="{{ share_label }}" data-counted-label="{{ counted_label }}"
+        data-just-pledged-label="{{ just_pledged_label }}">
+        {%- for key in group_order %}
+        {%- set members = [] %}
+        {%- for row in board.rows %}{% if group_of(row)|trim == key %}{% set _ = members.append(row) %}{% endif %}{% endfor %}
+        {%- if members %}
+        <div class="row-group" data-group="{{ key }}">
+          <h3 class="row-group-title">{{ group_titles[key] }} ({{ members|length }})</h3>
+          <ul class="row-list">
+            {%- for row in members %}
+            {%- set is_counted_hold = row.status == "HELD" and row.counted %}
+            {%- set needs = board.links|selectattr("from", "equalto", row.name)|list if board.links else [] %}
+            {%- set waiting_on_them = board.links|selectattr("to", "equalto", row.name)|rejectattr("met")|list|length if board.links else 0 %}
+            {%- set row_id = "deps-" ~ key ~ "-" ~ loop.index %}
+            <li data-status="{{ row.status }}" data-counted="{% if row.counted %}true{% else %}false{% endif %}"
+              {%- if row.waiting_on_text %} data-waiting="true"{% endif %}>
+              {%- if needs or waiting_on_them %}
+              <button class="row-main" type="button" aria-expanded="false" aria-controls="{{ row_id }}">
+              {%- else %}
+              <div class="row-main">
+              {%- endif %}
+                <span class="row-summary visually-hidden">
+                  {{- row.name }}: {{ row.status_word }}, {{ summary_max_label }} {{ row.max_text }}
+                  {%- if row.estimated_share_text %}, {{ share_label }} {{ row.estimated_share_text }}{% endif %}
+                  {%- if row.waiting_on_text %}, {{ row.waiting_on_text }}{% endif %}
+                  {%- if is_counted_hold %}, {{ counted_label }}{% endif %}</span>
+                <span class="avatar row-avatar" aria-hidden="true">{{ row.name[:2]|upper }}</span>
+                <span class="row-text" aria-hidden="true">
+                  <span class="row-name" dir="auto">{{ row.name }}</span>
+                  <span class="row-details">
+                    <span class="row-max">{{ max_label }} {{ row.max_text }}</span>
+                    {%- if row.estimated_share_text %}
+                    <span class="row-share-part">{{ share_label }} <span class="row-share">{{ row.estimated_share_text }}</span></span>
+                    {%- endif %}
+                    {%- if row.waiting_on_text %}
+                    <span class="row-waiting">{{ row.waiting_on_text }}</span>
+                    {%- elif needs %}
+                    <span class="row-if">{% if needs|length == 1 %}if {{ needs[0].to }}'s in{% else %}if {{ names_text(needs|map(attribute="to")|list) }} are in{% endif %}</span>
+                    {%- endif %}
+                  </span>
+                </span>
+                <span class="status row-chip" aria-hidden="true">{{ icon(chip_icons[key]) }}
+                  {%- if row.waiting_on_text %}Waiting{% elif is_counted_hold %}{{ counted_label }}{% else %}{{ row.status_word }}{% endif %}</span>
+              {%- if needs or waiting_on_them %}
+                <span class="row-chevron" aria-hidden="true">{{ icon("chevron-down") }}</span>
+              </button>
+              <div class="row-deps" id="{{ row_id }}" hidden>
+                <ul class="row-deps-list">
+                  {%- for link in needs %}
+                  <li class="row-dep" data-met="{% if link.met %}true{% else %}false{% endif %}">{% if link.met %}{{ icon("check") }}{{ link.to }}'s in{% else %}{{ icon("circle") }}Waiting on {{ link.to }}{% endif %}</li>
+                  {%- endfor %}
+                  {%- if waiting_on_them %}
+                  <li class="row-dep row-dep-them">{{ icon("users") }}{% if waiting_on_them == 1 %}1 person is{% else %}{{ waiting_on_them }} people are{% endif %} waiting on {{ row.name }}</li>
+                  {%- endif %}
+                </ul>
+              </div>
+              {%- else %}
+              </div>
+              {%- endif %}
+            </li>
+            {%- endfor %}
+          </ul>
+        </div>
+        {%- endif %}
+        {%- endfor %}
+      </div>
+      {# D96's list of links, kept with Emmanuel's classes and words because tests/test_board_links.py reads
+         them. Styled as a short overview; each row above opens to the same links in detail. board.js
+         refreshes it. #}
+      {% if board.links %}
+      <div class="board-links-block">
+        <h3 class="board-links-title">Who depends on whom</h3>
+        <ul class="board-links">
+          {%- for link in board.links %}
+          <li class="board-link" data-met="{% if link.met %}true{% else %}false{% endif %}">{{ link.from }} → {{ link.to }} {% if link.met %}✓{% else %}(waiting){% endif %}</li>
+          {%- endfor %}
+        </ul>
+      </div>
+      {% endif %}
+      <div class="board-empty"{% if board.rows %} hidden{% endif %}>
+        <p>Nobody has pledged yet. Share the link to start.</p>
+        {{ share_button(invite_url, "Invite", class_name="button-secondary board-invite", hidden=not board.pledging_open) }}
+      </div>
+    </div>
+  </section>
+
+  <div class="card how-card ribbed" id="how-it-works">
+    {{ ribs("ribs-soft") }}
     <h2 class="card-title">How it works</h2>
     <ul class="how-list">
       <li>{{ icon("hand-coins") }}<span>Pledge the most you'd pay</span></li>

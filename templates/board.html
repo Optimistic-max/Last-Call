@@ -6,12 +6,12 @@
 {% block title %}{{ board.title }}{% endblock %}
 
 {% block nav %}
-<nav class="shell-nav" aria-label="Menu">
   {{ nav_item(url_for('board_page', event_id=board.event_id), "Board", "layout-dashboard", current=true) }}
   {{ pledge_nav_item(board) }}
   {{ nav_item("#how-it-works", "How it works", "circle-help") }}
-</nav>
 {% endblock %}
+
+{% block island_action %}{{ pledge_link(board, "island-action button-amber") }}{% endblock %}
 
 {% block content %}
 <main>
@@ -20,9 +20,9 @@
       <h1>{{ board.title }}</h1>
       <p class="page-goal board-goal">{{ board.goal_text }}</p>
     </div>
-    <div class="page-actions">
+    <div class="page-actions page-actions-board">
       {{ pledge_link(board, "button-link") }}
-      {{ share_button(url_for('pledge_page', event_id=board.event_id), "Invite", class_name="button-secondary board-invite", hidden=not board.pledging_open) }}
+      {{ share_button(url_for('pledge_page', event_id=board.event_id), "Invite", class_name="button-secondary board-invite", hidden=not board.pledging_open, icon_name="plus") }}
     </div>
   </header>
   {% include "board_panel.html" %}

@@ -1,13 +1,19 @@
 {% extends "base.html" %}
+{% from "macros.html" import hold_contents, ribs %}
 {% block title %}Confirm refund-all{% endblock %}
 {% block content %}
 <main>
   <header class="page-header"><h1>Review refunds for {{ title }}</h1></header>
   <section class="card">
-    {% if totals_known %}
-    <h2>Recorded captured payments: {{ totals.amount_cents|dollars }}</h2>
-    {% else %}
-    <h2>Recorded captured payments: incomplete records, total unknown</h2>
+    <div class="refund-summary ribbed">
+      {{ ribs() }}
+      {% if totals_known %}
+      <h2>Recorded captured payments: {{ totals.amount_cents|dollars }}</h2>
+      {% else %}
+      <h2>Recorded captured payments: incomplete records, total unknown</h2>
+      {% endif %}
+    </div>
+    {% if not totals_known %}
     <p role="alert">Some payment records are missing or unresolved, so no total is shown. Refunds stay blocked until they are investigated.</p>
     {% endif %}
     <p>Each full refund returns that captured payment to its participant. PayPal keeps the original processing fees; they are not deducted from the participant's refund.</p>
@@ -21,7 +27,7 @@
     {% if progress.checked < progress.total %}
     <form method="post" id="preflight-form" action="{{ url_for('refund_preflight', event_id=event_id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit">Check next authorization</button>
+      <button class="btn" type="submit">Check next authorization</button>
     </form>
     {% endif %}
     {% endif %}
@@ -41,7 +47,7 @@
     <form method="post" action="{{ url_for('refund_start', event_id=event_id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="action_token" value="{{ action_token }}">
-      <button type="submit">Confirm refund everyone</button>
+      <button class="btn hold-btn" type="submit">{{ hold_contents("Confirm refund everyone") }}</button>
     </form>
     {% endif %}
     <p><a href="{{ url_for('refund_progress', event_id=event_id) }}">View refund status</a></p>

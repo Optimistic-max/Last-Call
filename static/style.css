@@ -8,23 +8,86 @@
 /* Every value on the site comes from these variables, so changing one line here
    changes it everywhere. Contrast ratios are in UI_DESIGN.md section 8. */
 :root {
-  --page: #F3F3F1;         /* page background */
-  --card: #FFFFFF;         /* cards */
-  --ink: #0B0B0B;          /* main text, primary buttons, featured cards, counted */
-  --ink-2: #5C5C5C;        /* secondary text */
-  --ink-3: #8A8A8A;        /* 3.45:1 on white: too faint for small text, so it is for large text only */
-  --line: #E5E5E2;         /* borders and dividers */
-  --held: #9A9A9A;         /* held but not counted, in the gauge */
-  --on-ink: #FFFFFF;       /* text on black */
-  --on-ink-2: #BDBDBD;     /* quieter text on black */
-  --danger: #B42318;       /* only Declined, Charge failed, Needs attention, always with a word */
-  --danger-bg: #FDECEA;
+  /* Colours, dark theme: the default (D103). Every component uses these tokens, so the light theme
+     below only has to give them other values. */
+  --page: #0A0A0A;         /* page background */
+  --card: #141414;         /* cards */
+  --raised: #1C1C1C;       /* a solid surface one step up (reduced transparency) */
+  --ink: #F5F5F3;          /* main text, and the fill of the Counted chip */
+  --ink-2: #A6A6A2;        /* quiet text */
+  --ink-3: #74746F;        /* too faint for small text, so it is for large text only */
+  --line: rgba(255, 255, 255, 0.09);
+  --held: #6E6E6E;         /* held but not counted, in the gauge */
+  --on-ink: #0B0B0B;       /* text on an --ink fill */
+  --on-ink-2: #BDBDBD;     /* quieter text on the black photo cards, in both themes */
+  --amber: #F5B300;        /* light, not paint: glows, rims, the main action (D100) */
+  --amber-deep: #B86E00;   /* the dark end of an amber gradient */
+  --danger-fill: #B42318;  /* the red wave on a danger button, under white words (D103) */
+  --ease-wave: cubic-bezier(0.22, 1, 0.36, 1);   /* the wave on every button (D103) */
+  --amber-soft: rgba(245, 179, 0, 0.18);
+  --amber-glow: rgba(245, 179, 0, 0.35);
+  --amber-shadow: rgba(184, 110, 0, 0.28);
+  --on-accent: #0B0B0B;    /* words on amber, in both themes */
+  --danger: #FF8A7A;       /* only Declined, Charge failed, Needs attention, always with a word */
+  --danger-bg: #3A1F1B;    /* solid, so the red words stay readable over anything behind them */
 
-  /* The greys that gradients are made of. No other hue appears on the page. */
-  --grey-50: #FAFAF9;
-  --grey-100: #F3F3F1;
-  --grey-200: #E8E8E5;
-  --grey-300: #D9D9D5;
+  --glass: rgba(255, 255, 255, 0.07);          /* quiet buttons, the current menu item, round buttons */
+  --glass-strong: rgba(255, 255, 255, 0.14);   /* glass on hover */
+  --glass-layer: rgba(255, 255, 255, 0.06);    /* the hover layer on a quiet button */
+  --glass-line: rgba(255, 255, 255, 0.12);
+  --glass-hi: rgba(255, 255, 255, 0.08);       /* light along a glass edge */
+  --card-hi: rgba(255, 255, 255, 0.05);        /* light along a card's top edge */
+  --banner: #121212;                            /* the sandbox banner and the browser's bar */
+  --bar: rgba(10, 10, 10, 0.72);                /* floating bars */
+  --bar-line: rgba(255, 255, 255, 0.08);
+  --island: rgba(255, 255, 255, 0.08);          /* the floating island's glass */
+  --amber-rim: rgba(245, 179, 0, 0.28);         /* faint amber light along the island's top edge */
+  --row: rgba(255, 255, 255, 0.07);             /* a Who's in row */
+  --row-hover: rgba(255, 255, 255, 0.1);
+  --row-press: rgba(255, 255, 255, 0.03);
+  --soft: rgba(255, 255, 255, 0.05);            /* small pills, the overview of links */
+  --track: rgba(255, 255, 255, 0.1);            /* an empty bar */
+  --bar-start: #FFFFFF;                         /* where a progress bar and the ring start, before amber */
+  --face: #2E2E2E;                              /* a face in the Who's in cluster */
+  --face-ink: #FFFFFF;
+  --face-more: #3A3A3A;
+  --face-ring: #121212;
+  --summary: rgba(255, 255, 255, 0.08);         /* the Who's in summary glass */
+  --summary-line: rgba(255, 255, 255, 0.1);
+  --wave: #F5F5F2;                              /* the wave on a quiet button, and the words on it */
+  --wave-ink: #0A0A0A;
+  --vignette: rgba(245, 179, 0, 0.11);          /* the warm edge of the page */
+  --blob: rgba(168, 146, 120, 0.22);            /* the warm grey blob behind Who's in */
+  --hero-glow: rgba(255, 255, 255, 0.05);       /* a little light behind the landing logo */
+  --hero-shade: rgba(10, 10, 10, 0.72);         /* over the hero's ribs, so the headline stays readable */
+  --hero-ribs-opacity: 1;
+  --hero-ribs-filter: none;
+  --focus-ring: var(--amber);                   /* the focus ring on every button (D103) */
+  --ribs-soft-shade: rgba(20, 20, 20, 0.7);     /* over the quiet ribbed picture: 30% of it shows (D103) */
+  --ribs-soft-glow: rgba(245, 179, 0, 0.18);    /* the amber light along a quiet ribbed card's bottom edge */
+  --note: #1E1C17;                              /* the landing's paper note */
+  --scrim: rgba(0, 0, 0, 0.35);
+  --shadow-ink: rgba(0, 0, 0, 0.35);
+
+  /* Constants: the same in both themes. The black photo cards and their insides stay dark. */
+  --night: #0B0B0B;
+  --paper: #FFFFFF;
+  --fog: #F5F5F2;
+  --photo-line: rgba(255, 255, 255, 0.08);
+  --photo-glass: rgba(255, 255, 255, 0.07);
+  --photo-glass-line: rgba(255, 255, 255, 0.14);
+  --photo-light: rgba(255, 255, 255, 0.07);
+  --photo-ink-2: #E5E5E5;
+  --photo-face: #2E2E2E;
+  --photo-face-more: #3A3A3A;
+  --photo-face-ring: #121212;
+  --photo-shade: rgba(11, 11, 11, 0.6);
+
+  /* The greys that gradients are made of. */
+  --grey-50: #171717;
+  --grey-100: #1C1C1C;
+  --grey-200: #262626;
+  --grey-300: #333333;
   --grey-800: #2A2A2A;
   --grey-900: #161616;
 
@@ -55,13 +118,67 @@
   --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08), 0 24px 48px rgba(0, 0, 0, 0.06);
   --shadow-floating: 0 2px 4px rgba(0, 0, 0, 0.05), 0 12px 32px rgba(0, 0, 0, 0.10);
   --shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.06), 0 16px 40px rgba(0, 0, 0, 0.12);
-  --button-lit: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 20px rgba(0, 0, 0, 0.18);
-  --button-pressed: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 2px 6px rgba(0, 0, 0, 0.18);
+  --button-lit: inset 0 1px 0 rgba(255, 200, 80, 0.5), 0 8px 20px rgba(0, 0, 0, 0.18);
+  --button-pressed: inset 0 1px 0 rgba(255, 200, 80, 0.5), 0 2px 6px rgba(0, 0, 0, 0.18);
 
   --landing-header-height: 64px;
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+/* Colours, light theme (D103): the same design turned around, with the same amber. */
+:root[data-theme="light"] {
+  --page: #F3F3F1;
+  --card: #FFFFFF;
+  --raised: #FAFAF9;
+  --ink: #0B0B0B;
+  --ink-2: #5C5C5C;
+  --ink-3: #8A8A8A;
+  --line: #E5E5E2;
+  --held: #9A9A9A;
+  --on-ink: #FFFFFF;
+  --danger: #B42318;
+  --danger-bg: #FDECEA;
+  --glass: rgba(11, 11, 11, 0.05);
+  --glass-strong: rgba(11, 11, 11, 0.1);
+  --glass-layer: rgba(11, 11, 11, 0.04);
+  --glass-line: rgba(11, 11, 11, 0.1);
+  --glass-hi: rgba(255, 255, 255, 0.7);
+  --card-hi: rgba(255, 255, 255, 0.8);
+  --banner: #E8E8E5;
+  --bar: rgba(255, 255, 255, 0.72);
+  --bar-line: rgba(0, 0, 0, 0.06);
+  --island: rgba(11, 11, 11, 0.06);
+  --row: rgba(11, 11, 11, 0.04);
+  --row-hover: rgba(11, 11, 11, 0.07);
+  --row-press: rgba(11, 11, 11, 0.03);
+  --soft: rgba(11, 11, 11, 0.04);
+  --track: rgba(11, 11, 11, 0.08);
+  --bar-start: #0B0B0B;
+  --face: #E8E8E5;
+  --face-ink: #0B0B0B;
+  --face-more: #D9D9D5;
+  --face-ring: #FFFFFF;
+  --summary: rgba(255, 255, 255, 0.6);
+  --summary-line: rgba(11, 11, 11, 0.08);
+  --wave: #0B0B0B;
+  --wave-ink: #F3F3F1;
+  --vignette: rgba(245, 179, 0, 0.14);
+  --blob: rgba(168, 146, 120, 0.18);
+  --hero-glow: #FFFFFF;
+  --hero-shade: rgba(243, 243, 241, 0.74);
+  --hero-ribs-opacity: 0.4;
+  --hero-ribs-filter: invert(1);
+  --focus-ring: var(--amber-deep);              /* amber, dark enough to show on a light page (3:1) */
+  --ribs-soft-shade: rgba(255, 255, 255, 0.88);
+  --ribs-soft-glow: rgba(245, 179, 0, 0.08);
+  --note: #FFFDF5;
+  --shadow-ink: rgba(0, 0, 0, 0.12);
+  --grey-50: #FAFAF9;
+  --grey-100: #F3F3F1;
+  --grey-200: #E8E8E5;
+  --grey-300: #D9D9D5;
 }
 
 
@@ -92,7 +209,7 @@ html {
 /* tabular-nums gives every digit the same width, so money and times never jump. */
 body {
   margin: 0;
-  background-color: var(--grey-100);
+  background-color: var(--page);
   color: var(--ink);
   font-family: var(--font);
   font-size: var(--text-body);
@@ -110,9 +227,8 @@ body::before {
   inset: 0;
   z-index: -1;
   background-image: var(--grain),
-    radial-gradient(70% 70% at 8% 0%, rgba(255, 255, 255, 0.9), transparent),
-    radial-gradient(70% 70% at 95% 100%, rgba(217, 217, 213, 0.5), transparent);
-  background-size: 200px 200px, auto, auto;
+    radial-gradient(130% 100% at 50% 40%, transparent 55%, var(--vignette));
+  background-size: 200px 200px, auto;
   pointer-events: none;
 }
 
@@ -198,7 +314,7 @@ a {
   min-height: var(--banner-height);
   margin: 0;
   padding: env(safe-area-inset-top, 0px) var(--gutter) 0;
-  background: var(--grey-100);
+  background: var(--banner);
   color: var(--ink-2);
   font-size: 0.75rem;
   font-weight: 500;
@@ -212,35 +328,6 @@ a {
   display: flex;
   flex-direction: column;
   min-height: calc(100dvh - var(--banner-height));
-}
-
-.shell-side {
-  display: flex;
-  flex-direction: column;
-}
-
-.wordmark {
-  display: flex;
-  align-items: center;
-  min-height: 56px;
-  margin: 0;
-  padding-left: var(--gutter);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-}
-
-/* A row of pills that scrolls sideways if it doesn't fit. */
-.shell-nav {
-  display: flex;
-  gap: 8px;
-  padding: 0 var(--gutter) 8px;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-}
-
-.shell-nav::-webkit-scrollbar {
-  display: none;
 }
 
 .nav-item {
@@ -308,8 +395,8 @@ a {
   flex-wrap: wrap;
   gap: 8px;
   padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.72);
+  border-top: 1px solid var(--bar-line);
+  background: var(--bar);
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
   backdrop-filter: blur(16px) saturate(1.4);
 }
@@ -337,7 +424,7 @@ a {
   padding: var(--card-padding);
   border-radius: var(--radius-card);
   background: linear-gradient(180deg, var(--card), var(--grey-50));
-  box-shadow: var(--shadow-rest), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-shadow: var(--shadow-rest), inset 0 1px 0 var(--card-hi);
   border: 1px solid var(--line);
 }
 
@@ -352,9 +439,9 @@ a {
 .light-card {
   position: relative;
   isolation: isolate;
-  border-color: rgba(255, 255, 255, 0.08);
-  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), #0B0B0B 70%);
-  box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border-color: var(--photo-line);
+  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), var(--night) 70%);
+  box-shadow: var(--shadow-raised), inset 0 1px 0 var(--photo-line);
   color: var(--on-ink);
 }
 
@@ -371,32 +458,17 @@ a {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: var(--grain), radial-gradient(circle farthest-corner at 0% 0%, rgba(255, 255, 255, 0.07), transparent 60%);
+  background-image: var(--grain), radial-gradient(circle farthest-corner at 0% 0%, var(--photo-light), transparent 60%);
 }
 
-/* The ribbed picture behind the black cards (Samuel's own file, static/images/ribbed-dark.jpg).
-   It sits on its own layer, bigger than the card, so static/js/ribs.js can slide it sideways when the
-   pointer moves over the card: like looking through fluted glass while moving your head. Only a
-   transform changes, so the text never repaints. The 60% dark layer on top keeps text readable:
+/* The ribbed picture behind the black cards (Samuel's own file, static/images/ribbed-dark.jpg) lives in
+   two layers inside .card-bloom (D103, "Ribbed cards" below). The 60% dark layer keeps text readable:
    over the picture's brightest pixel, white is 6:1 and the quieter text (#E5E5E5) is 4.7:1. */
 .light-card,
 .board[data-status="LAST_CALL"] .status-card {
-  --on-ink-2: #E5E5E5;
-  --ribs-x: 0px;
+  --on-ink-2: var(--photo-ink-2);
   --ribs-mx: 50%;
   --ribs-my: 0%;
-}
-
-.light-card .card-bloom::after,
-.board[data-status="LAST_CALL"] .status-card .card-bloom::after {
-  content: "";
-  position: absolute;
-  inset: -24px;
-  z-index: -1;
-  background: linear-gradient(rgba(11, 11, 11, 0.6), rgba(11, 11, 11, 0.6)),
-    url("images/ribbed-dark.jpg") center / cover;
-  transform: translate3d(var(--ribs-x), 0, 0) scale(1.04);
-  transition: transform 700ms var(--ease-out);
 }
 
 /* A faint light that follows the pointer. It lives on the card's hover layer (.board .card::after),
@@ -405,16 +477,10 @@ a {
 .board .card.light-card::after,
 .board[data-status="LAST_CALL"] .card.status-card::after {
   z-index: -1;
-  background: radial-gradient(320px 240px at var(--ribs-mx) var(--ribs-my), rgba(255, 255, 255, 0.07), transparent 70%);
+  background: radial-gradient(320px 240px at var(--ribs-mx) var(--ribs-my), var(--photo-light), transparent 70%);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .light-card .card-bloom::after,
-  .board[data-status="LAST_CALL"] .status-card .card-bloom::after {
-    transform: scale(1.04);
-    transition: none;
-  }
-
   .board .card.light-card::after,
   .board[data-status="LAST_CALL"] .card.status-card::after {
     background: none;
@@ -445,10 +511,15 @@ a {
 
 /* ---------- Buttons ---------- */
 
-/* The primary button: a black pill with light along its top edge. .button-link is a real link
-   that goes to another page and looks the same. It presses in as soon as a finger lands. */
+/* Every button and button link shares one base (D103): a pill, 48px tall, Inter 600 at 15px in sentence
+   case. The default is a black pill with light along its top edge, in both themes. .button-link is a real
+   link that goes to another page and looks the same. --bink is the colour of the wave that rises on hover,
+   --bsurf the colour of the words on it; each type of button sets its own pair (see "One button system"). */
 button,
-.button-link {
+.button-link,
+.btn {
+  --bink: var(--fog);
+  --bsurf: var(--night);
   position: relative;
   isolation: isolate;
   display: inline-flex;
@@ -456,36 +527,43 @@ button,
   justify-content: center;
   gap: 8px;
   min-height: var(--button-height);
-  padding: 0 20px;
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  padding: 0 22px;
+  overflow: hidden;
+  border: 1px solid var(--photo-line);
   border-radius: 999px;
-  background: linear-gradient(180deg, #3A3A3A, #0B0B0B);
+  background: linear-gradient(180deg, var(--photo-face-more), var(--night));
   box-shadow: var(--button-lit);
   color: var(--on-ink);
   font: inherit;
-  font-size: var(--text-body);
+  font-size: 0.9375rem;
   font-weight: 600;
+  letter-spacing: normal;
+  line-height: 1.2;
   text-decoration: none;
+  text-transform: none;
   cursor: pointer;
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
-  transition: transform 120ms var(--ease-out);
+  transition: transform 120ms var(--ease-out), color 0.45s var(--ease-wave), border-color 0.45s var(--ease-wave);
 }
 
-/* A layer waits on each button and fades in on hover, because fading a layer is cheap and
-   animating a gradient is not. On a primary button it brightens the pill one step. */
+/* The wave: a layer under the words that rises from the bottom, with a curved top, on hover and on
+   keyboard focus. It sits behind the words (z-index -1 inside the button's own layer) because many buttons
+   hold bare text that board.js rewrites, so a label span can't be relied on. Only its transform moves. */
 button::before,
-.button-link::before {
+.button-link::before,
+.btn::before {
   content: "";
   position: absolute;
-  inset: -1px;
+  inset: auto -10% 0;
   z-index: -1;
-  border-radius: inherit;
-  background: rgba(255, 255, 255, 0.10);
-  opacity: 0;
+  height: 120%;
+  border-radius: 45% 45% 0 0 / 14px;
+  background: var(--bink);
   pointer-events: none;
-  transition: opacity 200ms ease;
+  transform: translateY(calc(100% + 2px));   /* the 2px stops a sliver showing at the bottom edge */
+  transition: transform 0.45s var(--ease-wave);
 }
 
 /* A button that can't be pressed yet looks clearly switched off. */
@@ -497,7 +575,8 @@ button:disabled {
   cursor: not-allowed;
 }
 
-button:disabled::before {
+button:disabled::before,
+.btn[aria-disabled="true"]::before {
   display: none;
 }
 
@@ -505,21 +584,12 @@ button:disabled::before {
 .button-secondary,
 .icon-button,
 .nav-item[aria-current="page"] {
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.65);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--glass-line);
+  background: var(--glass);
+  box-shadow: inset 0 1px 0 var(--glass-hi);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   color: var(--ink);
-}
-
-.button-secondary {
-  font-weight: 500;
-}
-
-/* Hover takes the glass from 65% to 85% white. */
-.button-secondary::before {
-  background: rgba(255, 255, 255, 0.57);
 }
 
 .button-full {
@@ -531,59 +601,30 @@ button:disabled::before {
   color: var(--danger);
 }
 
-/* A 40px circle. Its ::after is an invisible ring that makes the tap target 46px. */
+/* A 44px circle, the size of a fingertip. */
 .icon-button {
   position: relative;
+  isolation: isolate;
   display: inline-flex;
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   min-height: 0;
   padding: 0;
+  overflow: hidden;
   border-radius: 50%;
   touch-action: manipulation;
-  transition: transform 120ms var(--ease-out);
-}
-
-.icon-button::after {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: 50%;
-}
-
-.icon-button:active {
-  transform: scale(0.97);
+  transition: transform 120ms var(--ease-out), color 0.45s var(--ease-wave), border-color 0.45s var(--ease-wave);
 }
 
 /* On a black card the small round button is dark glass. */
 .light-card .icon-button {
-  border-color: rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  border-color: var(--photo-glass-line);
+  background: var(--photo-glass);
+  box-shadow: inset 0 1px 0 var(--photo-line);
   color: var(--on-ink);
-}
-
-/* Only a real mouse gets hover looks, because a tap would leave them stuck on a phone. */
-@media (hover: hover) and (pointer: fine) {
-  button:hover:not(:disabled)::before,
-  .button-link:hover::before {
-    opacity: 1;
-  }
-
-  .icon-button:hover {
-    background: rgba(255, 255, 255, 0.85);
-  }
-
-  .light-card .icon-button:hover {
-    background: rgba(255, 255, 255, 0.2);
-  }
-
-  .nav-item:hover {
-    color: var(--ink);
-  }
 }
 
 /* Where glass isn't possible, a stronger white does the same job. */
@@ -591,7 +632,7 @@ button:disabled::before {
   .button-secondary,
   .icon-button,
   .nav-item[aria-current="page"] {
-    background: rgba(255, 255, 255, 0.92);
+    background: var(--raised);
   }
 }
 
@@ -918,35 +959,13 @@ input.ai-filled {
   color: var(--danger);
 }
 
-/* The countdown card. container-type lets the number size itself to the card, because
-   "47:59:12" has to fit a narrow column on a laptop. */
-.countdown-card {
-  display: flex;
-  flex-direction: column;
-  container-type: inline-size;
-}
-
-/* Soft light and grain. The layer is bigger than the card, so its light can drift during last call
-   without showing an edge. */
-.countdown-card .card-bloom::before {
-  inset: -15%;
-  background-image: var(--grain),
-    radial-gradient(circle farthest-corner at 15% 10%, rgba(255, 255, 255, 0.08), transparent 60%);
-}
-
-/* The auto margins center the time in whatever height the card has. */
-.board-time {
-  margin: auto 0;
-  font-size: min(var(--text-display), 24cqi);
-}
-
 /* It sits with the time it explains. The rounded corners suit one line or two, because a narrow
    card on a laptop wraps these words. */
 .demo-badge {
   align-self: flex-start;
   margin: 12px 0 0;
   padding: 4px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid var(--glass-line);
   border-radius: 12px;
   color: var(--on-ink-2);
   font-size: 0.75rem;
@@ -1108,54 +1127,94 @@ input.ai-filled {
   padding: 0 16px;
 }
 
+/* The groups: "Counted (3)", "Waiting on someone (1)" and so on, each a heading and a real list. */
 .board-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.row-group-title {
+  margin: 0 0 8px 6px;
+  color: var(--ink-2);
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.row-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* A phone row: the avatar, then the name and chip on one line, then the details across
-   the rest of the width. display: contents lets the name and details join this grid. */
-.board-rows li {
+/* Each person is a pill of their own: no dividers, 8px apart. */
+.row-list > li {
   position: relative;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0 12px;
-  min-height: 64px;
-  padding: 12px 0;
-  border-top: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--row);
 }
 
-.row-avatar {
-  grid-row: 1 / span 2;
-  align-self: start;
+/* The row itself: avatar, name with the grey line under it, the chip, and a chevron when it opens.
+   A row that opens is a <button>, so the button's own pill look is taken off here. */
+.row-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  box-shadow: none;
+  overflow: visible;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  text-align: left;
+}
+
+button.row-main::before {
+  display: none;
 }
 
 .row-text {
-  display: contents;
-}
-
-.row-name {
-  grid-column: 2;
-  grid-row: 1;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .row-chip {
-  grid-column: 3;
-  grid-row: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.row-details {
-  grid-column: 2 / -1;
-  grid-row: 2;
+.row-chip .icon {
+  width: 14px;
+  height: 14px;
 }
 
-.board-rows li:first-child {
-  border-top: 0;
+.row-chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--ink-2);
 }
 
-.board-rows li[data-counted="true"] .row-avatar {
+.row-chevron .icon {
+  transition: transform 200ms var(--ease-out);
+}
+
+.row-main[aria-expanded="true"] .row-chevron .icon {
+  transform: rotate(180deg);
+}
+
+.row-list > li[data-counted="true"] .row-avatar {
   background: var(--ink);
   color: var(--on-ink);
 }
@@ -1168,17 +1227,20 @@ input.ai-filled {
   overflow-wrap: anywhere;
 }
 
+/* The grey note under the name, in italics like a guest's note. */
 .row-details {
   display: flex;
   flex-wrap: wrap;
   gap: 0 6px;
   color: var(--ink-2);
   font-size: var(--text-caption);
+  font-style: italic;
   overflow-wrap: anywhere;
 }
 
 .row-share-part::before,
-.row-waiting::before {
+.row-waiting::before,
+.row-if::before {
   content: "· ";
 }
 
@@ -1199,33 +1261,30 @@ input.ai-filled {
   white-space: nowrap;
 }
 
-.board-rows li[data-status="HOLD_PENDING"] .row-chip {
+.row-list > li[data-status="HOLD_PENDING"] .row-chip {
   border-style: dashed;
   border-color: var(--line);
 }
 
-.board-rows li[data-status="HELD"] .row-chip {
+.row-list > li[data-status="HELD"] .row-chip {
   border-color: var(--line);
   background: var(--line);
 }
 
-/* Only this chip may be cut short with dots, because the line under the name shows the
-   same words in full. A "Charged $x" chip is money, so it is never cut. */
-.board-rows li[data-waiting="true"] .row-chip {
-  max-width: 8rem;
+.row-list > li[data-waiting="true"] .row-chip {
   border-color: var(--ink);
   background: var(--card);
 }
 
-.board-rows li[data-counted="true"] .row-chip {
+.row-list > li[data-counted="true"] .row-chip {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--on-ink);
 }
 
 /* Last, because a failed charge also has data-counted="true". */
-.board-rows li[data-status="DECLINED"] .row-chip,
-.board-rows li[data-status="FAILED"] .row-chip {
+.row-list > li[data-status="DECLINED"] .row-chip,
+.row-list > li[data-status="FAILED"] .row-chip {
   border-color: var(--danger-bg);
   background: var(--danger-bg);
   color: var(--danger);
@@ -1275,11 +1334,11 @@ input.ai-filled {
 }
 
 .status-card .card-bloom {
-  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), #0B0B0B 70%);
+  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), var(--night) 70%);
 }
 
 .status-card .card-bloom::before {
-  background-image: var(--grain), radial-gradient(circle farthest-corner at 0% 0%, rgba(255, 255, 255, 0.07), transparent 60%);
+  background-image: var(--grain), radial-gradient(circle farthest-corner at 0% 0%, var(--photo-light), transparent 60%);
 }
 
 .board[data-status="LAST_CALL"] .status-card .card-bloom {
@@ -1297,11 +1356,6 @@ input.ai-filled {
   color: var(--ink);
 }
 
-/* The countdown card's light drifts slowly during last call. Only a layer moves. */
-.board[data-status="LAST_CALL"] .countdown-card .card-bloom::before {
-  animation: bloom-drift 4s ease-in-out infinite alternate;
-}
-
 /* First load: the cards rise and fade in one after another. These elements are never rebuilt,
    so this runs once. "backwards" lets go of the card afterwards, so hover can move it. */
 .board .card,
@@ -1310,7 +1364,7 @@ input.ai-filled {
   animation-delay: calc(var(--order, 0) * 40ms);
 }
 
-.countdown-card { --order: 1; }
+.wallet-hero { --order: 1; }
 .stat-card:nth-child(1) { --order: 2; }
 .stat-card:nth-child(2) { --order: 3; }
 .stat-card:nth-child(3) { --order: 4; }
@@ -1318,12 +1372,6 @@ input.ai-filled {
 .progress-card { --order: 6; }
 .who-card { --order: 7; }
 .how-card { --order: 8; }
-
-/* The countdown card breathes during last call, after it has finished coming in. */
-.board[data-status="LAST_CALL"] .countdown-card {
-  animation: card-enter 300ms var(--ease-out) backwards, countdown-pulse 2s ease-in-out 340ms infinite;
-  animation-delay: calc(var(--order, 0) * 40ms), 340ms;
-}
 
 /* The moments board.js marks. Each element's normal rule is its final look, so reduced
    motion loses only the movement. */
@@ -1392,11 +1440,6 @@ input.ai-filled {
   from { background-color: var(--line); color: var(--ink); }
 }
 
-@keyframes bloom-drift {
-  from { transform: translate(-5%, 4%); }
-  to { transform: translate(5%, -4%); }
-}
-
 @keyframes fade-in {
   from { opacity: 0; }
 }
@@ -1417,10 +1460,6 @@ input.ai-filled {
 @keyframes text-out {
   from { opacity: 1; transform: translateY(0); }
   to { opacity: 0; transform: translateY(-8px); }
-}
-
-@keyframes countdown-pulse {
-  50% { transform: scale(1.02); }
 }
 
 /* The Copy button's words crossfade. */
@@ -1456,29 +1495,10 @@ input.ai-filled {
   gap: 12px;
   height: var(--landing-header-height);
   padding: 0 var(--gutter);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.72);
+  border-bottom: 1px solid var(--bar-line);
+  background: var(--bar);
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
   backdrop-filter: blur(16px) saturate(1.4);
-}
-
-/* Liquid glass on the sticky header (D99). The SVG filter in create_event.html bends the page as it
-   scrolls under the bar, like a wavy glass window. Only Chrome-family browsers can use an SVG filter
-   inside backdrop-filter, and others may drop the whole rule, so landing.js adds .liquid-glass to
-   <html> only there. Everyone else keeps the frosted glass above. The 72% white behind the text
-   stays, so the header's text is as readable as before. */
-.glass-filter {
-  position: absolute;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-}
-
-@media (prefers-reduced-transparency: no-preference) {
-  .liquid-glass .landing-header {
-    -webkit-backdrop-filter: url(#liquid-glass) blur(10px) saturate(1.4);
-    backdrop-filter: url(#liquid-glass) blur(10px) saturate(1.4);
-  }
 }
 
 .landing-brand {
@@ -1497,7 +1517,7 @@ input.ai-filled {
 
 .landing-logo {
   width: auto;
-  height: 28px;
+  height: 24px;
 }
 
 .landing-name {
@@ -1549,7 +1569,9 @@ input.ai-filled {
   inset: 0;
   z-index: -1;
   background-image: var(--grain),
-    radial-gradient(45% 55% at 50% 35%, #FFFFFF, transparent);
+    radial-gradient(45% 55% at 50% 35%, var(--hero-glow), transparent),
+    radial-gradient(120% 90% at 50% 45%, transparent 50%, var(--amber-soft)),
+    linear-gradient(var(--hero-shade), var(--hero-shade));
 }
 
 /* The logo as a raised white tile. Scrolling moves .hero-tile; hover wiggles the face inside it. */
@@ -1566,7 +1588,7 @@ input.ai-filled {
   height: 100%;
   border-radius: 24px;
   background: var(--card);
-  box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-shadow: var(--shadow-raised), inset 0 1px 0 var(--card-hi);
   place-items: center;
   border: 1px solid var(--line);
 }
@@ -1610,7 +1632,7 @@ input.ai-filled {
   padding: 14px;
   border-radius: 18px;
   background: var(--card);
-  box-shadow: var(--shadow-floating), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-shadow: var(--shadow-floating), inset 0 1px 0 var(--card-hi);
   text-align: left;
   transform: rotate(var(--tilt, 0deg)) scale(var(--piece-scale, 1));
   border: 1px solid var(--line);
@@ -1672,10 +1694,10 @@ input.ai-filled {
 
 .piece-black {
   min-width: 140px;
-  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), #0B0B0B 70%);
-  box-shadow: var(--shadow-floating), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), var(--night) 70%);
+  box-shadow: var(--shadow-floating), inset 0 1px 0 var(--photo-line);
   color: var(--on-ink);
-  border-color: rgba(255, 255, 255, 0.08);
+  border-color: var(--photo-line);
 }
 
 .piece-black .piece-caption {
@@ -1714,7 +1736,7 @@ input.ai-filled {
   position: relative;
   max-width: 200px;
   padding-top: 20px;
-  background: #FFFDF5;
+  background: var(--note);
   font-size: 1.0625rem;
   font-weight: 500;
   line-height: 1.3;
@@ -2101,7 +2123,7 @@ html:has(.share-panel[open]) {
 }
 
 .share-panel::backdrop {
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--scrim);
   -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
   animation: fade-in 300ms ease;
@@ -2114,7 +2136,7 @@ html:has(.share-panel[open]) {
   overflow-y: auto;
   border-radius: 24px 24px 0 0;
   background: linear-gradient(180deg, var(--card), var(--grey-50));
-  box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-shadow: var(--shadow-raised), inset 0 1px 0 var(--card-hi);
   transition: transform 200ms var(--ease-out);
 }
 
@@ -2261,10 +2283,10 @@ html:has(.share-panel[open]) {
   justify-content: center;
   width: 56px;
   height: 56px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--glass-line);
   border-radius: 50%;
   background: var(--grey-100);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 1px 0 var(--glass-hi);
   transition: transform 120ms var(--ease-out);
 }
 
@@ -2331,13 +2353,7 @@ html:has(.share-panel[open]) {
   transition: transform 200ms var(--ease-out);
 }
 
-.icon-button .icon {
-  transition: transform 200ms var(--ease-out);
-}
-
-.board-rows li {
-  margin: 0 -12px;
-  padding: 12px;
+.row-list > li {
   transition: background-color 200ms ease;
 }
 
@@ -2355,23 +2371,12 @@ html:has(.share-panel[open]) {
     transition-duration: 200ms;
   }
 
-  .board-rows li:hover {
-    border-radius: 12px;
-    background: var(--grey-100);
+  .row-list > li:hover {
+    background: var(--row-hover);
   }
 
-  .board-rows li:hover .row-avatar {
+  .row-list > li:hover .row-avatar {
     transform: scale(1.05);
-  }
-
-  /* The arrow leans the way it points. */
-  .icon-button:hover .icon {
-    transform: translate(2px, -2px);
-  }
-
-  button:hover:not(:disabled):not(.icon-button),
-  .button-link:hover {
-    transform: translateY(-1px);
   }
 
   /* The logo wiggles when pointed at. Never money, the countdown or a status chip. */
@@ -2379,18 +2384,6 @@ html:has(.share-panel[open]) {
   .landing-brand:hover .landing-logo {
     animation: wiggle 450ms ease-in-out;
   }
-}
-
-/* A press comes last, so it beats hover. The shadow shrinks as the button goes in. */
-button:active:not(:disabled),
-.button-link:active {
-  box-shadow: var(--button-pressed);
-  transform: scale(0.97);
-}
-
-.button-secondary:active:not(:disabled),
-.icon-button:active:not(:disabled) {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 /* Wiggle: sometimes, never constantly. Shake is for a field with an error. */
@@ -2417,6 +2410,1809 @@ button:active:not(:disabled),
 }
 
 
+/* ---------- Amber light (D100) ---------- */
+
+/* Amber is light, not paint: a glow under or behind things, a rim on an edge, the warm edge of a dark
+   page, the one active thing and the main action. It never shows a status on its own and never sits
+   behind small text. An amber gradient has two stops, is radial and off-centre, and has grain on top. */
+
+/* The page's one most important action: Hold my max, Create. A solid amber pill with black words. */
+.button-amber {
+  border-color: var(--photo-glass-line);
+  background: var(--amber);
+  box-shadow: inset 0 1px 0 var(--card-hi), 0 8px 20px var(--amber-shadow);
+  color: var(--on-accent);
+}
+
+/* A warm glow under the landing page's logo tile. */
+.hero-tile {
+  position: relative;
+}
+
+.hero-tile::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  right: -60%;
+  bottom: -44px;
+  left: -60%;
+  height: 96px;
+  background-image: var(--grain), radial-gradient(closest-side at 50% 40%, var(--amber-glow), transparent);
+  background-size: 200px 200px, auto;
+  -webkit-mask-image: radial-gradient(closest-side, #000, transparent);
+  mask-image: radial-gradient(closest-side, #000, transparent);
+  pointer-events: none;
+}
+
+
+/* ---------- The dark pages: S2, S3 and the pledge page (D100) ---------- */
+
+/* Black things keep white words: the black cards, the dark buttons, and the status card in last call. */
+.light-card,
+.piece-black,
+button:not(.button-secondary):not(.icon-button):not(.row-main),
+.button-link,
+.board[data-status="LAST_CALL"] .status-card {
+  --on-ink: var(--paper);
+}
+
+/* The white Join last call pill keeps black words. */
+.board[data-status="LAST_CALL"] .status-card {
+  --ink: var(--night);
+}
+
+/* The pledge form stays a light card. PayPal draws its card fields in its own frames with dark text,
+   which a dark card would hide. */
+:root:not([data-theme="light"]) #pledge {
+  --card: #FFFFFF;
+  --grey-50: #FAFAF9;
+  --grey-100: #F3F3F1;
+  --grey-200: #E8E8E5;
+  --grey-300: #D9D9D5;
+  --ink: #0B0B0B;
+  --ink-2: #5C5C5C;
+  --ink-3: #8A8A8A;
+  --line: #E5E5E2;
+  --held: #9A9A9A;
+  --on-ink: #FFFFFF;
+  --danger: #B42318;
+  --danger-bg: #FDECEA;
+  --glass: rgba(255, 255, 255, 0.65);
+  --glass-line: rgba(0, 0, 0, 0.08);
+  --glass-hi: rgba(255, 255, 255, 0.9);
+  --glass-layer: rgba(255, 255, 255, 0.57);
+  --wave: #0B0B0B;
+  --wave-ink: #F3F3F1;
+  --card-hi: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 var(--card-hi);
+  color: var(--ink);
+}
+
+/* The menu on a phone: the page you're on keeps white words and gets an amber line that glows. */
+.nav-item[aria-current="page"] {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  color: var(--ink);
+}
+
+.nav-item[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  right: 16px;
+  bottom: 6px;
+  left: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--amber);
+  box-shadow: 0 0 10px var(--amber-glow);
+}
+
+/* The phone's bottom bar is dark glass. */
+/* The counted arc goes from white to amber along the stroke. The still-needed stripes stay grey. */
+.ring-counted {
+  stroke: url(#ring-amber);
+}
+
+/* The ring starts in the page's ink (white on dark, black on light) and ends in amber. */
+.ring-stop-start {
+  stop-color: var(--bar-start);
+}
+
+
+/* ---------- The wallet: the top of the board (D100) ---------- */
+
+.wallet {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* The hero and the Pledge card peeking out under it, like two cards in a wallet. */
+.wallet-stack {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Amber light spreading onto the page under the stack. The mask fades its edges, grain included. */
+.wallet-stack::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  right: 0;
+  bottom: -56px;
+  left: 0;
+  height: 150px;
+  background-image: var(--grain), radial-gradient(closest-side at 45% 50%, var(--amber-glow), transparent);
+  background-size: 200px 200px, auto;
+  -webkit-mask-image: radial-gradient(closest-side, #000, transparent);
+  mask-image: radial-gradient(closest-side, #000, transparent);
+  pointer-events: none;
+}
+
+.wallet-hero {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 20px 24px;
+  border-radius: 32px;
+  text-align: center;
+  container-type: inline-size;
+}
+
+/* Amber light from the hero's bottom edge, on the layer above the ribbed picture, under the grain. */
+.wallet-hero .card-bloom::before {
+  background-image: var(--grain),
+    radial-gradient(90% 55% at 45% 110%, var(--amber-glow), transparent);
+}
+
+.wallet-top {
+  display: flex;
+  align-self: stretch;
+  justify-content: flex-end;
+}
+
+/* The time: a small pill, top right. In last call an amber ring pulses gently around it, and the words
+   say "Last call", so the colour is never the only sign. */
+.wallet-time {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid var(--photo-glass-line);
+  border-radius: 999px;
+  background: var(--photo-glass);
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+
+.wallet-time .board-time-title {
+  color: var(--on-ink-2);
+}
+
+.wallet-time .board-time {
+  color: var(--on-ink);
+  font-weight: 600;
+}
+
+/* Before pledging opens and after it ends the pill just says "Closed". */
+.board:not([data-status="OPEN"]):not([data-status="LAST_CALL"]) .wallet-time .board-time-title {
+  display: none;
+}
+
+.board[data-status="LAST_CALL"] .wallet-time {
+  border-color: var(--amber);
+}
+
+.board[data-status="LAST_CALL"] .wallet-time::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border: 1px solid var(--amber);
+  border-radius: inherit;
+  pointer-events: none;
+  animation: time-ring 2s var(--ease-out) infinite;
+}
+
+.wallet-label {
+  margin: 12px 0 6px;
+  color: var(--on-ink-2);
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+
+/* The amount: huge, centred, with a small unit beside it. It shrinks with the card, so "$50,000.00"
+   still fits a 320px phone. */
+.wallet-amount {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  line-height: 1;
+}
+
+.wallet-number {
+  font-size: min(3.5rem, 15cqi);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.wallet-unit {
+  color: var(--on-ink-2);
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.wallet-caption {
+  max-width: 34ch;
+  margin: 12px 0 0;
+  color: var(--on-ink-2);
+  font-size: var(--text-caption);
+}
+
+.wallet-caption:empty {
+  display: none;
+}
+
+.wallet-goal {
+  margin: 12px 0 0;
+  padding: 4px 12px;
+  border: 1px solid var(--photo-glass-line);
+  border-radius: 999px;
+  background: var(--photo-glass);
+  color: var(--on-ink-2);
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+
+/* Who's in: a round + (Invite), then up to four faces and +N. The faces link to Who's in. */
+.wallet-people {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.wallet-invite {
+  width: 56px;
+  height: 56px;
+  min-height: 56px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: 0 6px 18px var(--scrim);
+  color: var(--night);
+}
+
+.wallet-invite .icon {
+  width: 24px;
+  height: 24px;
+}
+
+.wallet-invite .button-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.wallet-avatars {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding-left: 12px;
+  border-radius: 999px;
+  color: var(--paper);
+  text-decoration: none;
+}
+
+.wallet-avatar,
+.wallet-more {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-left: -12px;
+  border: 2px solid var(--photo-face-ring);
+  border-radius: 50%;
+  background: var(--photo-face);
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+
+/* Counted: a thin amber ring. Waiting on someone: dimmed. Who's in says both in words. */
+.wallet-avatar.is-counted {
+  box-shadow: 0 0 0 2px var(--amber);
+}
+
+.wallet-avatar.is-waiting {
+  opacity: 0.55;
+}
+
+.wallet-more {
+  background: var(--photo-face-more);
+}
+
+/* The Pledge card peeking 56px out under the hero: the real Pledge link (pledge_link), hidden while
+   pledging is closed. board.js sets its words, so the + is drawn by CSS. */
+.wallet-peek {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-end;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  min-height: 112px;
+  margin: -56px 12px 0;
+  padding: 0 20px 17px;
+  border-radius: 32px;
+  background-image: var(--grain), radial-gradient(130% 120% at 30% 100%, var(--amber), var(--amber-deep));
+  background-size: 200px 200px, auto;
+  box-shadow: inset 0 1px 0 var(--photo-glass-line), 0 16px 40px var(--amber-shadow);
+  color: var(--on-accent);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  text-decoration: none;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 200ms var(--ease-out);
+}
+
+.wallet-peek::before {
+  content: "+" / "";
+}
+
+.wallet-peek:active {
+  transform: translateY(2px) scale(0.98);
+}
+
+/* Two thin bars under the stack, each with its words under it. The Time bar appears only when the
+   server says how long the window is. */
+.wallet-bars {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+  margin-top: 28px;
+}
+
+.bar-track {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--track);
+}
+
+/* Without window_seconds the Time bar has no fill, and its empty track only keeps the two bars level. */
+.bar-track:not(:has(.bar-fill)) {
+  visibility: hidden;
+}
+
+.bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--bar-start), var(--amber));
+  transform: scaleX(var(--bar, 0));
+  transform-origin: left;
+  transition: transform 600ms var(--ease-out);
+}
+
+/* The bar's name, with its value on the line under it, so both bars line up whatever the words. */
+.bar-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+
+.bar-value {
+  color: var(--ink);
+}
+
+.wallet .demo-badge {
+  margin: 0;
+  border-color: var(--glass-line);
+  color: var(--ink-2);
+}
+
+/* Motion. Each is short, and the reduced-motion rule at the end turns them all off. */
+.amount-changed {
+  animation: amount-in 300ms var(--ease-out);
+}
+
+.avatar-new {
+  animation: avatar-pop 220ms var(--ease-out) backwards;
+}
+
+/* In last call the amber light under the stack breathes, very slowly. */
+.board[data-status="LAST_CALL"] .wallet-stack::after {
+  animation: glow-breathe 8s ease-in-out infinite alternate;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .wallet-stack:hover .wallet-peek {
+    transform: translateY(6px);
+  }
+}
+
+@keyframes time-ring {
+  from {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.12, 1.5);
+  }
+}
+
+@keyframes amount-in {
+  from {
+    opacity: 0.25;
+    filter: blur(2px);
+  }
+}
+
+@keyframes avatar-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes glow-breathe {
+  from {
+    opacity: 0.55;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+
+/* ---------- Who's in (D102) ---------- */
+
+/* Behind the card: the dark base with two big soft blobs, amber and warm grey, drifting very slowly,
+   and grain on top. Only transform moves, and reduced motion stops it. */
+.who-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.who-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.who-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain);
+  background-size: 200px 200px;
+}
+
+.who-backdrop span {
+  position: absolute;
+  width: 80%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+
+.who-backdrop span:first-child {
+  top: -25%;
+  left: -30%;
+  background: radial-gradient(closest-side, var(--amber-soft), transparent);
+  animation: blob-drift-a 20s ease-in-out infinite alternate;
+}
+
+.who-backdrop span:last-child {
+  right: -30%;
+  bottom: -20%;
+  background: radial-gradient(closest-side, var(--blob), transparent);
+  animation: blob-drift-b 20s ease-in-out infinite alternate;
+}
+
+/* On a laptop the list keeps a readable width in the middle of the card. */
+.who-inner {
+  position: relative;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+/* The summary, like a guest list's "12 Going" card: the count, everyone's faces, the newest news. */
+.who-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 24px;
+  padding: 20px 16px 18px;
+  border: 1px solid var(--summary-line);
+  border-radius: 28px;
+  background: var(--summary);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  text-align: center;
+}
+
+.who-count {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+.who-news {
+  min-height: 1.5em;
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+/* The faces in different sizes, the newest biggest in the middle. Each place is set in a 300 by 160
+   box and scales with the card (cqi), so the cluster fits a 320px phone. */
+.who-cluster {
+  position: relative;
+  width: min(100%, 300px);
+  aspect-ratio: 300 / 160;
+  container-type: inline-size;
+}
+
+.bubble {
+  position: absolute;
+  top: calc(var(--y) / 160 * 100%);
+  left: calc(var(--x) / 300 * 100%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--d) / 300 * 100cqi);
+  height: calc(var(--d) / 300 * 100cqi);
+  border: 2px solid var(--face-ring);
+  border-radius: 50%;
+  background: var(--face);
+  color: var(--face-ink);
+  font-size: calc(var(--d) / 300 * 36cqi);
+  font-weight: 600;
+  transform: translate(-50%, -50%);
+}
+
+.bubble:nth-child(1) { --x: 150; --y: 95; --d: 84; }
+.bubble:nth-child(2) { --x: 222; --y: 100; --d: 60; }
+.bubble:nth-child(3) { --x: 78; --y: 100; --d: 60; }
+.bubble:nth-child(4) { --x: 190; --y: 32; --d: 52; }
+.bubble:nth-child(5) { --x: 112; --y: 30; --d: 50; }
+.bubble:nth-child(6) { --x: 252; --y: 40; --d: 46; }
+.bubble:nth-child(7) { --x: 50; --y: 42; --d: 44; }
+.bubble:nth-child(8) { --x: 280; --y: 102; --d: 34; }
+.bubble:nth-child(9) { --x: 20; --y: 104; --d: 32; }
+.bubble:nth-child(10) { --x: 151; --y: 16; --d: 28; }
+.bubble:nth-child(11) { --x: 226; --y: 146; --d: 26; }
+.bubble:nth-child(12) { --x: 70; --y: 142; --d: 36; }
+
+/* Counted: a thin amber ring. The rows say it in words. */
+.bubble.is-counted {
+  box-shadow: 0 0 0 2px var(--amber);
+}
+
+.bubble-more {
+  background: var(--face-more);
+}
+
+/* When everyone is in, a soft amber glow comes up behind the faces for a moment. */
+.who-cluster::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  z-index: -1;
+  background: radial-gradient(closest-side at 50% 55%, var(--amber-glow), transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cluster-glow::after {
+  animation: cluster-glow 1.2s var(--ease-out);
+}
+
+/* What a row opens to: who this person needs, and who needs them. */
+.row-deps {
+  padding: 0 14px 14px 66px;
+  animation: deps-in 200ms var(--ease-out);
+}
+
+.row-deps-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  font-size: 0.875rem;
+  list-style: none;
+}
+
+.row-dep {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.row-dep .icon {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-2);
+}
+
+.row-dep[data-met="true"] .icon {
+  color: var(--amber);
+}
+
+/* D96's overview of who depends on whom: a row of small pills under the groups. */
+.board-links-block {
+  margin-top: 24px;
+}
+
+.board-links-title {
+  margin: 0 0 8px 6px;
+  color: var(--ink-2);
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.board-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-link {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--soft);
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+
+/* Counted: a white chip with black words and a thin amber ring. */
+.row-list > li[data-status="HELD"][data-counted="true"] .row-chip {
+  border-color: var(--paper);
+  background: var(--paper);
+  box-shadow: 0 0 0 1.5px var(--amber);
+  color: var(--night);
+}
+
+/* A new face pops in, and a new row slides into its group (.row-new). */
+.bubble-new {
+  animation: bubble-pop 300ms var(--ease-out) backwards;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  button.row-main:hover {
+    background: var(--row-press);
+  }
+}
+
+/* Reduced transparency: solid surfaces instead of see-through ones. */
+@media (prefers-reduced-transparency: reduce) {
+  .who-summary {
+    background: var(--raised);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .row-list > li {
+    background: var(--raised);
+  }
+}
+
+@keyframes blob-drift-a {
+  to {
+    transform: translate(18%, 12%);
+  }
+}
+
+@keyframes blob-drift-b {
+  to {
+    transform: translate(-16%, -10%);
+  }
+}
+
+@keyframes bubble-pop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+}
+
+@keyframes cluster-glow {
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes deps-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+
+/* ---------- One button system (D103) ---------- */
+
+/* Every button and button link hovers, presses and focuses the same way. On hover or keyboard focus a wave
+   rises from the bottom (0.45s), a press shrinks the button to 97%, and the keyboard ring is amber. Only
+   the colours change by type, and they follow one rule, so they never look random: the wave is the colour
+   the button isn't, and the words turn to whatever reads on the wave.
+     the default dark pill    a white wave, black words
+     .btn-glass (quiet)       a white wave on dark, a black wave on light; the words flip
+     .btn-amber (main action) a white wave; the words stay black
+     .btn-white               an amber wave, black words
+     .btn-danger              a red wave, white words
+     .btn-icon (round)        a circle of amber grows from the bottom; the icon turns black
+   The older class names map onto the same types, so markup that tests read (class="button-link" on Review
+   refunds) keeps working: .button-secondary is glass, .button-amber is amber, .button-danger is danger,
+   .icon-button is an icon button. Not part of this: the theme switch, links in running text, form fields,
+   the Who's in rows and the wallet's Pledge card. */
+
+/* The quiet glass buttons. */
+.btn-glass,
+.button-secondary {
+  --bink: var(--wave);
+  --bsurf: var(--wave-ink);
+}
+
+/* The one main action per area: amber with black words. */
+.btn-amber,
+.button-amber {
+  --bink: var(--paper);
+  --bsurf: var(--on-accent);
+}
+
+/* White buttons: Join last call during last call, and the round Invite on the wallet. */
+.btn-white,
+.board[data-status="LAST_CALL"] .status-button {
+  --bink: var(--amber);
+  --bsurf: var(--night);
+}
+
+/* Danger: I'm out, and cancelling a hold. At rest they are glass with red words. */
+.btn-danger,
+.button-danger {
+  --bink: var(--danger-fill);
+  --bsurf: var(--paper);
+}
+
+.btn-danger:not(.button-secondary) {
+  border-color: var(--glass-line);
+  background: var(--glass);
+  box-shadow: inset 0 1px 0 var(--glass-hi);
+  color: var(--danger);
+}
+
+/* Icon buttons: the round arrows, Close, the wallet's Invite, the island's menu and the header's round share
+   buttons. Their wave is a circle of amber that grows from the button's bottom point. A circle grown from a
+   point on its own edge always stays inside the button, so nothing needs clipping, and the island's words,
+   which stand outside the button on a laptop, still show. */
+.btn-icon,
+.icon-button,
+.island .nav-item {
+  --bink: var(--amber);
+  --bsurf: var(--night);
+}
+
+.island .nav-item {
+  isolation: isolate;
+  transition: transform 120ms var(--ease-out), color 0.45s var(--ease-wave);
+}
+
+.btn-icon::before,
+.icon-button::before,
+.island .nav-item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  height: auto;
+  border-radius: inherit;
+  background: var(--bink);
+  pointer-events: none;
+  transform: scale(0);
+  transform-origin: 50% 100%;
+  transition: transform 0.45s var(--ease-wave);
+}
+
+@media (min-width: 1024px) {
+  .page-actions .share-button {
+    --bink: var(--amber);
+    --bsurf: var(--night);
+  }
+
+  .page-actions .share-button::before {
+    inset: 0;
+    height: auto;
+    border-radius: inherit;
+    transform: scale(0);
+    transform-origin: 50% 100%;
+  }
+}
+
+/* The share panel's round app tiles rise the same way. */
+.share-tile-icon {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition: transform 120ms var(--ease-out), color 0.45s var(--ease-wave), border-color 0.45s var(--ease-wave);
+}
+
+.share-tile-icon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--amber);
+  transform: scale(0);
+  transform-origin: 50% 100%;
+  transition: transform 0.45s var(--ease-wave);
+}
+
+/* Hover: only a real mouse, because a tap would leave the wave stuck up on a phone. */
+@media (hover: hover) and (pointer: fine) {
+  :is(button, .button-link, .btn, .icon-button, .island .nav-item):not(.row-main):not(:disabled):not([aria-disabled="true"]):hover::before {
+    transform: none;
+  }
+
+  :is(button, .button-link, .btn, .icon-button, .island .nav-item):not(.row-main):not(:disabled):not([aria-disabled="true"]):hover {
+    border-color: var(--bink);
+    color: var(--bsurf);
+  }
+
+  .share-tile:hover .share-tile-icon::before {
+    transform: none;
+  }
+
+  .share-tile:hover .share-tile-icon {
+    border-color: var(--amber);
+    color: var(--night);
+  }
+
+  /* While the wave is up, the hold ring takes the words' colour, so it shows on the wave. */
+  .hold-btn:hover .prog {
+    stroke: currentColor;
+  }
+}
+
+/* Keyboard focus: the same wave, and the amber ring. */
+:is(button, .button-link, .btn, .icon-button, .island .nav-item):not(.row-main):focus-visible::before {
+  transform: none;
+}
+
+:is(button, .button-link, .btn, .icon-button, .island .nav-item):not(.row-main):focus-visible {
+  border-color: var(--bink);
+  color: var(--bsurf);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.hold-btn:focus-visible .prog {
+  stroke: currentColor;
+}
+
+.share-tile:focus-visible .share-tile-icon::before {
+  transform: none;
+}
+
+.share-tile:focus-visible .share-tile-icon {
+  color: var(--night);
+}
+
+/* The press: every button shrinks to 97% the moment a finger or the mouse goes down. */
+:is(button, .button-link, .btn, .icon-button, .nav-item):not(.row-main):not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+
+
+/* ---------- Hold to confirm (D102) ---------- */
+
+/* A money button that acts only after it is held for 800ms (static/js/hold.js). No long-press menu, no
+   text selection and no double-tap zoom while a finger holds it. */
+.hold-btn {
+  gap: 10px;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+/* Without hold.js these stay hidden, and the button works as a normal button. */
+.hold-ring,
+.hold-btn > .icon,
+.hold-hint {
+  display: none;
+}
+
+.hold-js .hold-btn .hold-ring {
+  display: block;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  transform: rotate(-90deg);
+}
+
+.hold-ring circle {
+  fill: none;
+  stroke-width: 9;
+}
+
+.hold-track {
+  stroke: currentColor;
+  opacity: 0.25;
+}
+
+/* The ring fills while held and drains back when let go early. It is progress, so it still fills with
+   reduced motion (see the end of this file). */
+.hold-btn .prog {
+  stroke: var(--amber);
+  stroke-dasharray: 207;
+  stroke-dashoffset: 207;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.2s ease-out;
+}
+
+.hold-btn.holding .prog {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.8s linear;
+}
+
+.button-amber .prog {
+  stroke: var(--on-accent);
+}
+
+.hold-btn.done .hold-ring {
+  display: none;
+}
+
+.hold-btn.done > .icon {
+  display: block;
+  animation: check-in 200ms var(--ease-out);
+}
+
+.hold-js .hold-hint {
+  display: inline;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.hold-status {
+  min-height: 1.5em;
+  margin: 8px 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+}
+
+/* Under a full-width button the line is centred; under any other it starts where the button starts. */
+.button-full + .hold-status {
+  text-align: center;
+}
+
+@keyframes check-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+
+/* ---------- One theme, the switch, the home mark and the island (D103) ---------- */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The handshake mark: white on dark, black on light. */
+.logo-on-light {
+  display: none;
+}
+
+:root[data-theme="light"] .logo-on-dark {
+  display: none;
+}
+
+:root[data-theme="light"] .logo-on-light {
+  display: inline-block;
+}
+
+/* The home link on every page: the mark, 24px tall like the island's icons, centred in a 44px target. */
+.home-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 999px;
+}
+
+.home-mark .logo-mark {
+  width: auto;
+  height: 24px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .home-mark:hover .logo-mark {
+    animation: wiggle 450ms ease-in-out;
+  }
+}
+
+/* The theme switch, as given, with our tokens. Checked is dark mode. The label is padded to 44px tall for a
+   finger; the track stays 28px. */
+.switch {
+  --primary: var(--amber);
+  --secondary: var(--night);
+  --surface: var(--fog);
+  --on: var(--amber);
+  --off: color-mix(in srgb, var(--secondary) 22%, var(--surface));
+  --thumb: var(--surface);
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  min-height: 44px;
+  margin: 0;                /* the page's label rule adds a gap under labels; the switch needs none */
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch .track {
+  position: relative;
+  width: 52px;
+  height: 28px;
+  border-radius: 9999px;
+  background: var(--off);
+  transition: background 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.switch .thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--thumb);
+  place-items: center;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.switch input:checked + .track {
+  background: var(--on);
+}
+
+.switch input:checked + .track .thumb {
+  transform: translateX(24px);
+  background: var(--secondary);
+}
+
+.switch input:focus-visible + .track {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.sw-17 .thumb {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), width 0.2s ease, background 0.3s ease;
+}
+
+.sw-17 .track:active .thumb {
+  width: 32px;
+}
+
+.sw-17 input:checked + .track:active .thumb {
+  transform: translateX(14px);
+}
+
+/* A small sun in light mode, a moon in dark mode. */
+.switch .thumb .icon {
+  display: none;
+  width: 12px;
+  height: 12px;
+}
+
+.switch input:not(:checked) + .track .thumb .icon:first-child {
+  display: block;
+  color: var(--amber-deep);
+}
+
+.switch input:checked + .track .thumb .icon:last-child {
+  display: block;
+  color: var(--amber);
+}
+
+/* The island: one floating glass pill that holds the menu, the live slot and the main action. */
+.island,
+.landing-header.island-top {
+  border: 1px solid var(--glass-line);
+  background: var(--island);
+  box-shadow: 0 12px 32px var(--shadow-ink), inset 0 1px 0 var(--amber-rim);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+}
+
+.island-nav {
+  display: flex;
+  gap: 2px;
+}
+
+.island .nav-item .icon {
+  display: block;
+}
+
+/* The page's main action, in amber, on a phone. */
+.island-action {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* The live slot: the time left, last call, everyone in, or charged. Empty means it isn't shown. */
+.live-slot {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.live-slot:empty {
+  display: none;
+}
+
+.live-slot.is-last-call::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 8px var(--amber-glow);
+}
+
+::view-transition-group(live-slot) {
+  animation-duration: 350ms;
+  animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* On a phone: a top bar with the home mark and the live slot; the island floats at the bottom with the menu
+   and the main action, the only bar on the screen. The theme switch has its own corner. */
+@media (max-width: 1023.98px) {
+  .shell-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px var(--gutter);
+  }
+
+  .shell-top .live-slot {
+    padding: 6px 12px;
+    border: 1px solid var(--glass-line);
+    border-radius: 999px;
+    background: var(--island);
+    view-transition-name: live-slot;
+  }
+
+  .island {
+    position: fixed;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    max-width: calc(100% - 24px);
+    padding: 6px;
+    border-radius: 999px;
+    transform: translateX(-50%);
+  }
+
+  .island > .home-mark,
+  .island-slot {
+    display: none;
+  }
+
+  .island .nav-item {
+    flex-direction: column;
+    gap: 0;
+    min-height: 48px;
+    padding: 4px 10px;
+    font-size: 0.6875rem;
+  }
+
+  .island .nav-item .icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .island .nav-item[aria-current="page"]::after {
+    bottom: 2px;
+  }
+
+  /* The main action already says Pledge, so the menu doesn't repeat it. */
+  .island:has(.island-action) .nav-item.board-pledge {
+    display: none;
+  }
+
+  /* The header's buttons sit in the page now, not in a bar of their own. */
+  .page-actions {
+    position: static;
+    padding: 0;
+    margin-top: 16px;
+    border: 0;
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  /* On the board the island carries Pledge, and the wallet and Who's in carry Invite. */
+  .page-actions-board {
+    display: none;
+  }
+}
+
+/* On a laptop: the island floats at the left, centred, and the page takes the width the sidebar had. */
+@media (min-width: 1024px) {
+  .shell-top {
+    display: none;
+  }
+
+  .island {
+    position: fixed;
+    top: 50%;
+    left: 20px;
+    z-index: 15;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 64px;
+    padding: 10px 0;
+    border-radius: 32px;
+    transform: translateY(-50%);
+  }
+
+  .island-nav {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  /* Each link is a round icon; its words slide out beside it on hover and keyboard focus. */
+  .island .nav-item {
+    justify-content: center;
+    width: 44px;
+    min-height: 44px;
+    margin: 0;
+    padding: 0;
+    border-radius: 50%;
+  }
+
+  .island .nav-item > span {
+    position: absolute;
+    top: 50%;
+    left: calc(100% + 14px);
+    padding: 6px 12px;
+    border: 1px solid var(--glass-line);
+    border-radius: 999px;
+    background: var(--card);
+    box-shadow: 0 8px 20px var(--shadow-ink);
+    color: var(--ink);
+    font-size: var(--text-caption);
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-6px, -50%);
+    transition: opacity 200ms ease, transform 200ms var(--ease-out);
+  }
+
+  .island .nav-item:focus-visible > span {
+    opacity: 1;
+    transform: translate(0, -50%);
+  }
+
+  .island .nav-item[aria-current="page"] {
+    border-color: transparent;
+    background: var(--ink);
+    color: var(--on-ink);
+  }
+
+  .island .nav-item[aria-current="page"]::after {
+    display: none;
+  }
+
+  /* The live slot fits the island's width: two short lines at most. */
+  .island-slot {
+    width: 56px;
+    font-size: 0.6875rem;
+    line-height: 1.25;
+    text-align: center;
+    white-space: normal;
+    view-transition-name: live-slot;
+  }
+
+  .island-slot.is-last-call::before {
+    display: block;
+    margin: 0 auto 4px;
+  }
+
+  .island-action {
+    display: none;
+  }
+
+  .shell-content {
+    padding-left: 96px;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (min-width: 1024px) {
+  .island .nav-item:hover > span {
+    opacity: 1;
+    transform: translate(0, -50%);
+  }
+}
+
+/* The landing page's island, at the top: home, two links and Start a pledge in amber. It sticks while the
+   page scrolls and shrinks a little after 80px (transform only). */
+.landing-header.island-top {
+  position: sticky;
+  top: 12px;
+  z-index: 18;
+  justify-content: flex-start;
+  gap: 16px;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  height: auto;
+  margin: 12px auto 0;
+  padding: 6px 6px 6px 16px;
+  border-radius: 999px;
+  transform-origin: top center;
+}
+
+.landing-header.island-top .landing-start {
+  min-height: 44px;
+}
+
+/* In the island the two links sit in the row, not centred across the page as they were in the old header. */
+.landing-header.island-top .landing-nav {
+  position: static;
+  gap: 20px;
+  transform: none;
+}
+
+.landing-nav a,
+.landing-name,
+.landing-header.island-top .landing-start {
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .landing-header.island-top {
+    gap: 10px;
+    padding-left: 12px;
+  }
+
+  .landing-header.island-top .landing-start {
+    padding: 0 14px;
+  }
+}
+
+/* Where glass isn't possible, or someone asked for less transparency, the island is solid. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .island,
+  .landing-header.island-top {
+    background: var(--card);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .island,
+  .landing-header.island-top {
+    background: var(--card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: scroll()) {
+    .landing-header.island-top {
+      animation: island-shrink linear both;
+      animation-range: 0 80px;
+      animation-timeline: scroll(root);
+    }
+  }
+}
+
+.scroll-fallback .landing-header.island-top {
+  transform: scale(calc(1 - 0.06 * min(1, var(--progress, 0) * 7.5)));
+}
+
+@keyframes island-shrink {
+  to {
+    transform: scale(0.94);
+  }
+}
+
+/* The moving ribs behind the hero (D103): the ribbed picture, inverted and fainter in light mode,
+   under the shade. Two layers, each with one job: .hero-ribs-drift drifts on its own on a 36-second loop,
+   and .ribs-follow inside it slides up to 20px against the pointer (ribs.js). Transform only, and reduced
+   motion stops both. */
+.hero-ribs-layer {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hero-ribs-layer .hero-ribs-drift {   /* two classes, so it beats the cards' .ribs-drift further down */
+  position: absolute;
+  inset: -48px;
+  animation: ribs-drift-hero 36s ease-in-out infinite alternate;
+}
+
+.hero-ribs-drift .ribs-follow {
+  background: url("images/ribbed-dark.jpg") center / cover;
+  filter: var(--hero-ribs-filter);
+  opacity: var(--hero-ribs-opacity);
+  transform: translate3d(calc(var(--ribs-x, 0px) * 20 / 14), 0, 0);
+}
+
+@keyframes ribs-drift-hero {
+  from {
+    transform: translateX(-20px) scale(1.02);
+  }
+
+  to {
+    transform: translateX(20px) scale(1.08);
+  }
+}
+
+/* More amber on the landing page, as light: amber icons in How it works, an amber glow under the pieces and
+   an amber edge on hover. */
+.how-step .icon {
+  color: var(--amber);
+}
+
+.piece-body {
+  box-shadow: var(--shadow-floating), 0 18px 40px var(--amber-soft), inset 0 1px 0 var(--card-hi);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .how-step:hover {
+    border-color: var(--amber-soft);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch .track,
+  .switch .thumb {
+    transition-duration: 0.01ms !important;
+  }
+
+  .sw-17 .track:active .thumb {
+    width: 22px;
+  }
+
+  .sw-17 input:checked + .track:active .thumb {
+    transform: translateX(24px);
+  }
+}
+
+
+/* ---------- The theme switch's corner (D103) ---------- */
+
+/* The switch, on its own: a small glass pill fixed to the top-right corner of every page. It sits above the
+   page (z-index 20) and under any dialog, because an open dialog is in the browser's top layer. The pill is
+   about 70px wide, so --corner-clear is the room it needs, with a gap: anything at the top of the page that
+   could reach the right edge stops short of it. */
+:root {
+  --corner-clear: calc(max(16px, env(safe-area-inset-right, 0px)) + 78px);
+}
+
+.theme-corner {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px));
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid var(--glass-line);
+  border-radius: 999px;
+  background: var(--island);
+  box-shadow: 0 8px 24px var(--shadow-ink), inset 0 1px 0 var(--amber-rim);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+}
+
+/* The sandbox notice centres its words in the room left of the switch, so the pill never covers them. */
+@media (max-width: 1023.98px) {
+  .sandbox-banner {
+    padding-right: var(--corner-clear);
+    text-align: center;
+    text-wrap: balance;
+  }
+
+  /* The phone's top bar: the live slot stops short of the switch. */
+  .shell-top {
+    padding-right: var(--corner-clear);
+  }
+}
+
+/* The landing island moves to the left on narrower screens, so it never runs under the switch. */
+@media (max-width: 860px) {
+  .landing-header.island-top {
+    max-width: calc(100% - max(12px, env(safe-area-inset-left, 0px)) - var(--corner-clear));
+    margin-right: auto;
+    margin-left: max(12px, env(safe-area-inset-left, 0px));
+    transform-origin: top left;
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-header.island-top {
+    gap: 8px;
+    padding: 4px 4px 4px 12px;
+  }
+
+  .landing-name {
+    font-size: 1rem;
+  }
+}
+
+/* On the smallest phones the name is read out but not shown, so the mark and Start a pledge still fit. */
+@media (max-width: 379.98px) {
+  .landing-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* On a laptop the page's header buttons stop short of the switch. */
+@media (min-width: 1024px) {
+  .page-header {
+    padding-right: var(--corner-clear);
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .theme-corner {
+    background: var(--card);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .theme-corner {
+    background: var(--card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ---------- Ribbed cards (D103) ---------- */
+
+/* The ribbed picture (Samuel's own file, static/images/ribbed-dark.jpg, one cached image for every card)
+   sits in two layers inside .card-bloom, which keeps it inside the card's rounded corners:
+     .ribs-drift   drifts on its own: a slow sideways and scale loop (CSS animation)
+     .ribs-follow  holds the picture and slides against the pointer (ribs.js sets --ribs-x)
+   Each layer owns one transform, so the drift and the pointer add up instead of cancelling. Both move by
+   transform only, so the words never repaint. Touch gets the drift only; reduced motion stops both (the
+   reduced-motion block at the end turns every animation and transition off). ribs.js pauses the drift of
+   a card that is off screen (.ribs-paused).
+   Two levels:
+     full   the wallet hero, last call's status card, the landing's countdown piece and the refund total:
+            the picture under a 60% dark layer, in both themes, because these cards stay black.
+     soft   (.ribs-soft) the stat cards, Progress, How it works, the Who's in summary, the treasurer's share
+            card, the share panel's header and the error pages: 30% of the picture shows under a darker
+            layer, with a faint amber light along the bottom edge, and it moves at most 8px.
+   Never behind a dense list, a form field or a paragraph of body text. In light mode only the stat cards
+   (short, big numbers) and the error pages keep the soft level, in light colours. */
+.ribbed,
+.share-sheet {
+  position: relative;
+  isolation: isolate;
+}
+
+.ribs-drift {
+  position: absolute;
+  inset: -32px;
+  z-index: -1;
+  animation: ribs-drift-card 21s ease-in-out infinite alternate;
+}
+
+.ribs-follow {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(var(--photo-shade), var(--photo-shade)),
+    url("images/ribbed-dark.jpg") center / cover;
+  transform: translate3d(var(--ribs-x, 0px), 0, 0);
+  transition: transform 700ms var(--ease-out);
+}
+
+/* Three classes, so the pause beats every rule that sets a card's animation. */
+:is(.card-bloom, .hero-ribs-layer) .ribs-drift.ribs-paused {
+  animation-play-state: paused;
+}
+
+@keyframes ribs-drift-card {
+  from {
+    transform: translateX(-12px) scale(1.04);
+  }
+
+  to {
+    transform: translateX(12px) scale(1.09);
+  }
+}
+
+/* The quiet level: a darker layer over the picture, and amber light rising from the bottom edge. */
+.ribs-soft .ribs-drift {
+  animation: ribs-drift-soft 24s ease-in-out infinite alternate;
+}
+
+.ribs-soft .ribs-follow {
+  background: linear-gradient(var(--ribs-soft-shade), var(--ribs-soft-shade)),
+    url("images/ribbed-dark.jpg") center / cover;
+  transform: translate3d(calc(var(--ribs-x, 0px) * 8 / 14), 0, 0);
+}
+
+.ribs-soft::before {
+  background-image: var(--grain),
+    radial-gradient(70% 45% at 50% 112%, var(--ribs-soft-glow), transparent);
+}
+
+@keyframes ribs-drift-soft {
+  from {
+    transform: translateX(-8px) scale(1.04);
+  }
+
+  to {
+    transform: translateX(8px) scale(1.07);
+  }
+}
+
+/* On the soft cards the quieter words are a step lighter, so they stay 4.5:1 over the picture's brightest
+   ribs. Light mode keeps its own greys. */
+:root:not([data-theme="light"]) .ribbed:not(.light-card),
+:root:not([data-theme="light"]) .share-sheet {
+  --ink-2: var(--photo-ink-2);
+}
+
+/* The Who's in summary's glass has nothing to blur once the picture fills it, so it skips the blur. */
+:root:not([data-theme="light"]) .who-summary.ribbed {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Light mode: the soft picture stays only on the short big-number cards and the error pages. */
+:root[data-theme="light"] .ribs-soft {
+  display: none;
+}
+
+:root[data-theme="light"] .stat-card .ribs-soft,
+:root[data-theme="light"] .ribs-page {
+  display: block;
+}
+
+/* Last call's status card shows its picture only during last call, so the drift rests until then. */
+.board:not([data-status="LAST_CALL"]) .status-card .ribs-drift {
+  animation-play-state: paused;
+}
+
+/* The landing's countdown piece: full strength, a black photo card in both themes. */
+.piece-black .card-bloom {
+  border-radius: inherit;
+}
+
+/* The refund total: a black tile at the top of the review card, the only ribbed part of that card, because
+   the rest holds paragraphs, a list and forms. It stays black in both themes. */
+.refund-summary {
+  --on-ink: var(--paper);
+  margin: 0 0 16px;
+  padding: 20px;
+  border: 1px solid var(--photo-line);
+  border-radius: 24px;
+  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), var(--night) 70%);
+  box-shadow: inset 0 1px 0 var(--photo-line);
+  color: var(--paper);
+}
+
+.refund-summary h2 {
+  margin: 0;
+  font-size: 1.375rem;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+/* The share panel's header: a band of the soft picture behind the title, fading out above the link. */
+.ribs-band {
+  bottom: auto;
+  height: 132px;
+  -webkit-mask-image: linear-gradient(#000 50%, transparent);
+  mask-image: linear-gradient(#000 50%, transparent);
+}
+
+/* The error pages: the soft picture behind the whole page, under the card. */
+.ribs-page {
+  position: fixed;
+  border-radius: 0;
+}
+
 /* ---------- Keyboard focus ---------- */
 
 /* A black ring around whatever the keyboard is on. :focus-visible shows it
@@ -2442,45 +4238,29 @@ button:active:not(:disabled),
     --gutter: 32px;
     --card-padding: 24px;
     --card-gap: 20px;
-    --button-height: 44px;
   }
 
-  /* The sidebar stays put while the page scrolls. */
-  .shell {
-    flex-direction: row;
-  }
-
-  .shell-side {
-    position: sticky;
-    top: 0;
-    flex: none;
-    width: 248px;
-    height: 100dvh;
-  }
-
-  .wordmark {
-    min-height: 0;
-    padding: 32px 0 32px var(--gutter);
-  }
-
-  .shell-nav {
-    flex-direction: column;
-    gap: 4px;
+  /* The header's share buttons become round icon buttons; their words stay for screen readers. */
+  .page-actions .share-button {
+    width: 44px;
+    min-height: 44px;
+    height: 44px;
     padding: 0;
-    overflow-x: visible;
+    border-radius: 50%;
   }
 
-  /* The menu fills the sidebar. The page you're on is a glass bar, the others are plain words. */
-  .nav-item .icon {
-    display: block;
+  .page-actions .share-button .button-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
-  .nav-item {
-    display: flex;
-    gap: 12px;
-    padding: 0 16px;
-    border-radius: 16px;
-    margin: 0 16px;
+  /* On a laptop the wallet's Pledge card is in view, so the header doesn't repeat it. */
+  .page-actions .board-pledge {
+    display: none;
   }
 
   .page {
@@ -2516,41 +4296,28 @@ button:active:not(:disabled),
     width: auto;
   }
 
-  /* The board: two columns on a small laptop. */
+  /* The board: the wallet on the left at 440px at most, the totals and Progress to its right. */
   .board {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 440px) minmax(0, 1fr);
     grid-template-areas:
-      "status countdown"
-      "stats stats"
-      "progress progress"
-      "who who"
-      "how how";
+      "wallet stats"
+      "wallet progress"
+      "status how"
+      "who who";
     align-items: start;
   }
 
+  .wallet { grid-area: wallet; }
   .status-card { grid-area: status; align-self: stretch; }
-  .countdown-card { grid-area: countdown; align-self: stretch; }
   .board-stats { grid-area: stats; }
   .progress-card { grid-area: progress; align-self: stretch; }
   .who-card { grid-area: who; }
   .how-card { grid-area: how; align-self: stretch; }
 
-  /* A laptop row is one line: avatar, name with details, chip on the right. */
-  .board-rows li {
-    display: flex;
-  }
-
-  .row-text {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    min-width: 0;
-  }
-
   /* The totals stop scrolling and sit in a plain grid. */
   .board-stats {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--card-gap);
     margin: 0;
     padding: 0;
@@ -2602,30 +4369,6 @@ button:active:not(:disabled),
 }
 
 
-/* ---------- Wide laptops: the full dashboard ---------- */
-
-@media (min-width: 1200px) {
-  .board {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-template-areas:
-      "stats stats stats stats"
-      "progress progress countdown how"
-      "who who status status";
-  }
-
-  .board-stats {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  /* The status card keeps its own height and stays in view beside a long list. */
-  .board .status-card {
-    position: sticky;
-    top: 12px;
-    align-self: start;
-  }
-}
-
-
 /* ---------- Reduced motion ---------- */
 
 /* If someone has asked their phone or computer for less motion, turn off
@@ -2637,6 +4380,11 @@ button:active:not(:disabled),
   *::after {
     animation: none !important;
     transition: none !important;
+  }
+
+  /* The hold ring is progress, not decoration, so it still fills over the 800ms. */
+  .hold-btn.holding .prog {
+    transition: stroke-dashoffset 0.8s linear !important;
   }
 
   /* The share panel still needs to arrive and leave, so it fades instead of sliding. */

@@ -16,7 +16,8 @@
    refresh, and swaps the label during last call. #}
 {% macro pledge_link(board, class_name, new_tab=false) -%}
 {%- set url = url_for('pledge_page', event_id=board.event_id) -%}
-<a class="board-pledge {{ class_name }}" data-pledge-url="{{ url }}" data-pledge-label="Pledge" data-last-call-label="Join last call"
+{%- set kind = " btn btn-amber" if "button-amber" in class_name else (" btn" if "button-link" in class_name else "") -%}
+<a class="board-pledge {{ class_name }}{{ kind }}" data-pledge-url="{{ url }}" data-pledge-label="Pledge" data-last-call-label="Join last call"
   {%- if board.pledging_open %} href="{{ url }}"{% else %} hidden{% endif %}
   {%- if new_tab %} target="_blank" rel="noopener"{% endif %}>
   {%- if board.status == "LAST_CALL" %}Join last call{% else %}Pledge{% endif %}</a>
@@ -33,7 +34,8 @@
    pledge path on S3. It is never this page's own address. phone_label is what the button says on a
    phone, when that differs from label. #}
 {% macro share_button(url, label, class_name="button-secondary", phone_label="", button_id="", hidden=false, icon_name="") -%}
-<button class="share-button {{ class_name }}" type="button" data-share-url="{{ url }}"
+{%- set kind = "btn-amber" if "button-amber" in class_name else ("btn-white btn-icon" if "wallet-invite" in class_name else ("btn-glass" if "button-secondary" in class_name else "")) -%}
+<button class="share-button {{ class_name }} btn{% if kind %} {{ kind }}{% endif %}" type="button" data-share-url="{{ url }}"
   {%- if phone_label %} data-phone-label="{{ phone_label }}"{% endif %}
   {%- if button_id %} id="{{ button_id }}"{% endif %}
   {%- if hidden %} hidden{% endif %}>{% if icon_name %}{{ icon(icon_name) }}{% endif %}<span class="button-label">{{ label }}</span></button>
@@ -42,11 +44,11 @@
 {# One of the four totals on the board. number_class and caption_class are board.js's hooks. target is
    the id of the card the arrow scrolls to. #}
 {% macro stat_card(title, number_class, number, caption_class, caption, target, target_label, extra_class="", title_class="") -%}
-<div class="card stat-card {{ extra_class }}">
-  {%- if extra_class %}<span class="card-bloom" aria-hidden="true"></span>{% endif %}
+<div class="card stat-card ribbed {{ extra_class }}">
+  {{- ribs("" if extra_class else "ribs-soft") }}
   <div class="stat-top">
     <h2 class="card-title{% if title_class %} {{ title_class }}{% endif %}">{{ title }}</h2>
-    <a class="icon-button" href="#{{ target }}" aria-label="{{ target_label }}">{{ icon("arrow-up-right") }}</a>
+    <a class="icon-button btn btn-icon" href="#{{ target }}" aria-label="{{ target_label }}">{{ icon("arrow-up-right") }}</a>
   </div>
   <p class="display-number stat-number {{ number_class }}">{{ number }}</p>
   <p class="stat-caption {{ caption_class }}">{{ caption }}</p>
@@ -72,13 +74,14 @@
   data-intro="Join our pledge for {{ title }}. Nobody pays unless we reach the goal."
   data-subject="Pledge for {{ title }}">
   <div class="share-sheet">
+    {{ ribs("ribs-soft ribs-band") }}
     <div class="share-grab" aria-hidden="true"></div>
-    <button id="share-panel-close" class="icon-button share-close" type="button" aria-label="Close">{{ icon("x") }}</button>
+    <button id="share-panel-close" class="icon-button share-close btn btn-icon" type="button" aria-label="Close">{{ icon("x") }}</button>
     <h2 id="share-panel-title" class="share-title">Invite friends</h2>
     <p class="share-note">They pledge with this link. Nobody pays unless the goal is reached.</p>
     <div class="share-link-row">
       <p class="share-link-field"><span class="share-link-start"></span><span class="share-link-end"></span></p>
-      <button id="share-panel-copy" type="button" autofocus data-copied-label="Copied ✓"
+      <button id="share-panel-copy" class="btn" type="button" autofocus data-copied-label="Copied ✓"
         data-manual-label="Press and hold to copy"><span class="button-label">Copy link</span></button>
     </div>
     <p class="share-with">Send with</p>
@@ -88,7 +91,41 @@
       {{ share_tile("telegram", "Telegram", "send", "Share on Telegram") }}
       {{ share_tile("email", "Email", "mail", "Share by email") }}
     </div>
-    <button id="share-panel-more" class="button-secondary button-full" type="button" hidden>More apps</button>
+    <button id="share-panel-more" class="button-secondary button-full btn btn-glass" type="button" hidden>More apps</button>
   </div>
 </dialog>
+{%- endmacro %}
+
+{# The inside of a hold-to-confirm button (static/js/hold.js, D102): the amber ring, the check, the label,
+   and words for screen readers. A ring of radius 33 is about 207 around, which the CSS uses. Without
+   hold.js the ring and the hint stay hidden and the button works as usual. #}
+{% macro hold_contents(label) -%}
+<svg class="hold-ring" viewBox="0 0 72 72" aria-hidden="true" focusable="false"><circle class="hold-track" cx="36" cy="36" r="33"></circle><circle class="prog" cx="36" cy="36" r="33"></circle></svg>
+{{- icon("check") }}<span class="hold-label">{{ label }}</span><span class="hold-hint">, press and hold to confirm</span>
+{%- endmacro %}
+
+{# The ribbed picture inside a card (D103): .card-bloom keeps it inside the rounded corners, .ribs-drift
+   drifts on its own (CSS), and .ribs-follow holds the picture and follows the pointer (static/js/ribs.js).
+   Two layers, so the drift and the pointer never fight over one transform. level is "" for full strength
+   or "ribs-soft" for the quieter version. Decoration only, so screen readers skip it. #}
+{% macro ribs(level="") -%}
+<span class="card-bloom{% if level %} {{ level }}{% endif %}" aria-hidden="true"><span class="ribs-drift"><span class="ribs-follow"></span></span></span>
+{%- endmacro %}
+
+{# The handshake mark in both colours: white on dark, black on light. The CSS shows the right one for the
+   theme (D103), so the page never waits for a script. #}
+{% macro logo_pair(class_name="", alt="") -%}
+<img class="logo-mark logo-on-dark {{ class_name }}" src="{{ url_for('static', filename='img/logo-white.svg') }}" alt="{{ alt }}" width="51" height="32">
+<img class="logo-mark logo-on-light {{ class_name }}" src="{{ url_for('static', filename='img/logo.svg') }}" alt="{{ alt }}" width="51" height="32">
+{%- endmacro %}
+
+{# The home link on every page: the mark, with words for screen readers (D103). #}
+{% macro home_mark() -%}
+<a class="home-mark" href="/">{{ logo_pair() }}<span class="visually-hidden">Last Call, home</span></a>
+{%- endmacro %}
+
+{# The theme switch (D103): checked is dark mode. static/js/theme.js keeps it, data-theme on <html> and
+   localStorage in step. The sun shows in light mode and the moon in dark mode. #}
+{% macro theme_switch(switch_id="theme-switch") -%}
+<label class="switch sw-17"><input type="checkbox" role="switch" id="{{ switch_id }}" class="theme-input" checked><span class="track"><span class="thumb">{{ icon("sun") }}{{ icon("moon") }}</span></span><span class="sr-only">Dark mode</span></label>
 {%- endmacro %}
