@@ -1,0 +1,3 @@
+# The frozen AI test messages (D74): git must never change this file's line endings,
+# or its SHA-256 would no longer match the one recorded in docs/DECISIONS.md.
+tests/ai_test_messages.json -text
