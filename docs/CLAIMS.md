@@ -16,7 +16,7 @@ Every claim the README, video or Devpost description makes must appear here with
 | 10 | The club receives at least the full deposit after fees | NOT RUN in app. Formula SIMULATED (200,000 random events, 0 short: `docs/evidence/goal_formula_check.py`) | C3, B5 |
 | 11 | "Only if Jay's in" pledges, including circles, work | NOT RUN | D1–D7 |
 | 12 | Stranded holds are cleaned up automatically | NOT RUN | F2 |
-| 13 | AI reading accuracy: X/50 on 50 made-up test messages | NOT RUN | G3 |
+| 13 | AI reading accuracy: 43/50 on 50 made-up test messages (written by Grok) | VERIFIED (Nov 8, first scored run, prompt not changed) | G3, `docs/evidence/G3_first_scored_run.txt` |
 | 14 | Holds stay valid for the event (48-hour cap inside PayPal's 3-day honor period) | read in docs ([PayPal authorization guide](https://developer.paypal.com/docs/checkout/standard/customize/authorization/), Oct 26: 3-day honor period, valid 29 days) | D05 |
 | 15 | The PayPal dashboard can disagree with the API, so our database plus API `GET` calls are the record, not the dashboard | VERIFIED (the disagreement) | A12 |
 

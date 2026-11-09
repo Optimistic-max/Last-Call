@@ -1,0 +1,120 @@
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+   log: AI call -> HTTP 200
+G3 run on 2026-11-09 02:35 UTC
+model: openai/gpt-oss-20b | provider: https://api.groq.com/openai/v1
+messages written by: Grok | file SHA-256: 245694f11f9c538a87b1b2600bf483e741f714f3892996f34ef5c4acb5f83c93
+RIGHT  1 plain      im in for $40
+RIGHT  2 plain      I can put in $25 toward the cabin deposit.
+RIGHT  3 plain      count me in, max is 50 dollars
+RIGHT  4 plain      I'll chip in $15.
+WRONG  5 plain      put me down for thirty bucks
+   expected in max=3000 min=None conditions=[] | got unclear max=None min=None conditions=[] question="Couldn't read that. Please retype it, or fill in the amount, cap and condition yourself."
+RIGHT  6 plain      yes i'm in — $60 max
+RIGHT  7 plain      i'll cover up to $100 for this
+RIGHT  8 plain      I'm pledging $5 (that's all I can do this week)
+RIGHT  9 plain      in for 75.00
+WRONG 10 plain      Happy to help. Maximum I'll pay is two hundred dollars.
+   expected in max=20000 min=None conditions=[] | got unclear max=None min=None conditions=[] question="Couldn't read that. Please retype it, or fill in the amount, cap and condition yourself."
+RIGHT 11 slang      yo bet im down for like 20$
+RIGHT 12 slang      lowkey can throw 35 at it 😂
+RIGHT 13 slang      say less, 45 from me
+RIGHT 14 slang      ig im in for ~$10 idk if thats enough but thats my max
+RIGHT 15 slang      fr fr count me in for 80 bucks
+RIGHT 16 slang      aight i gotchu for $55
+RIGHT 17 slang      ngl i can do 12.50 max rn
+RIGHT 18 slang      bet. $90 and thats the ceiling
+RIGHT 19 conditions im in for $40 but only if Jay is in
+RIGHT 20 conditions I'll do $30 if Ana and Bo both pledge
+RIGHT 21 conditions only if kim's in — then max $25 from me
+RIGHT 22 conditions $50 as long as Sam is also chipping in
+RIGHT 23 conditions put me down for 20 if Maya and Theo are both in
+WRONG 24 conditions i'm in for sixty bucks only if jordan joins too
+   expected in max=6000 min=None conditions=['jordan'] | got unclear max=None min=None conditions=[] question="Couldn't read that. Please retype it, or fill in the amount, cap and condition yourself."
+RIGHT 25 conditions yes $15, but contingent on Riley being in
+WRONG 26 conditions max 70 if Priya, Luis, and Nora are all in
+   expected in max=7000 min=None conditions=['Priya', 'Luis', 'Nora'] | got unclear max=None min=None conditions=[] question='Are you sure you can pay up to $70?'
+RIGHT 27 range      at least $10, up to $25 if needed
+RIGHT 28 range      i can do 20 minimum and stretch to 40 if we're short
+WRONG 29 range      in for at least fifteen, max thirty if the group needs it
+   expected in max=3000 min=1500 conditions=[] | got unclear max=None min=None conditions=[] question="Couldn't read that. Please retype it, or fill in the amount, cap and condition yourself."
+RIGHT 30 range      start me at $5, go up to $18 if we're short
+RIGHT 31 range      I'll put in 50–80 depending on how close we are (50 floor, 80 ceiling)
+RIGHT 32 range      min $12 max $22 if needed to hit the goal
+RIGHT 33 pull_out   actually i'm out sorry
+RIGHT 34 pull_out   nah i can't do this one, take me off
+RIGHT 35 pull_out   never mind, cancel my pledge
+RIGHT 36 pull_out   i'm backing out — don't count me
+RIGHT 37 pull_out   scratch that, im out for the cabin
+RIGHT 38 pull_out   won't be chipping in after all, remove me please
+RIGHT 39 unclear    yeah i'm in
+RIGHT 40 unclear    i can do like $3 maybe
+RIGHT 41 unclear    put me down for $2500
+WRONG 42 unclear    im in for $40 if Jay OR Kim is in
+   expected unclear max=None min=None conditions=[] | got in max=4000 min=None conditions=['Jay', 'Kim'] question=None
+WRONG 43 unclear    maybe $20? depends how broke i am friday
+   expected unclear max=None min=None conditions=[] | got in max=2000 min=None conditions=[] question=None
+RIGHT 44 unclear    i'll match whatever Ana puts in
+RIGHT 45 chatter    what time are we leaving friday?
+RIGHT 46 chatter    who has the aux for the drive 😂
+RIGHT 47 chatter    is the cabin pet friendly?
+RIGHT 48 chatter    reminder: bring your own towels
+RIGHT 49 chatter    can someone send the address again
+RIGHT 50 chatter    lol imagine if we actually hit the goal this time
+
+   plain      8/10
+   slang      8/8
+   conditions 6/8
+   range      5/6
+   pull_out   6/6
+   unclear    4/6
+   chatter    6/6
+G3: 43/50 on 50 made-up test messages
+Warning: 4 answers were 'please retype'. Check the log lines above for an HTTP 429 (too many requests) or a timeout before trusting this score.
