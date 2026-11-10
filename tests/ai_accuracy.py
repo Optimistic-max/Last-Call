@@ -9,6 +9,7 @@
 import hashlib
 import json
 import logging
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -175,6 +176,9 @@ def describe_miss(message, result):
 
 
 def main():
+    # Print in UTF-8 so emoji like the one in message 12 can be printed. When the output goes to a file
+    # or a pipe, Windows Python uses cp1252 instead, which can't print emoji, and the Nov 8 run crashed.
+    sys.stdout.reconfigure(encoding="utf-8")
     logging.basicConfig(level=logging.INFO, format="   log: %(message)s")
     if not MESSAGES_FILE.exists():
         print("tests/ai_test_messages.json isn't written yet (D74), so nothing was sent to the AI.")
