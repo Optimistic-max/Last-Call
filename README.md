@@ -47,7 +47,7 @@ We scored the reader on **50 made-up test messages**, written with an AI assista
 
 - **Verified against PayPal's sandbox:** a hold with only the share charged, a hold cancelled after a partial charge, refunds that return shares while PayPal keeps its fees, and a declined card caught at checkout (also in the app in a browser, on localhost).
 - **Verified with a fake PayPal in automated tests:** the retry and double-charge guards, a missed goal voiding every hold, the timed last call, the "only if Jay's in" rule, and cleanup of stranded holds.
-- **Simulated:** a refused charge at lock (we use PayPal's negative-testing header).
+- **Simulated locally:** a refused charge at lock. In the Nov 7 refund test, one friend's capture was answered by our own made-up refusal (`tests/sandbox_lock_with_one_refusal.py`), not by PayPal. PayPal's own refusal (its negative-testing header, F22) is NOT RUN.
 - **Not yet run:** a full create-to-charge run on the live URL is not recorded in `CLAIMS.md`. Where a claim is untested, the docs say so.
 
 ## Tech stack

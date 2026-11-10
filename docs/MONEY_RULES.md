@@ -142,7 +142,7 @@ Edge case for the leftover rule: an open person can't take an extra cent beyond 
 ## 7. After the charges
 
 - **Treasurer's net** = sum of `net_cents` from PayPal's capture data. Show it on the board as the real number.
-- **Retries:** a refused capture moves no money and costs no fee. The retry that succeeds is billed as one capture (VERIFIED, refusal simulated). So the goal formula still holds after a retry.
+- **Retries:** a refused capture moves no money and costs no fee. The retry that succeeds is billed as one capture (VERIFIED for the retry, A11; the refusal was simulated, and how is not recorded, see A10 and A11 in `docs/TEST_PLAN.md`). So the goal formula still holds after a retry.
 - **Refunds keep the fee.** A full refund returns the whole share to the pledger, but PayPal keeps its fee (VERIFIED). The refund-all screen must say so before the treasurer clicks.
 
 ## 8. Failure policy at lock (decided)

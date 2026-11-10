@@ -24,8 +24,8 @@ Statuses: `VERIFIED` · `read in docs` · `NOT RUN` · `SIMULATED` · `designed,
 | A7 | Void after a partial capture | VERIFIED | auth `3HR288981H342254V` |
 | A8 | A second capture on one hold pays its own $0.49 | VERIFIED | auth `0XX12917R7005063Y` |
 | A9 | Decline at checkout (test card) returns 201 + `DENIED` | VERIFIED (API only) | 3 auths |
-| A10 | Capture refused via mock: 422, hold stays `CREATED` | SIMULATED | — |
-| A11 | Retry after a refused capture succeeds, one fee | VERIFIED (refusal simulated) | auth `9HL19283R07063645` |
+| A10 | Capture refused via mock: 422, hold stays `CREATED` | SIMULATED. **unverified:** no evidence on file (no IDs, no log in the repo); not shown that the header was sent to the sandbox | — |
+| A11 | Retry after a refused capture succeeds, one fee | VERIFIED for the retry (IDs below). The refusal was simulated, but how is not recorded: the log `pp_retry.log` is outside the repo, and no header use is on file (see A10) | auth `9HL19283R07063645` |
 | A12 | The dashboard can disagree with the API | VERIFIED | `PAYPAL_INTEGRATION.md` |
 | A13 | Card authorize, then void (server API): `POST /v2/checkout/orders`, intent `AUTHORIZE`, $1.00, sandbox test card 4111…1111 (response showed VISA ending 1111) → 201; order `0WS94888ER0197534` `COMPLETED`; authorization `50694481WY916400J` `CREATED`; void → 204, authorization now `VOIDED`. Oct 25, run by steel hacks. Which sandbox app was not recorded. PayPal Activity row: VERIFIED (Oct 28: ID `50694481WY916400J` matched on the Activity detail page; Authorization, $1.00, Cancelled). Card fields in a real browser: NOT RUN | VERIFIED (server API only; app unverified) | `docs/evidence/A13_card_authorize_void.md`. Not re-run: B1 (last-call-test) and the M1 card checks in the app cover it |
 

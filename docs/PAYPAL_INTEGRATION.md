@@ -74,7 +74,7 @@ Owner: **Emmanuel**. All of this lives in `paypal_client.py`. That file only mak
 | capture: 201 `COMPLETED` | charged | `GET` the capture, save fee + net, pledge `CHARGED` |
 | capture: 422 `AUTHORIZATION_ALREADY_CAPTURED` | already charged earlier | `GET` the authorization and save its status. If `CAPTURED`, follow D47: pledge `FAILED`, event `NEEDS_ATTENTION`, logged as an error, and the treasurer finds the charge by hand. Finding and saving the capture (F6) is in `docs/LATER.md` (D49) |
 | capture: 422 `AUTHORIZATION_VOIDED` | hold was cancelled | pledge `FAILED`, event `NEEDS_ATTENTION` |
-| capture: 422 `TRANSACTION_REFUSED` | refused (we've only seen it via the mock) | `GET` the hold; if it answers `CREATED` and the refusal carried no capture ID, retry once with a new saved request ID (attempt 2, D83); otherwise pledge `FAILED` |
+| capture: 422 `TRANSACTION_REFUSED` | refused (we have not seen PayPal's real TRANSACTION_REFUSED body; A10's evidence is missing and F22 is NOT RUN) | `GET` the hold; if it answers `CREATED` and the refusal carried no capture ID, retry once with a new saved request ID (attempt 2, D83); otherwise pledge `FAILED` |
 | capture: anything else (another status or error code, a 5xx, a timeout) | result unknown | follow §5 |
 | void: 204 | not confirmed until the `GET` | `GET` the authorization. `VOIDED` is saved. `CREATED`, no answer, a mismatched id, or any other non-terminal status keeps `void_run_token` and the sweep does not send the void again (D89) |
 | void: anything other than a confirmed close | not a reason to send the void again | `GET` the authorization. Save `VOIDED`, `EXPIRED`, `DENIED`, `CAPTURED` or `PARTIALLY_CAPTURED` only when that `GET`'s id matches. `CREATED`, no answer, a mismatched id, or any other status leaves the durable `void_run_token` in place. The sweep does not send another void for that claim (D89). A definite `401` `AUTHENTICATION_FAILURE` whose `GET` says `CREATED` is the one case the sweep may try again, after 5 minutes, with the same saved request ID (D80, D89). Whether PayPal replays that void for the same request ID is `unverified` (real PayPal: `NOT RUN`) |
@@ -101,7 +101,7 @@ If an **authorize** call times out:
 | Tool | How | What it gives | Status |
 |---|---|---|---|
 | Decline at checkout | card `4012888888881881`, cardholder name `CCREJECT-REFUSED` (also `CCREJECT-IF`, `CCREJECT-BANK_ERROR`). In the browser, the name goes in the v6 `name` card field | 201 with authorization `DENIED` | VERIFIED (API). Browser: VERIFIED in the app on localhost with `CCREJECT-REFUSED` (B2, Oct 28): the card fields' submit says `succeeded`, then authorize gives `DENIED` (D44). Live Render URL: `NOT RUN` |
-| Refuse a capture | header `PayPal-Mock-Response: {"mock_application_codes":"TRANSACTION_REFUSED"}` on the capture call | 422, hold stays `CREATED` | SIMULATED |
+| Refuse a capture | header `PayPal-Mock-Response: {"mock_application_codes":"TRANSACTION_REFUSED"}` on the capture call | 422, hold stays `CREATED` | SIMULATED. **unverified:** no evidence on file for A10; F22 (the app path with the header) is NOT RUN |
 | `INSTRUMENT_DECLINED` on capture | same header | empty 403 (reason `unverified`). Don't rely on it | — |
 | Normal test card | `4111111111111111` | normal hold | VERIFIED |
 

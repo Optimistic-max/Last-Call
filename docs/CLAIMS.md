@@ -10,7 +10,7 @@ Every claim the README, video or Devpost description makes must appear here with
 | 4 | The treasurer's net comes from PayPal's own fee numbers | VERIFIED (sandbox fees), app NOT RUN | A4, B5 |
 | 5 | Refund-all returns everyone's share, but PayPal keeps its fees | VERIFIED (API) | A5, F7 |
 | 6 | A declined card at checkout is caught and nothing is held | VERIFIED (API). Browser: VERIFIED in the app on localhost (B2, Oct 28: authorization `DENIED`, no void attempted, "Card declined" shown). Live Render URL: NOT RUN | A9, B2 |
-| 7 | A failed charge at lock marks the event "needs attention" | SIMULATED (mock), app NOT RUN | A10, F4 |
+| 7 | A failed charge at lock marks the event "needs attention" | SIMULATED locally (a made-up refusal, not PayPal's negative-testing header; F22 NOT RUN), app NOT RUN | A10, F4 |
 | 8 | Pledgers can pay by card with no PayPal account | Only holds and voids through browser card fields are VERIFIED, on localhost: the spike (Oct 26: [`docs/evidence/B1_card_fields_spike.md`](evidence/B1_card_fields_spike.md)) and the app (Oct 28: B1, and a retry after a declined card, see the notes below). Activity rows: the spike's VERIFIED (ID matched, Oct 28); the app's seen (IDs not compared). Charging a card-fields hold: NOT RUN. In the app on the live Render URL: NOT RUN. Server API only: VERIFIED Oct 25 (A13, app unverified), see the notes below | B1, A13 |
 | 9 | Nobody is charged unless the goal is reached | NOT RUN | E5, B5 |
 | 10 | The club receives at least the full deposit after fees | NOT RUN in app. Formula SIMULATED (200,000 random events, 0 short: `docs/evidence/goal_formula_check.py`) | C3, B5 |
