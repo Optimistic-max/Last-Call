@@ -809,7 +809,11 @@ input.ai-filled {
   font-weight: 500;
 }
 
-/* The card fields are PayPal's own frames: only the space around them is ours. */
+/* The card fields are PayPal's own frames: only the box around them is ours. It looks like our inputs:
+   48px, the same corners, edge and black focus edge. PayPal draws a square field with its own border
+   inside its frame, so the frame is made 3px bigger on every side and the rounded box clips that border
+   away; our edge is drawn on top (::after). pledge_steps.js adds .is-focused, because :focus-within
+   can't see a focus inside PayPal's frame (D104). */
 .card-field-label {
   margin: 0 0 8px;
   font-size: 0.875rem;
@@ -817,9 +821,39 @@ input.ai-filled {
 }
 
 .card-field {
+  position: relative;
   width: 100%;
-  height: 56px;
-  margin-bottom: 12px;
+  height: 48px;
+  margin-bottom: 20px;
+  overflow: hidden;
+  border-radius: var(--radius-field);
+  background: var(--card);
+}
+
+.card-field > * {
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  display: block;
+  width: calc(100% + 6px);
+  height: calc(100% + 6px);
+}
+
+.card-field::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 1px solid var(--line);
+  border-radius: inherit;
+  pointer-events: none;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.card-field.is-focused::after,
+.card-field:focus-within::after {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
 }
 
 /* One result card, in place of the step (S5). */
@@ -834,6 +868,201 @@ input.ai-filled {
 .leave-line {
   margin: 12px 0 0;
   overflow-wrap: anywhere;
+}
+
+/* ---------- The pledge page as three steps (D104) ---------- */
+
+/* Without JavaScript the steps show one under another in one card, as before. static/js/pledge_steps.js
+   adds .steps-on to #pledge, which shows one step at a time: the title, the promise and the progress stay
+   on the page, and each step is its own card. Everything below that starts with .steps-on is that mode. */
+.step-progress,
+.step-next,
+.step-back {
+  display: none;
+}
+
+#pledge:not(.steps-on) .step-head .card-bloom {
+  display: none;
+}
+
+.step-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.step-actions > button {
+  flex: 1;
+}
+
+.steps-on .step-actions > .step-back {
+  flex: none;
+}
+
+/* What the AI said, again in step 2, next to the boxes it filled. */
+.step-ai-note {
+  margin: 0 0 20px;
+  padding: 12px 16px;
+  border-radius: var(--radius-inner);
+  background: var(--grey-100);
+}
+
+/* The page around the steps keeps the page's own look; only the step cards are light in dark mode. */
+#pledge.steps-on {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* Where the friend is: "Step 2 of 3" and three short bars, amber up to the current step. */
+.steps-on .step-progress {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0 0 16px;
+}
+
+.step-count {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.step-bar {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step-bar li {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--track);
+  transition: background-color 300ms ease;
+}
+
+.step-bar li.is-reached {
+  background: var(--amber);
+  box-shadow: 0 0 8px var(--amber-glow);
+}
+
+/* The steps share one place on the page. The step on screen is in the flow and sets the height; the
+   others wait on top of it, out of sight, at the same width, so PayPal's fields keep their size. */
+.steps-on .step-stage {
+  position: relative;
+}
+
+.steps-on .pledge-step {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0 24px 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: linear-gradient(180deg, var(--card), var(--grey-50));
+  box-shadow: var(--shadow-raised), inset 0 1px 0 var(--card-hi);
+  color: var(--ink);
+}
+
+.steps-on .step-inactive {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* The step sliding out stays visible until its slide ends (pledge_steps.js takes this class off). */
+.steps-on .step-leaving {
+  visibility: visible;
+}
+
+/* A waiting step's ribbed header doesn't drift: nobody can see it. */
+.steps-on .step-inactive:not(.step-leaving) .ribs-drift {
+  animation-play-state: paused;
+}
+
+/* Phones: each step fills most of the screen, with its main button low, where a thumb is. Laptops: each
+   card is as tall as its step, so no step holds an empty band. */
+.steps-on .step-actions {
+  margin-top: auto;
+  padding-top: 24px;
+}
+
+@media (max-width: 767.98px) {
+  .steps-on .pledge-step {
+    min-height: max(400px, calc(100svh - 400px));   /* ends above the floating menu at the bottom */
+  }
+}
+
+/* The header of each step: a black ribbed band with the step's name, like the wallet's hero. It stays
+   black in both themes, and the ribs are never behind a field (D103). */
+.steps-on .step-head {
+  margin: 0 -24px 24px;
+  padding: 28px 24px 24px;
+  border-radius: calc(var(--radius-card) - 1px) calc(var(--radius-card) - 1px) 0 0;
+  background: radial-gradient(circle farthest-corner at 0% 0%, var(--grey-800), var(--night) 70%);
+  color: var(--paper);
+}
+
+.steps-on .step-title {
+  margin: 0;
+  color: var(--paper);
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* The heading gets focus only so a screen reader announces the new step; it isn't a control, so it
+   shows no ring. */
+.step-title:focus {
+  outline: none;
+}
+
+/* In step mode Next presses Check, so the Check button itself isn't shown. */
+.steps-on #check-button {
+  display: none;
+}
+
+.steps-on .step-next,
+.steps-on .step-back {
+  display: inline-flex;
+}
+
+.steps-on .result-line {
+  margin: 16px 0 0;
+}
+
+/* The end of step 3: "You're in" with the result and the leave link. The fields and the button go. */
+.steps-on .step-ended .hold-text,
+.steps-on .step-ended .card-field-label,
+.steps-on .step-ended .card-field,
+.steps-on .step-ended #hold-button,
+.steps-on .step-ended .hold-status {
+  display: none;
+}
+
+.steps-on .step-ended .result-line {
+  margin-top: 0;
+}
+
+/* The end needs no room for fields, so its card is only as tall as its words. */
+.steps-on .pledge-step.step-ended {
+  min-height: 0;
+}
+
+/* A slide can push a step past the screen's edge for a moment; this keeps the page from scrolling
+   sideways while it does. clip, not hidden, so nothing inside becomes a scrolling box. */
+.page:has(#pledge.steps-on) {
+  overflow-x: clip;
 }
 
 
@@ -2461,9 +2690,11 @@ button:not(.button-secondary):not(.icon-button):not(.row-main),
   --ink: var(--night);
 }
 
-/* The pledge form stays a light card. PayPal draws its card fields in its own frames with dark text,
-   which a dark card would hide. */
-:root:not([data-theme="light"]) #pledge {
+/* The pledge form stays a light card. PayPal draws its card fields in its own frames as white boxes with
+   dark text, which a dark card would clash with. In step mode (D104) only the step cards are light, so the
+   title, the promise and the progress above them keep the page's own colours. */
+:root:not([data-theme="light"]) #pledge:not(.steps-on),
+:root:not([data-theme="light"]) #pledge.steps-on .pledge-step {
   --card: #FFFFFF;
   --grey-50: #FAFAF9;
   --grey-100: #F3F3F1;

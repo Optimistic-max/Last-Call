@@ -4,6 +4,8 @@
 // 1. After Check, it marks the boxes the AI filled, so the friend looks at them. Editing a box clears it.
 // 2. After Continue, it moves down to the card step.
 // 3. After a hold finishes, the result replaces the card step.
+// In step mode (static/js/pledge_steps.js adds "steps-on" to #pledge, D104) that file moves between the
+// steps and shows the end, so 2 and 3 are left to it.
 
 const pledgeForm = document.getElementById("pledge");
 const checkMessageLine = document.getElementById("check-message");
@@ -48,6 +50,9 @@ function markFilledBoxes() {
 
 // Continue has saved the pledge, so the card step is next. Phones would otherwise leave it below the fold.
 function moveToHoldStep() {
+  if (pledgeForm.classList.contains("steps-on")) {
+    return;
+  }
   if (document.getElementById("hold-text").textContent !== "") {
     holdStep.scrollIntoView({ block: "start" });
   }
@@ -59,7 +64,7 @@ function moveToHoldStep() {
 function showResultOfHold() {
   const isHeld = !document.getElementById("leave-link-line").hidden;
   const isClosed = resultLine.textContent.startsWith(pledgeForm.dataset.closedResult);
-  if (isHeld || isClosed) {
+  if ((isHeld || isClosed) && !pledgeForm.classList.contains("steps-on")) {
     holdStep.hidden = true;
   }
   if (friendPressedSave && resultLine.textContent !== "") {

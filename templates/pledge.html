@@ -1,7 +1,10 @@
 {% extends "base.html" %}
-{% from "macros.html" import hold_contents, nav_item %}
+{% from "macros.html" import hold_contents, nav_item, ribs %}
 {# S4 and S5, the pledge page (docs/UI_DESIGN.md section 3). Samuel owns this page; the PayPal part is
    static/js/pledge_paypal.js (Emmanuel's), so keep every id.
+   Three steps on one page (D104). Without JavaScript they show one under another in one card, as before.
+   static/js/pledge_steps.js adds "steps-on" to #pledge and shows one step at a time: the progress line,
+   the Next and Back buttons and the "Step N of 3" bar only work, and only show, in that mode.
    Jinja escapes every value it fills in, so a title like "<script>" shows as text and never runs. #}
 
 {% block title %}Pledge: {{ event.title }}{% endblock %}
@@ -29,18 +32,37 @@
     <h1>{{ event.title }}</h1>
     <p class="form-promise">Nobody pays unless the goal is reached.</p>
 
-    <section class="form-step">
-      <h2 class="card-title">Say it your way</h2>
+    {# Where the friend is: words, and a bar that turns amber step by step. pledge_steps.js keeps it up to date. #}
+    <div class="step-progress">
+      <p class="step-count">Step 1 of 3</p>
+      <ol class="step-bar" aria-hidden="true"><li></li><li></li><li></li></ol>
+    </div>
+
+    <div class="step-stage">
+    <section class="form-step pledge-step" data-step="1" aria-labelledby="step-1-title">
+      <div class="step-head ribbed">
+        {{ ribs() }}
+        <h2 class="card-title step-title" id="step-1-title" tabindex="-1"><span class="visually-hidden">Step 1 of 3: </span>Say it your way</h2>
+      </div>
       <p class="field"><label for="pledge-message">Say it in your own words (optional)</label>
         <textarea id="pledge-message" rows="4" maxlength="280"></textarea></p>
       <p class="ai-line">AI reads. You confirm. Plain code handles the money.</p>
       <p class="privacy-note">What you type here is sent to Groq to read it. Don't type anything private.</p>
       <button id="check-button" class="button-secondary btn btn-glass" type="button">Check</button>
       <p id="check-message" class="check-message" role="status"></p>
+      <div class="step-actions">
+        {# Next presses Check for you when there are words to read (pledge_steps.js). #}
+        <button class="step-next button-amber btn btn-amber" type="button">Skip, I'll fill it in</button>
+      </div>
     </section>
 
-    <section class="form-step">
-      <h2 class="card-title">Check it</h2>
+    <section class="form-step pledge-step" data-step="2" aria-labelledby="step-2-title">
+      <div class="step-head ribbed">
+        {{ ribs() }}
+        <h2 class="card-title step-title" id="step-2-title" tabindex="-1"><span class="visually-hidden">Step 2 of 3: </span>Check it</h2>
+      </div>
+      {# What the AI said, shown again here, so the friend reads it next to the boxes it filled. #}
+      <p class="step-ai-note" hidden></p>
       <p class="field"><label for="pledge-name">Your name</label>
         <input id="pledge-name" autocomplete="name"></p>
       <p class="field"><label for="pledge-max">Your max ($)</label>
@@ -52,14 +74,23 @@
       <p class="field"><label for="pledge-conditions">Only if these people are in (optional, separate names with commas)</label>
         <input id="pledge-conditions" aria-describedby="pledge-conditions-ai">
         <span id="pledge-conditions-ai" class="field-hint" hidden>Filled by AI, edit if wrong</span></p>
-      <button id="confirm-button" class="button-full btn" type="button">Continue</button>
+      <div class="step-actions">
+        <button class="step-back button-secondary btn btn-glass" type="button">Back</button>
+        <button id="confirm-button" class="button-full button-amber btn btn-amber" type="button">Continue</button>
+      </div>
     </section>
 
-    {# One line for every answer: a refusal from Continue, and the result of the hold (S5). #}
+    {# One line for every answer: a refusal from Continue, and the result of the hold (S5). In step mode
+       pledge_steps.js moves it into the step on screen (2 or 3); the id stays. #}
     <p id="message" class="result-line" role="status"></p>
 
-    <section id="step-hold" class="form-step">
-      <h2 class="card-title">Hold it</h2>
+    {# Step 3 opens only after the server accepted the pledge: pledge_paypal.js fills #hold-text then.
+       It is never display:none, because PayPal draws its card fields into it as the page loads. #}
+    <section id="step-hold" class="form-step pledge-step" data-step="3" aria-labelledby="step-3-title">
+      <div class="step-head ribbed">
+        {{ ribs() }}
+        <h2 class="card-title step-title" id="step-3-title" tabindex="-1"><span class="visually-hidden">Step 3 of 3: </span><span class="step-title-text">Hold it</span></h2>
+      </div>
       <p id="hold-text" class="hold-text"></p>
       <p class="card-field-label">Name on card</p><div id="paypal-card-fields-name" class="card-field"></div>
       <p class="card-field-label">Card number</p><div id="paypal-card-fields-number" class="card-field"></div>
@@ -67,9 +98,10 @@
       <p class="card-field-label">CVV</p><div id="paypal-card-fields-cvv" class="card-field"></div>
       <button id="hold-button" class="button-full button-amber hold-btn btn btn-amber" type="button" disabled>{{ hold_contents("Hold my max") }}</button>
     </section>
+    </div>
 
     {# D82: after "Held", the script fills in the friend's own "I'm out" link (S6). The line is a
-       placeholder until Samuel approves it (D57). #}
+       placeholder until Samuel approves it (D57). In step mode it joins step 3 as the end state. #}
     <p id="leave-link-line" class="leave-line" hidden>Keep this link to cancel before last call. <a id="leave-link" href="#"></a></p>
   </main>
   {% endif %}
@@ -81,6 +113,7 @@
   {# Our script first, so onPayPalWebSdkLoaded exists before PayPal's script finishes loading. #}
   <script src="{{ url_for('static', filename='js/pledge_paypal.js') }}"></script>
   <script src="{{ url_for('static', filename='js/pledge_page.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/pledge_steps.js') }}" defer></script>
   <script async src="https://www.sandbox.paypal.com/web-sdk/v6/core" onload="onPayPalWebSdkLoaded()"></script>
 {% endif %}
 {% endblock %}
