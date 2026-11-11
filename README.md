@@ -4,9 +4,29 @@
 
 **Nobody pays unless the goal is reached.**
 
+<p align="center">
+  <img src="docs/images/readme/01-hold-not-charge.png" alt="Hand-drawn sketch: a small black creature holds a friend's money in a clear jar with a lid, while the cash register beside it stays closed" width="720">
+</p>
+
 Last Call is a group-payment web app for one club. A treasurer sets a goal, like a $300 cabin deposit. Each friend pledges the most they would pay ("up to $40"), in their own words, and can add a condition ("only if Jay's in"). PayPal **holds** each person's maximum without charging it. If the goal is reached, a last call opens, shares lock, and everyone is **charged once** for their fair share. If the goal is missed, every hold is cancelled and nobody pays. An AI only reads a friend's message and suggests an amount, cap and condition, which the friend confirms. Plain code makes every money decision.
 
 Built for the [PayPal AI Hackathon](https://paypalaihackathon.devpost.com/).
+
+## How it works
+
+**1. Everyone pledges, nobody pays yet.** Each friend says the most they would pay, in their own words. PayPal holds that amount on their card. A hold is not a charge.
+
+**2. The goal is reached: everyone pays once, and only their share.** A short last call opens so late friends can still join, and every share drops when they do. Then shares lock and each person is charged once. The rest of their hold is released.
+
+<p align="center">
+  <img src="docs/images/readme/02-goal-reached.png" alt="Hand-drawn sketch: the jars tip into one pot at the same moment, each pours only a small share, and the rest stays in the jar" width="720">
+</p>
+
+**3. The goal is missed: nobody pays.** Every hold is cancelled. No one is left as the person who paid for everyone else.
+
+<p align="center">
+  <img src="docs/images/readme/03-goal-missed.png" alt="Hand-drawn sketch: the small black creature opens every jar lid and hands the money back untouched" width="720">
+</p>
 
 ## Live demo
 
@@ -27,6 +47,10 @@ To see the other ending, create an event and let it pass its deadline without re
 
 ## How PayPal is used
 
+<p align="center">
+  <img src="docs/images/readme/05-save-before-you-send.png" alt="Hand-drawn sketch: the small black creature writes a ticket number in a notebook before passing the same ticket through PayPal's window, so a second try shows the same ticket" width="720">
+</p>
+
 - **Orders v2, intent `AUTHORIZE`:** a pledge places a hold on the friend's maximum through PayPal's card fields in the browser. We never see card numbers.
 - **Capture only the share:** when the event locks, we capture each person's fair share from their hold. PayPal closes the rest of the hold.
 - **Void:** if the goal is missed, or someone leaves before last call, the hold is voided.
@@ -37,9 +61,13 @@ To see the other ending, create an event and let it pass its deadline without re
 
 ## How the AI is used
 
+<p align="center">
+  <img src="docs/images/readme/04-ai-reads-you-confirm.png" alt="Hand-drawn sketch: the small black creature reads a friend's chat message and writes a suggestion on a card, the friend ticks it, and only then a plain calculator does the math" width="720">
+</p>
+
 Groq's `openai/gpt-oss-20b` reads one friend's pledge message and suggests an amount, a cap and a condition. **The friend confirms or fixes it before anything is saved.** The AI never decides money: its output is a suggestion that plain code checks.
 
-We scored the reader on **50 made-up test messages**, written with an AI assistant and frozen before any scoring: **43/50** (Nov 8, first scored run, prompt not changed). A message counts as right only if the status, amount, cap and conditions all match. The known misses (amounts written as words like "forty", and "or" conditions) are listed in [`docs/LATER.md`](docs/LATER.md). The evidence is in [`docs/evidence/G3_first_scored_run.txt`](docs/evidence/G3_first_scored_run.txt).
+We scored the reader on **50 made-up test messages**, written by Grok and frozen before any scoring: **43/50 on 50 made-up test messages** (Nov 8, first scored run, prompt not changed). A message counts as right only if the status, amount, cap and conditions all match. The known misses (amounts written as words like "forty", and "or" conditions) are listed in [`docs/LATER.md`](docs/LATER.md). The evidence is in [`docs/evidence/G3_first_scored_run.txt`](docs/evidence/G3_first_scored_run.txt).
 
 ## What we verified
 
@@ -110,6 +138,10 @@ AI coding assistants, including Claude Code, helped write code and docs. A human
 - Emmanuel: lead, PayPal money flow
 - Samuel: UI and design
 - Malama: AI pledge reader, math, database
+
+## Credits
+
+- Illustrations: drawn in code (SVG, [`docs/images/readme/drawings.html`](docs/images/readme/drawings.html)) in the style of Ian's [Ian Xiaohei Illustrations](https://github.com/helloianneo/ian-xiaohei-illustrations) (MIT). The small black character, Xiaohei, is Ian's and is used with attribution.
 
 ## License
 

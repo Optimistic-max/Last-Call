@@ -1,0 +1,428 @@
+<!doctype html>
+<!-- The five README pictures, drawn in code (SVG) so the team can change them without an image tool.
+     Open this file in a browser: #1 to #5 picks the picture (for example drawings.html#3). Each one is
+     1600 by 900. The PNGs next to this file are screenshots of these drawings.
+     The look follows docs/images/readme/PROMPTS.md: white paper, wobbly black pen lines, a few hand-written
+     labels in orange (the main flow), red (the key result) and blue (a side note), and the small black
+     creature Xiaohei doing the main action. Xiaohei comes from Ian's Ian Xiaohei Illustrations (MIT); the
+     README credits it. Every name and amount in the pictures is made up. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>README drawings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&display=block" rel="stylesheet">
+<style>
+  html, body { margin: 0; background: #fff; }
+  svg { display: block; width: 1600px; height: 900px; }
+  text { font-family: "Caveat", "Segoe Print", cursive; font-weight: 600; }
+</style>
+</head>
+<body>
+<svg id="art" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg"></svg>
+<script>
+// ---------- A small pen: every line wobbles a little, the same way each time (a fixed seed) ----------
+
+const INK = "#151515";
+const ORANGE = "#E8590C";
+const RED = "#D62828";
+const BLUE = "#1F6FD1";
+const SVG_NS = "http://www.w3.org/2000/svg";
+const art = document.getElementById("art");
+let random = seeded(1);
+
+// A random number generator that gives the same numbers for the same seed, so a drawing never changes
+// between two renders.
+function seeded(seed) {
+  return function () {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function jitter(amount) {
+  return (random() - 0.5) * 2 * amount;
+}
+
+// Add an SVG element with these attributes to the drawing.
+function add(tag, attributes, parent) {
+  const element = document.createElementNS(SVG_NS, tag);
+  for (const name in attributes) {
+    element.setAttribute(name, attributes[name]);
+  }
+  (parent || art).appendChild(element);
+  return element;
+}
+
+// Split each straight stretch into short pieces and nudge the inner points, like a hand that isn't a ruler.
+function wobble(points, amount, step) {
+  const out = [];
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const [ax, ay] = points[i];
+    const [bx, by] = points[i + 1];
+    const pieces = Math.max(1, Math.round(Math.hypot(bx - ax, by - ay) / step));
+    for (let k = 0; k < pieces; k += 1) {
+      const t = k / pieces;
+      out.push([ax + (bx - ax) * t + (k ? jitter(amount) : 0), ay + (by - ay) * t + (k ? jitter(amount) : 0)]);
+    }
+  }
+  out.push(points[points.length - 1]);
+  return out;
+}
+
+// A smooth curve through the points (Catmull-Rom turned into Bezier curves).
+function curve(points, closed) {
+  const p = closed ? [points[points.length - 1], ...points, points[0], points[1]] : [points[0], ...points, points[points.length - 1]];
+  let d = "M" + p[1][0].toFixed(1) + "," + p[1][1].toFixed(1);
+  for (let i = 1; i < p.length - 2; i += 1) {
+    const [x0, y0] = p[i - 1], [x1, y1] = p[i], [x2, y2] = p[i + 1], [x3, y3] = p[i + 2];
+    d += " C" + (x1 + (x2 - x0) / 6).toFixed(1) + "," + (y1 + (y2 - y0) / 6).toFixed(1) + " " +
+      (x2 - (x3 - x1) / 6).toFixed(1) + "," + (y2 - (y3 - y1) / 6).toFixed(1) + " " + x2.toFixed(1) + "," + y2.toFixed(1);
+  }
+  return closed ? d + " Z" : d;
+}
+
+// An open pen line through points.
+function line(points, options) {
+  const o = Object.assign({ color: INK, width: 3.4, wobble: 1.6, step: 36, dash: null, fill: "none" }, options);
+  const attributes = { d: curve(wobble(points, o.wobble, o.step), false), fill: "none", stroke: o.color,
+    "stroke-width": o.width, "stroke-linecap": "round", "stroke-linejoin": "round" };
+  if (o.dash) attributes["stroke-dasharray"] = o.dash;
+  return add("path", attributes, o.parent);
+}
+
+// A closed pen shape through points.
+function shape(points, options) {
+  const o = Object.assign({ color: INK, width: 3.4, wobble: 1.6, step: 36, fill: "none" }, options);
+  const loop = wobble([...points, points[0]], o.wobble, o.step);
+  loop.pop();
+  return add("path", { d: curve(loop, true), fill: o.fill, stroke: o.color, "stroke-width": o.width,
+    "stroke-linejoin": "round" }, o.parent);
+}
+
+function box(x, y, w, h, options) {
+  return shape([[x, y], [x + w, y], [x + w, y + h], [x, y + h]], options);
+}
+
+function oval(cx, cy, rx, ry, options) {
+  const o = Object.assign({ bumps: 0.04 }, options);
+  const points = [];
+  for (let i = 0; i < 20; i += 1) {
+    const a = (i / 20) * Math.PI * 2;
+    const r = 1 + jitter(o.bumps);
+    points.push([cx + Math.cos(a) * rx * r, cy + Math.sin(a) * ry * r]);
+  }
+  return shape(points, Object.assign({ wobble: 0.6, step: 400 }, o));
+}
+
+// Hand-written words.
+function words(text, x, y, options) {
+  const o = Object.assign({ color: INK, size: 40, turn: 0, anchor: "middle", weight: 600 }, options);
+  const element = add("text", { x, y, fill: o.color, "font-size": o.size, "text-anchor": o.anchor, "font-weight": o.weight,
+    transform: "rotate(" + o.turn + " " + x + " " + y + ")" }, o.parent);
+  element.textContent = text;
+  return element;
+}
+
+// A pen arrow along points, with a little V at the end.
+function arrow(points, options) {
+  const o = Object.assign({ color: ORANGE, width: 3.4, dash: null }, options);
+  line(points, o);
+  const [ax, ay] = points[points.length - 2];
+  const [bx, by] = points[points.length - 1];
+  const angle = Math.atan2(by - ay, bx - ax);
+  const head = 18;
+  for (const side of [-0.45, 0.45]) {
+    line([[bx, by], [bx - Math.cos(angle + side) * head, by - Math.sin(angle + side) * head]], { color: o.color, width: o.width, wobble: 0.4 });
+  }
+}
+
+// A group that can be turned around a point.
+function turned(degrees, x, y) {
+  return add("g", { transform: "rotate(" + degrees + " " + x + " " + y + ")" });
+}
+
+// ---------- The pieces the pictures are made of ----------
+
+// Xiaohei: a small solid-black creature with white dot eyes and thin legs. arms are the points its two
+// hands reach to; feet is where it stands.
+function xiaohei(x, feetY, options) {
+  const o = Object.assign({ size: 1, arms: [], tiptoe: false, glasses: false, lookX: 0 }, options);
+  const s = o.size;
+  const legLength = (o.tiptoe ? 52 : 38) * s;
+  const bodyBottom = feetY - legLength;
+  const cy = bodyBottom - 48 * s;
+  for (const arm of o.arms) {
+    const fromX = x + (arm[0] < x ? -34 : 34) * s;
+    line([[fromX, cy + 4 * s], [(fromX + arm[0]) / 2 + jitter(4), (cy + arm[1]) / 2 - 10 * s], arm], { width: 3 });
+    line([[arm[0] - 5, arm[1] - 3], [arm[0] + 5, arm[1] + 3]], { width: 2.6, wobble: 0.3 });
+  }
+  for (const side of [-1, 1]) {
+    const hipX = x + side * 15 * s;
+    if (o.tiptoe) {
+      line([[hipX, bodyBottom - 4], [hipX + side * 3, feetY - 6]], { width: 3 });
+      line([[hipX + side * 3, feetY - 6], [hipX + side * 8, feetY]], { width: 3, wobble: 0.3 });
+    } else {
+      line([[hipX, bodyBottom - 4], [hipX + side * 2, feetY]], { width: 3 });
+      line([[hipX + side * 2, feetY], [hipX + side * 13, feetY]], { width: 3, wobble: 0.3 });
+    }
+  }
+  const body = [];
+  for (let i = 0; i < 16; i += 1) {
+    const a = (i / 16) * Math.PI * 2;
+    const r = 1 + jitter(0.07);
+    body.push([x + Math.cos(a) * 40 * s * r, cy + Math.sin(a) * 50 * s * r]);
+  }
+  shape(body, { fill: INK, wobble: 0.5, step: 400 });
+  const eyeY = cy - 16 * s;
+  for (const eyeX of [x - 12 * s + o.lookX, x + 11 * s + o.lookX]) {
+    add("circle", { cx: eyeX, cy: eyeY + jitter(1.5), r: 5.2 * s, fill: "#fff" });
+  }
+  if (o.glasses) {
+    for (const eyeX of [x - 12 * s + o.lookX, x + 11 * s + o.lookX]) {
+      oval(eyeX, eyeY, 12 * s, 12 * s, { color: "#fff", width: 2.4 });
+    }
+    line([[x - 1 * s + o.lookX, eyeY], [x + 0 * s + o.lookX, eyeY]], { color: "#fff", width: 2.4, wobble: 0 });
+  }
+}
+
+// A clear glass jar. fill is how full of money it is, 0 to 1. lid: "on", "off" or "none".
+function jar(x, y, w, h, options) {
+  const o = Object.assign({ fill: 0.35, lid: "on", parent: null, notes: 3 }, options);
+  const g = o.parent;
+  const mouth = w * 0.76;
+  const left = x, right = x + w, top = y, bottom = y + h;
+  shape([[x + (w - mouth) / 2, top], [x + (w + mouth) / 2, top], [right - 4, top + h * 0.12], [right, top + h * 0.22],
+    [right, bottom - 18], [right - 14, bottom], [left + 14, bottom], [left, bottom - 18], [left, top + h * 0.22], [left + 4, top + h * 0.12]], { parent: g });
+  line([[right - 22, top + h * 0.3], [right - 22, top + h * 0.48]], { width: 2.4, parent: g });
+  line([[right - 22, top + h * 0.55], [right - 22, top + h * 0.6]], { width: 2.4, parent: g });
+  const level = bottom - (h - 20) * o.fill;
+  for (let i = 0; i < o.notes; i += 1) {
+    const noteY = bottom - 30 - i * ((bottom - level) / Math.max(1, o.notes));
+    note(left + w * 0.18 + (i % 2) * w * 0.14 + jitter(4), noteY - 4, w * 0.5, 24, { parent: g, turn: (i % 2 ? 12 : -10) + jitter(4) });
+  }
+  if (o.lid === "on") {
+    box(x + (w - mouth) / 2 - 8, top - 30, mouth + 16, 30, { parent: g });
+    for (let k = 1; k < 6; k += 1) {
+      const lx = x + (w - mouth) / 2 - 8 + ((mouth + 16) / 6) * k;
+      line([[lx, top - 24], [lx, top - 6]], { width: 2.2, wobble: 0.3, parent: g });
+    }
+  }
+}
+
+// A banknote: a small box with a circle in the middle.
+function note(x, y, w, h, options) {
+  const o = Object.assign({ parent: null, turn: 0, color: INK }, options);
+  const g = add("g", { transform: "rotate(" + o.turn + " " + (x + w / 2) + " " + (y + h / 2) + ")" }, o.parent);
+  box(x, y, w, h, { parent: g, width: 2.6, color: o.color, wobble: 0.8 });
+  oval(x + w / 2, y + h / 2, h * 0.28, h * 0.28, { parent: g, width: 2.2, color: o.color });
+}
+
+// A plain stick-figure hand and arm reaching in from the edge.
+function reachingHand(fromX, fromY, toX, toY, options) {
+  const o = Object.assign({ color: INK }, options);
+  line([[fromX, fromY], [(fromX + toX) / 2 + jitter(10), (fromY + toY) / 2 + jitter(10)], [toX, toY]], { width: 3.2, color: o.color });
+  const angle = Math.atan2(toY - fromY, toX - fromX);
+  for (const spread of [-0.6, -0.2, 0.2, 0.6]) {
+    line([[toX, toY], [toX + Math.cos(angle + spread) * 22, toY + Math.sin(angle + spread) * 22]], { width: 2.6, wobble: 0.4, color: o.color });
+  }
+}
+
+function ground(x1, x2, y) {
+  line([[x1, y], [x2, y]], { width: 2.4, wobble: 1.2, step: 60 });
+}
+
+// ---------- The five pictures ----------
+
+// 1. A pledge is a hold, not a charge: the money is in a closed jar, and the way to the till is shut.
+function holdNotCharge() {
+  ground(250, 1420, 700);
+  // a crate for Xiaohei to stand on, on tiptoe
+  box(318, 590, 150, 110);
+  line([[318, 645], [468, 645]], { width: 2.4 });
+  jar(500, 330, 230, 370, { fill: 0.32, notes: 3 });
+  words("up to $40", 615, 505, { size: 44, turn: -4 });
+  xiaohei(393, 590, { size: 1.1, tiptoe: true, arms: [[520, 300], [560, 288]], lookX: 4 });
+  words("held, not charged", 760, 268, { color: ORANGE, size: 44, anchor: "start", turn: -3 });
+  arrow([[752, 262], [712, 282], [690, 296]], { color: ORANGE, width: 3 });
+  // the orange path toward the till, stopped by a closed gate halfway
+  line([[735, 600], [800, 596], [870, 602]], { color: ORANGE, dash: "2 14", width: 4.2, wobble: 1 });
+  line([[895, 700], [895, 555]]);
+  line([[985, 700], [985, 555]]);
+  for (const gy of [585, 625, 665]) line([[895, gy], [985, gy]], { width: 3 });
+  line([[895, 665], [985, 585]], { width: 3 });
+  box(880, 488, 120, 50, { width: 2.6 });
+  line([[940, 538], [940, 555]], { width: 2.4 });
+  words("goal: $300", 940, 525, { color: BLUE, size: 34, turn: -2 });
+  // the till, shut and locked
+  shape([[1110, 500], [1370, 500], [1390, 700], [1090, 700]]);
+  box(1150, 430, 140, 70);
+  line([[1162, 466], [1276, 466]], { width: 2.2 });
+  for (let r = 0; r < 2; r += 1) for (let c = 0; c < 5; c += 1) oval(1150 + c * 42, 532 + r * 30, 9, 7, { width: 2.2 });
+  line([[1100, 610], [1380, 610]]);
+  line([[1240, 640], [1240, 652]], { width: 2.4 });
+  line([[1222, 652], [1222, 638], [1232, 626], [1248, 626], [1258, 638], [1258, 652]], { width: 3 });
+  box(1214, 650, 52, 40, { fill: INK });
+  words("nobody pays unless...", 1240, 770, { color: RED, size: 44, turn: -2 });
+}
+
+// 2. The goal is reached: one pull tips every jar a little at once, a thin share pours into one pot.
+function goalReached() {
+  ground(240, 1440, 800);
+  // the pot with the goal on it
+  shape([[560, 640], [960, 640], [930, 800], [590, 800]]);
+  oval(760, 640, 200, 22, { width: 3 });
+  words("goal $300", 760, 735, { size: 42 });
+  // the lever, on a hinge on the wall, and a string to the back of each jar
+  shape([[330, 190], [360, 200], [330, 232]], { width: 3 });
+  line([[360, 210], [1185, 225]], { width: 4.2 });
+  oval(360, 210, 9, 9, { fill: INK });
+  const jarXs = [430, 600, 770, 940];
+  const fills = [0.55, 0.35, 0.7, 0.45];
+  const potXs = [620, 715, 810, 895];
+  jarXs.forEach(function (jx, i) {
+    const g = turned(38, jx + 55, 395);
+    jar(jx, 320, 110, 150, { fill: fills[i], lid: "none", notes: 2, parent: g });
+    line([[jx + 58, 212 + i * 3.6], [jx + 58, 300]], { width: 2, wobble: 0.6 });
+    // a thin trickle from the jar's lip into the pot
+    line([[jx + 132, 362], [jx + 142, 430], [potXs[i], 628]], { color: ORANGE, width: 2.6, wobble: 1.2 });
+  });
+  words("only your share", 400, 600, { color: ORANGE, size: 40, turn: -5 });
+  arrow([[470, 612], [560, 620], [612, 600]], { color: ORANGE, width: 2.6 });
+  words("rest released", 300, 460, { color: BLUE, size: 38, turn: -4 });
+  arrow([[318, 478], [380, 500], [432, 470]], { color: BLUE, width: 2.6 });
+  // a stopwatch hanging from the lever
+  line([[1105, 224], [1105, 258]], { width: 2.2 });
+  oval(1105, 296, 34, 34);
+  line([[1105, 296], [1105, 274]], { width: 2.6, wobble: 0.3 });
+  line([[1105, 296], [1121, 304]], { width: 2.6, wobble: 0.3 });
+  box(1096, 254, 18, 8, { width: 2.2 });
+  words("last call", 1165, 392, { color: ORANGE, size: 42, turn: -4 });
+  // the ladder, and Xiaohei pulling the lever down
+  line([[1240, 800], [1262, 360]]);
+  line([[1320, 800], [1338, 360]]);
+  for (let r = 0; r < 7; r += 1) line([[1242 + r * 3, 770 - r * 62], [1322 + r * 2.6, 770 - r * 62]], { width: 2.6 });
+  xiaohei(1292, 384, { size: 1.05, arms: [[1188, 228], [1196, 240]], lookX: -6 });
+  words("charged once", 1000, 760, { color: RED, size: 44, anchor: "start", turn: -3 });
+}
+
+// 3. The goal is missed: every lid comes off and the money goes back, untouched.
+function goalMissed() {
+  ground(160, 1450, 700);
+  // the pot, its goal line high, the money low, a wilted flag
+  shape([[1070, 450], [1360, 450], [1340, 700], [1090, 700]]);
+  line([[1080, 500], [1350, 500]], { color: RED, dash: "10 10", width: 2.6 });
+  line([[1095, 650], [1335, 650]], { width: 2.4 });
+  note(1150, 660, 70, 28, { turn: -6 });
+  line([[1330, 450], [1340, 330]], { width: 3 });
+  shape([[1340, 332], [1378, 352], [1384, 392], [1352, 380]], { width: 2.6 });
+  words("goal missed", 1215, 420, { color: RED, size: 46, turn: -3 });
+  // three jars; the first lid is off, Xiaohei is taking the second off
+  jar(250, 470, 150, 230, { fill: 0.3, lid: "none", notes: 2 });
+  box(420, 672, 120, 26, { width: 2.8 });
+  jar(640, 470, 150, 230, { fill: 0.3, lid: "none", notes: 2 });
+  const lid = turned(-14, 715, 420);
+  box(645, 412, 140, 28, { parent: lid });
+  jar(900, 470, 150, 230, { fill: 0.3, notes: 2 });
+  xiaohei(560, 700, { size: 1, arms: [[650, 420], [474, 470]], lookX: -6 });
+  note(412, 448, 76, 34, { turn: -8 });
+  reachingHand(-10, 270, 410, 456);
+  words("hold cancelled", 760, 360, { color: ORANGE, size: 40, anchor: "start", turn: -4 });
+  arrow([[770, 372], [744, 392], [730, 405]], { color: ORANGE, width: 2.6 });
+  words("nobody pays", 560, 790, { color: BLUE, size: 46, turn: -2 });
+}
+
+// 4. The AI reads, you confirm, plain code does the money: three jobs, in that order.
+function aiReadsYouConfirm() {
+  ground(180, 1460, 740);
+  // the chat message, floating on a string like a balloon
+  shape([[180, 260], [520, 250], [530, 370], [300, 378], [255, 418], [262, 375], [186, 372]]);
+  words("down if Jay goes, max 40", 355, 325, { size: 36 });
+  line([[262, 418], [250, 560], [270, 740]], { width: 2 });
+  // Xiaohei, in reading glasses, with a magnifying glass, writing the suggestion on a card
+  oval(590, 360, 46, 46, { width: 3.4 });
+  line([[618, 394], [650, 440]], { width: 5, wobble: 0.4 });
+  xiaohei(700, 740, { size: 1.15, glasses: true, arms: [[648, 438], [790, 560]], lookX: -6 });
+  words("AI reads", 640, 250, { color: ORANGE, size: 46, turn: -4 });
+  const card = turned(-4, 900, 560);
+  box(790, 500, 230, 120, { parent: card });
+  words("max $40,", 905, 548, { size: 32, parent: card });
+  words("only if Jay's in", 905, 588, { size: 32, parent: card });
+  box(990, 506, 24, 24, { parent: card, width: 2.4 });
+  line([[994, 518], [1001, 526], [1016, 498]], { color: BLUE, width: 3.4, parent: card, wobble: 0.3 });
+  line([[786, 562], [794, 548]], { width: 2.6, wobble: 0.2 });
+  // a person's hand reaches down and ticks the box
+  reachingHand(1110, -10, 1018, 500, { color: INK });
+  words("you confirm", 1140, 330, { color: BLUE, size: 44, anchor: "start", turn: -3 });
+  // the plain calculator: only the ticked card goes through its slot
+  box(1240, 470, 200, 270);
+  box(1262, 492, 156, 56, { width: 2.6 });
+  for (let r = 0; r < 3; r += 1) for (let c = 0; c < 4; c += 1) box(1262 + c * 40, 570 + r * 44, 30, 30, { width: 2.2 });
+  line([[1290, 470], [1390, 470]], { width: 6, wobble: 0.3 });
+  const passed = turned(0, 1340, 440);
+  box(1296, 405, 88, 62, { parent: passed, width: 2.6 });
+  line([[1360, 420], [1366, 428], [1378, 410]], { color: BLUE, width: 3, parent: passed, wobble: 0.3 });
+  arrow([[505, 382], [528, 398], [552, 398]], { color: ORANGE, width: 3 });
+  arrow([[1036, 600], [1140, 640], [1215, 560], [1286, 452]], { color: ORANGE, width: 3.4, dash: "3 12" });
+  words("code does the money", 1340, 800, { color: RED, size: 44, turn: -2 });
+}
+
+// 5. Save before you send: write the ticket number down first, then send that same ticket.
+function saveBeforeYouSend() {
+  ground(200, 1470, 760);
+  // the desk and the open notebook
+  line([[300, 600], [760, 600]], { width: 4 });
+  line([[330, 600], [330, 760]]);
+  line([[730, 600], [730, 760]]);
+  shape([[380, 596], [470, 560], [560, 596], [470, 584]], { width: 2.8 });
+  for (const ly of [0, 1, 2]) {
+    line([[398 + ly * 4, 588 - ly * 7], [452 + ly * 2, 570 - ly * 2]], { width: 1.8, wobble: 0.3 });
+    line([[488, 574 + ly * 3], [536 - ly * 4, 588 - ly * 2]], { width: 1.8, wobble: 0.3 });
+  }
+  words("#A7", 505, 548, { size: 30, turn: -6 });
+  words("1. write it down", 450, 470, { color: ORANGE, size: 44, turn: -3 });
+  xiaohei(640, 600, { size: 1.05, arms: [[520, 572], [905, 580]], lookX: 8 });
+  // the teller's window with a hand-written sign, and a slot at the bottom
+  line([[880, 760], [880, 250], [1420, 250], [1420, 760]]);
+  box(960, 360, 300, 200);
+  line([[1110, 360], [1110, 560]], { width: 2.4 });
+  box(1020, 282, 180, 54, { width: 2.8 });
+  words("PayPal", 1110, 322, { size: 40 });
+  line([[880, 590], [1000, 590]], { width: 4, wobble: 0.3 });
+  // the first ticket goes through; the same ticket follows it
+  const first = turned(-3, 940, 580);
+  box(900, 560, 92, 42, { parent: first, width: 2.6 });
+  words("#A7", 946, 590, { size: 28, parent: first });
+  const second = turned(8, 800, 470);
+  box(756, 448, 92, 42, { parent: second, width: 2.6 });
+  words("#A7", 802, 478, { size: 28, parent: second });
+  line([[728, 462], [700, 458]], { width: 2.2 });
+  line([[730, 480], [708, 482]], { width: 2.2 });
+  // behind the window, a hand holds up a stamp
+  reachingHand(1330, 760, 1196, 470);
+  box(1160, 390, 50, 60, { width: 3 });
+  box(1140, 446, 90, 24, { fill: INK });
+  const stamp = turned(-8, 1300, 420);
+  box(1236, 395, 130, 46, { color: RED, width: 2.8, parent: stamp });
+  words("same ticket", 1301, 427, { color: RED, size: 30, parent: stamp });
+  words("2. then send", 940, 660, { color: ORANGE, size: 44, turn: -3 });
+  words("same ticket = no double charge", 1150, 830, { color: RED, size: 44, turn: -2 });
+}
+
+const pictures = { 1: holdNotCharge, 2: goalReached, 3: goalMissed, 4: aiReadsYouConfirm, 5: saveBeforeYouSend };
+
+function draw() {
+  const number = Number(location.hash.slice(1)) || 1;
+  art.replaceChildren();
+  random = seeded(number * 101);
+  pictures[number]();
+}
+
+window.addEventListener("hashchange", draw);
+document.fonts.ready.then(draw);
+</script>
+</body>
+</html>
